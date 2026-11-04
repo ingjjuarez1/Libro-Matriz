@@ -58,7 +58,8 @@ def _siguiente_numero_certificado() -> str:
     global _CORRELATIVO_ACTUAL
     _CORRELATIVO_ACTUAL += 1
     anio = datetime.datetime.now().year
-    return f"38-{_CORRELATIVO_ACTUAL:08d}-{anio}"
+    # Formato oficial: AÑO-CORRELATIVO-38  (ej: 2026-00000086-38)
+    return f"{anio}-{_CORRELATIVO_ACTUAL:08d}-38"
 
 def listar_solicitudes(sesion_usr: Dict[str, Any], estado_filtro: Optional[str] = None, id_curso: Optional[str] = None) -> List[Dict[str, Any]]:
     """

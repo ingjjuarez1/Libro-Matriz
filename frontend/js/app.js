@@ -543,61 +543,98 @@ function armarAnalitico(r) {
     return armarAnaliticoCeldas(r);
   }
 
+  // ── Número de certificado en formato oficial: 2026-00000086-38 ──
+  var certNroFormateado = d.certNro || '__________________';
+
+  // ── Marca de agua BORRADOR ──
   var watermark = d.esBorrador
     ? '<div class="marca-agua-borrador-oficial">BORRADOR<br>NO VÁLIDO</div>'
     : '';
 
+  // ── Escudo de fondo semitransparente ──
+  var escudoFondo = '<img src="/img/escudo_nacional.png" class="hoja-fondo-escudo" alt="" aria-hidden="true">';
+
+  // ── Filas del trayecto curricular ──
   var filasModulos = (d.trayecto || []).map(function (m) {
     return '<tr>' +
-      '<td style="text-align:center">' + esc(m.nro) + '</td>' +
-      '<td>' + esc(m.modulo) + '</td>' +
-      '<td style="text-align:center">' + esc(m.tipo) + '</td>' +
-      '<td style="text-align:center">' + esc(m.periodo) + '</td>' +
-      '<td style="text-align:center">' + esc(m.hsReloj) + '</td>' +
-      '<td style="text-align:center">' + esc(m.hsCat) + '</td>' +
-      '<td style="text-align:center;font-weight:bold">' + esc(m.nota || '') + '</td>' +
-      '<td style="text-align:center">' + esc(m.enLetras || '') + '</td>' +
-      '<td style="text-align:center">' + esc(m.condicion) + '</td>' +
+      '<td style="text-align:center">'                   + esc(m.nro)           + '</td>' +
+      '<td>'                                              + esc(m.modulo)        + '</td>' +
+      '<td style="text-align:center">'                   + esc(m.tipo)          + '</td>' +
+      '<td style="text-align:center">'                   + esc(m.periodo)       + '</td>' +
+      '<td style="text-align:center">'                   + esc(m.hsReloj)       + '</td>' +
+      '<td style="text-align:center">'                   + esc(m.hsCat)         + '</td>' +
+      '<td style="text-align:center;font-weight:bold">'  + esc(m.nota || '')    + '</td>' +
+      '<td style="text-align:center">'                   + esc(m.enLetras || '')+ '</td>' +
+      '<td style="text-align:center">'                   + esc(m.condicion)     + '</td>' +
     '</tr>';
   }).join('');
 
+  // ── QR placeholder (se reemplaza con QR real cuando haya cert aprobado) ──
+  var qrHtml = d.esBorrador
+    ? '<div class="hoja-qr-placeholder">QR<br>PENDIENTE</div>'
+    : '<div class="hoja-qr-placeholder" style="border-color:#000;font-weight:bold">QR<br>' + esc(certNroFormateado) + '</div>';
+
+  // ── Layout completo ──
   return '<div class="hoja-oficial">' +
+    escudoFondo +
     watermark +
-    '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:bold;margin-bottom:6px">' +
-      '<div>Libro Nº ' + esc(d.libro) + ' Folio Nº ' + esc(d.folio) + '</div>' +
-      '<div>CERT. Nº ' + esc(d.certNro || '_____') + '</div>' +
+
+    // ── Fila superior: QR | Escudo+República | Nro Cert ──
+    '<div class="hoja-cabecera">' +
+      '<div class="hoja-qr">' + qrHtml + '</div>' +
+
+      '<div class="hoja-escudo-bloque">' +
+        '<img src="/img/escudo_nacional.png" alt="Escudo Nacional" style="height:68px;display:block;margin:0 auto 4px">' +
+        '<p class="hoja-republica">República Argentina</p>' +
+        '<p class="hoja-ley-nac">LEY DE EDUCACIÓN NACIONAL N° 26.206</p>' +
+        '<p class="hoja-provincia">PROVINCIA DE JUJUY</p>' +
+      '</div>' +
+
+      '<div class="hoja-cert-nro">' + esc(certNroFormateado) + '</div>' +
     '</div>' +
-    '<div style="text-align:center;margin-bottom:12px">' +
-      '<img src="/img/escudo.png" alt="Escudo de Jujuy" style="height:55px;display:block;margin:0 auto 4px">' +
-      '<div style="font-size:12px">República Argentina</div>' +
-      '<div style="font-size:13px;font-weight:bold;letter-spacing:0.5px;margin:2px 0">LEY DE EDUCACIÓN NACIONAL Nº 26.206</div>' +
-      '<div style="font-size:13px;font-weight:bold;letter-spacing:0.5px">PROVINCIA DE JUJUY</div>' +
-      '<div style="font-size:11px">LEY PROVINCIAL Nº 5807</div>' +
-      '<div style="font-size:12px;font-weight:bold;margin:2px 0">MINISTERIO DE EDUCACIÓN</div>' +
-      '<div style="font-size:11px">SECRETARÍA GESTIÓN EDUCATIVA</div>' +
+
+    // ── Bloque secundario: Ley Provincial / Ministerio / Título doc ──
+    '<div class="hoja-subtitulos">' +
+      '<p>LEY PROVINCIAL N°5807</p>' +
+      '<p>MINISTERIO DE EDUCACIÓN</p>' +
+      '<p>SECRETARÍA DE GESTIÓN EDUCATIVA</p>' +
     '</div>' +
-    '<p style="text-align:justify;line-height:1.45;font-size:12px;margin:16px 0 12px">' +
-      'La autoridad del establecimiento educativo, <b>' + esc(d.establecimiento) + '</b> CUE <b>' + esc(d.cue) + '</b>, ubicado en <b>' + esc(d.domicilio) + '</b>, de <b>' + esc(d.localidad) + '</b>, provincia de JUJUY, certifica que <b>' + esc(d.estudianteNombre) + '</b>, con lugar de nacimiento en ' + esc(d.lugarNac) + ', el ' + esc(d.fechaNac) + ', Tipo de Documento ' + esc(d.tipoDoc) + ' Nº <b>' + esc(d.dniFormateado) + '</b>, aprobó los espacios curriculares que con sus respectivas calificaciones a continuación se expresan:' +
+    '<div class="hoja-titulo-doc">Analítico Parcial</div>' +
+
+    // ── Párrafo de certifica ──
+    '<p class="hoja-parrafo">' +
+      'La autoridad del establecimiento educativo, ' +
+      '<b>' + esc(d.establecimiento) + '</b> CUE ' +
+      esc(d.cue) + ', ubicado en ' +
+      '<b>' + esc(d.domicilio) + '</b>' +
+      ', de <b>' + esc(d.localidad) + '</b>, provincia de JUJUY, certifica que ' +
+      '<b>' + esc(d.estudianteNombre) + '</b>' +
+      ', con lugar de nacimiento en ' + esc(d.lugarNac) +
+      ', el ' + esc(d.fechaNac) +
+      ', Tipo de Documento ' + esc(d.tipoDoc) + ' N° <b>' + esc(d.dniFormateado) + '</b>' +
+      ', aprobó los espacios curriculares que con sus respectivas calificaciones a continuación se expresan:' +
     '</p>' +
-    '<div style="text-align:center;font-weight:bold;font-size:13px;letter-spacing:1px;margin:14px 0 6px">TRAYECTO CURRICULAR</div>' +
+
+    // ── Tabla trayecto curricular ──
+    '<div class="hoja-seccion">TRAYECTO CURRICULAR</div>' +
     '<table class="tabla-trayecto">' +
       '<thead><tr>' +
         '<th style="width:28px">N°</th>' +
         '<th>Módulo</th>' +
-        '<th style="width:75px">Tipo</th>' +
-        '<th style="width:110px">Período</th>' +
-        '<th style="width:55px">Hs reloj</th>' +
-        '<th style="width:55px">Hs cát.</th>' +
-        '<th style="width:40px">Nota</th>' +
-        '<th style="width:75px">En letras</th>' +
+        '<th style="width:70px">Tipo</th>' +
+        '<th style="width:120px">Período</th>' +
+        '<th style="width:52px">Hs reloj</th>' +
+        '<th style="width:52px">Hs cát.</th>' +
+        '<th style="width:38px">Nota</th>' +
+        '<th style="width:72px">En letras</th>' +
         '<th style="width:80px">Condición</th>' +
       '</tr></thead>' +
       '<tbody>' +
         filasModulos +
         '<tr style="font-weight:bold">' +
           '<td colspan="4" style="text-align:left;font-weight:bold">Carga horaria total</td>' +
-          '<td style="text-align:center">' + d.cargaHorariaTotal.reloj + '</td>' +
-          '<td style="text-align:center">' + d.cargaHorariaTotal.cat + '</td>' +
+          '<td style="text-align:center">' + esc(d.cargaHorariaTotal.reloj) + '</td>' +
+          '<td style="text-align:center">' + esc(d.cargaHorariaTotal.cat)  + '</td>' +
           '<td colspan="3"></td>' +
         '</tr>' +
       '</tbody>' +

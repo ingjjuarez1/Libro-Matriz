@@ -401,54 +401,185 @@ td.nota input.baja {
   margin: 16px 0;
 }
 
+/* ============================================================
+   DOCUMENTO OFICIAL - ANALÍTICO / CERTIFICADO
+   Formato: República Argentina · Jujuy (Res. DETP 2026)
+   ============================================================ */
+
 .hoja-oficial {
   background: #ffffff;
-  max-width: 880px;
+  max-width: 820px;
   margin: 18px auto;
-  padding: 38px 46px;
+  padding: 36px 52px 48px;
   border: 1px solid #c2c9d2;
   box-shadow: 0 4px 18px rgba(0,0,0,0.09);
   font-family: "Times New Roman", Times, Georgia, serif;
-  color: #111111;
+  color: #000000;
   position: relative;
   box-sizing: border-box;
 }
 
-.marca-agua-borrador-oficial {
-  position: absolute;
-  top: 60%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(-28deg);
-  font-size: 58px;
-  font-weight: 900;
-  line-height: 1.15;
-  color: rgba(197, 57, 41, 0.24);
-  text-transform: uppercase;
-  letter-spacing: 7px;
-  pointer-events: none;
-  white-space: nowrap;
-  text-align: center;
-  z-index: 10;
-  user-select: none;
+/* Cabecera superior: QR | Escudo | Nro Certificado */
+.hoja-cabecera {
+  display: grid;
+  grid-template-columns: 90px 1fr 160px;
+  align-items: flex-start;
+  margin-bottom: 10px;
 }
 
+.hoja-qr img {
+  width: 80px;
+  height: 80px;
+  border: 1px solid #ccc;
+}
+
+.hoja-qr-placeholder {
+  width: 80px;
+  height: 80px;
+  border: 2px solid #aaa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #888;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.hoja-escudo-bloque {
+  text-align: center;
+  line-height: 1.25;
+}
+
+.hoja-escudo-bloque img {
+  height: 65px;
+  display: block;
+  margin: 0 auto 4px;
+}
+
+.hoja-republica {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin: 0 0 2px;
+  font-family: "Times New Roman", serif;
+}
+
+.hoja-ley-nac {
+  font-size: 11px;
+  font-weight: bold;
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
+.hoja-provincia {
+  font-size: 11px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.hoja-cert-nro {
+  text-align: right;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  padding-top: 4px;
+  color: #000;
+}
+
+/* Bloque central: Ley Provincial / Ministerio / Título */
+.hoja-subtitulos {
+  text-align: center;
+  margin: 10px 0 8px;
+  line-height: 1.5;
+}
+
+.hoja-subtitulos p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.hoja-titulo-doc {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin: 10px 0 14px;
+  font-family: "Times New Roman", serif;
+}
+
+/* Párrafo de certifica */
+.hoja-parrafo {
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: justify;
+  margin: 0 0 14px;
+}
+
+/* Separador sección trayecto */
+.hoja-seccion {
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+  letter-spacing: 1px;
+  margin: 14px 0 6px;
+}
+
+/* Tabla trayecto curricular */
 .tabla-trayecto {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
-  margin-top: 6px;
+  font-size: 11px;
+  margin-top: 4px;
   font-family: inherit;
 }
 
 .tabla-trayecto th, .tabla-trayecto td {
   border: 1px solid #333333;
-  padding: 5px 6px;
+  padding: 4px 6px;
 }
 
 .tabla-trayecto th {
-  background: #f7f9fa;
+  background: #ffffff;
   font-weight: bold;
   text-align: center;
+  font-size: 10.5px;
+}
+
+/* Escudo de fondo / watermark institucional */
+.hoja-fondo-escudo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -40%);
+  opacity: 0.045;
+  width: 320px;
+  pointer-events: none;
+  z-index: 0;
+  user-select: none;
+}
+
+/* Marca de agua BORRADOR */
+.marca-agua-borrador-oficial {
+  position: absolute;
+  top: 58%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-28deg);
+  font-size: 60px;
+  font-weight: 900;
+  line-height: 1.1;
+  color: rgba(197, 57, 41, 0.22);
+  text-transform: uppercase;
+  letter-spacing: 8px;
+  pointer-events: none;
+  white-space: nowrap;
+  text-align: center;
+  z-index: 10;
+  user-select: none;
 }
 
 .banner-aviso-analitico {
