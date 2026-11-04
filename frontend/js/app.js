@@ -352,6 +352,17 @@ async function pintarActa() {
     var ed = a.puedeCargar;
     var enc = estado.datos.encabezado || {};
 
+    // Conversión de nota numérica a letras mayúsculas para el Acta
+    var mapaNotaLetras = {
+      '1': 'UNO', '2': 'DOS', '3': 'TRES', '4': 'CUATRO', '5': 'CINCO',
+      '6': 'SEIS', '7': 'SIETE', '8': 'OCHO', '9': 'NUEVE', '10': 'DIEZ',
+      'AUS': 'AUSENTE', 'AUSENTE': 'AUSENTE'
+    };
+    function notaALetras(val) {
+      var v = String(val == null ? '' : val).trim().toUpperCase();
+      return mapaNotaLetras[v] || '';
+    }
+
     // Contadores Aprobados / Desaprobados / Ausentes
     var nApr = 0, nDes = 0, nAus = 0;
     var filas = a.estudiantes.map(function (es) {
@@ -366,14 +377,21 @@ async function pintarActa() {
       if (es.definitiva === 'AUS' || es.definitiva === 'AUSENTE') { condStr = 'Ausente'; nAus++; }
       else if (!isNaN(def)) { if (def >= 7) { condStr = 'Aprobado'; nApr++; } else { condStr = 'Desaprobado'; nDes++; } }
 
+      var teoLetras = es.teoricoLetras || notaALetras(es.teorico);
+      var pracLetras = es.practicoLetras || notaALetras(es.practico);
+      var defLetras = es.definitivaLetras || notaALetras(es.definitiva);
+
       return '<tr>' +
         '<td style="text-align:center">' + esc(es.orden) + '</td>' +
         '<td style="text-align:center">' + esc(es.permiso || '') + '</td>' +
         '<td style="text-align:center">' + esc(es.documento) + '</td>' +
         '<td>' + esc(es.nombre) + '</td>' +
-        campo('teorico', es.teorico) + campo('practico', es.practico) +
+        campo('teorico', es.teorico) +
+        '<td style="text-align:center">' + esc(teoLetras) + '</td>' +
+        campo('practico', es.practico) +
+        '<td style="text-align:center">' + esc(pracLetras) + '</td>' +
         '<td style="text-align:center;font-weight:bold">' + esc(es.definitiva) + '</td>' +
-        '<td>' + esc(es.definitivaLetras) + '</td>' +
+        '<td style="text-align:center">' + esc(defLetras) + '</td>' +
       '</tr>';
     }).join('');
 
