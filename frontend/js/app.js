@@ -80,9 +80,17 @@ window.addEventListener('load', async function () {
 async function cargarUsuariosPrueba() {
   try {
     var res = await llamar('/api/usuarios');
+    var listaU = res.usuarios || [];
+    var existe = listaU.some(function (u) {
+      return u.Email.toLowerCase() === (estado.emailActual || '').toLowerCase();
+    });
+    if (!existe && listaU.length > 0) {
+      estado.emailActual = listaU[0].Email;
+      localStorage.setItem('lm_email', estado.emailActual);
+    }
     var select = $('selectorUsuario');
     select.innerHTML = '<option value="">-- Cambiar Usuario / Rol (Pruebas) --</option>';
-    (res.usuarios || []).forEach(function (u) {
+    listaU.forEach(function (u) {
       var opt = document.createElement('option');
       opt.value = u.Email;
       opt.textContent = (u.Nombre || u.Email) + ' [' + u.Rol + ']';
@@ -723,7 +731,6 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
       '</tbody>' +
     '</table>' +
   '</div>';
-}
 }
 
 function armarAnaliticoCeldas(r) {
