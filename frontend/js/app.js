@@ -210,9 +210,10 @@ function pintarCurso() {
       '<dt>Diseño curricular</dt><dd>' + esc(e.disenio) + '</dd>' +
     '</dl>' +
     '<div class="pestanias" role="tablist">' +
-      '<button role="tab" data-p="notas">Notas por módulo</button>' +
-      '<button role="tab" data-p="acta">Acta de examen</button>' +
+      '<button role="tab" data-p="notas">Registro Anual de Calificaciones</button>' +
+      '<button role="tab" data-p="acta">Acta de Examen</button>' +
       '<button role="tab" data-p="analitico">Analítico</button>' +
+      '<button role="tab" data-p="certificado">Certificado</button>' +
       '<button role="tab" data-p="solicitudes">Circuito de Certificados</button>' +
     '</div><div class="panel" id="panel"></div>';
 
@@ -231,11 +232,22 @@ function pintarPestania() {
   });
   if (estado.pestania === 'notas') pintarNotas();
   else if (estado.pestania === 'acta') pintarActa();
-  else if (estado.pestania === 'analitico') pintarAnalitico();
+  else if (estado.pestania === 'analitico') pintarAnalitico(false);
+  else if (estado.pestania === 'certificado') pintarAnalitico(true);
   else if (estado.pestania === 'solicitudes') pintarSolicitudesCurso();
 }
 
-// ---------- PESTAÑA: NOTAS POR MÓDULO (CON CONGELAMIENTO) ----------
+// ---------- PESTAÑA: REGISTRO ANUAL DE CALIFICACIONES (CON CONGELAMIENTO) ----------
+// Regla: nota >= 7 → Aprobado | nota < 7 → Desaprobado | AUS → Ausente
+function notaCondicion(val) {
+  if (!val || val === '') return '';
+  var v = String(val).trim().toUpperCase();
+  if (v === 'AUS' || v === 'AUSENTE') return 'Ausente';
+  var n = parseFloat(v);
+  if (isNaN(n)) return '';
+  return n >= 7 ? 'Aprobado' : 'Desaprobado';
+}
+
 function pintarNotas() {
   var d = estado.datos, editable = d.puedeCargar;
   if (!d.estudiantes.length) {
@@ -253,8 +265,12 @@ function pintarNotas() {
     var bloqueado = !editable || es.notasCongeladas;
 
     var celdas = es.notas.map(function (n, i) {
+      // Colorear según condición
+      var cond = notaCondicion(n);
+      var color = cond === 'Aprobado' ? '#137333' : cond === 'Desaprobado' ? '#b3261e' : '';
+      var estilo = color ? 'style="text-align:center;color:' + color + ';font-weight:bold"' : 'style="text-align:center"';
       if (bloqueado) {
-        return '<td class="nota" style="text-align:center"><input value="' + esc(n) + '" disabled ' +
+        return '<td class="nota" ' + estilo + '><input value="' + esc(n) + '" disabled ' +
                'title="' + (es.notasCongeladas ? '🔒 Calificaciones congeladas por certificado oficial aprobado' : '') + '"></td>';
       }
       return '<td class="nota"><input value="' + esc(n) + '" maxlength="3" ' +
@@ -262,27 +278,31 @@ function pintarNotas() {
     }).join('');
 
     var candado = es.notasCongeladas ? ' <span title="Certificado Aprobado - Notas Congeladas">🔒</span>' : '';
+    // Nota final y situación calculadas en el cliente
+    var notaFinal = es.notaFinal || '';
+    var situacion = es.situacion || '';
 
     return '<tr><td style="text-align:center">' + esc(es.orden) + '</td>' +
       '<td>' + esc(es.apellido) + ', ' + esc(es.nombres) + candado + '</td>' +
       '<td style="text-align:center">' + esc(es.documento) + '</td>' +
       celdas +
-      '<td style="text-align:center">' + esc(es.notaFinal) + '</td>' +
-      '<td style="font-size:12px">' + esc(es.situacion) + '</td></tr>';
+      '<td style="text-align:center;font-weight:bold">' + esc(notaFinal) + '</td>' +
+    '</tr>';
   }).join('');
 
   $('panel').innerHTML =
+    '<h2 style="font-size:16px;margin:0 0 10px">Registro Anual de Calificaciones</h2>' +
     (hayCongelados
-      ? '<div class="alerta-congelado">🔒 <b>Atención:</b> Los estudiantes con certificado oficial aprobado tienen sus calificaciones <b>congeladas e inmutables</b> para garantizar la fidelidad del documento emitido.</div>'
+      ? '<div class="alerta-congelado">🔒 <b>Atención:</b> Los estudiantes con certificado oficial aprobado tienen sus calificaciones <b>congeladas e inmutables</b>.</div>'
       : '') +
     (editable
       ? '<div class="acciones"><button class="boton" id="guardar" disabled>Guardar cambios</button>' +
-        '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente.</span></div>'
+        '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente. ≥7 Aprobado · <7 Desaprobado</span></div>'
       : '<div class="acciones"><span style="color:var(--suave);font-size:12px">' +
         'Tu rol es de consulta: puedes visualizar, no modificar.</span></div>') +
     '<div class="tabla-ancha"><table><thead><tr>' +
       '<th style="width:36px">N°</th><th>Apellido y nombres</th><th style="width:92px">Documento</th>' +
-      th + '<th class="mod">Nota final</th><th style="width:150px">Situación</th>' +
+      th + '<th class="mod">Nota final</th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table></div>';
 
   if (!editable) return;
@@ -320,31 +340,100 @@ async function pintarActa() {
     var r = await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/acta');
     var a = r.acta;
     var ed = a.puedeCargar;
+    var enc = estado.datos.encabezado || {};
 
+    // Contadores Aprobados / Desaprobados / Ausentes
+    var nApr = 0, nDes = 0, nAus = 0;
     var filas = a.estudiantes.map(function (es) {
       var campo = function (c, v) {
         return ed ? '<td class="nota"><input value="' + esc(v) + '" maxlength="3" ' +
                     'data-fila="' + es.filaActa + '" data-campo="' + c + '"></td>'
                   : '<td style="text-align:center">' + esc(v) + '</td>';
       };
-      return '<tr><td style="text-align:center">' + esc(es.orden) + '</td>' +
-        '<td style="text-align:center">' + esc(es.documento) + '</td><td>' + esc(es.nombre) + '</td>' +
+      // Calcular condición en cliente
+      var def = parseFloat(es.definitiva);
+      var condStr = '';
+      if (es.definitiva === 'AUS' || es.definitiva === 'AUSENTE') { condStr = 'Ausente'; nAus++; }
+      else if (!isNaN(def)) { if (def >= 7) { condStr = 'Aprobado'; nApr++; } else { condStr = 'Desaprobado'; nDes++; } }
+
+      return '<tr>' +
+        '<td style="text-align:center">' + esc(es.orden) + '</td>' +
+        '<td style="text-align:center">' + esc(es.permiso || '') + '</td>' +
+        '<td style="text-align:center">' + esc(es.documento) + '</td>' +
+        '<td>' + esc(es.nombre) + '</td>' +
         campo('teorico', es.teorico) + campo('practico', es.practico) +
-        '<td style="text-align:center"><b>' + esc(es.definitiva) + '</b></td>' +
-        '<td>' + esc(es.definitivaLetras) + '</td></tr>';
+        '<td style="text-align:center;font-weight:bold">' + esc(es.definitiva) + '</td>' +
+        '<td>' + esc(es.definitivaLetras) + '</td>' +
+      '</tr>';
     }).join('');
 
+    var totalEst = a.estudiantes.length;
+    // Texto en letras del total
+    var letrasMap = {0:'cero',1:'uno',2:'dos',3:'tres',4:'cuatro',5:'cinco',6:'seis',7:'siete',8:'ocho',9:'nueve',10:'diez',
+      11:'once',12:'doce',13:'trece',14:'catorce',15:'quince',16:'dieciséis',17:'diecisiete',18:'dieciocho',19:'diecinueve',20:'veinte'};
+    function enLetras(n) { return letrasMap[n] || String(n); }
+
+    var libroNro = enc.libro || '____';
+    var folioNro = enc.folio || '____';
+
     $('panel').innerHTML =
-      '<dl class="ficha"><dt>Fecha</dt><dd>' + esc(a.mesa.fecha || '—') + '</dd>' +
-      '<dt>Mesa</dt><dd>' + esc([a.mesa.presidente, a.mesa.vocal1, a.mesa.vocal2]
-        .filter(Boolean).join(' · ') || '—') + '</dd></dl>' +
+      // ── Encabezado con Libro y Folio ──
+      '<div class="acta-encabezado">' +
+        '<div class="acta-libro-folio">' +
+          '<span>Libro de Actas N°: <b>' + esc(libroNro) + '</b></span>' +
+          '<span style="margin-left:32px">Folio N°: <b>' + esc(folioNro) + '</b></span>' +
+        '</div>' +
+        '<h2 class="acta-titulo">ACTA DE EXAMEN DE ALUMNOS REGULARES</h2>' +
+        '<table class="acta-ficha">' +
+          '<tr><td><b>Establecimiento:</b></td><td>' + esc(enc.establecimiento || '—') + ' · CUE ' + esc(enc.cue || '') + '</td></tr>' +
+          '<tr><td><b>De:</b></td><td>' + esc(enc.oferta || '—') + '</td></tr>' +
+          '<tr><td><b>Correspondiente al:</b></td><td>' + esc(enc.turno || '') + ' · ' + esc(enc.division || '') + ' · Ciclo lectivo: ' + esc(enc.ciclo || '') + '</td></tr>' +
+          '<tr><td><b>Fecha del examen:</b></td><td>' + esc(a.mesa.fecha || '—') + '</td></tr>' +
+        '</table>' +
+        '<p class="acta-texto-intro">A los ' + esc(a.mesa.fecha || '___') + ', reunida la comisión examinadora del Trayecto Formativo con asistencia de sus tres miembros señores:</p>' +
+        '<table class="acta-ficha">' +
+          '<tr><td><b>Presidente/a:</b></td><td>' + esc(a.mesa.presidente || '—') + '</td><td><b>Vocal 1°:</b></td><td>' + esc(a.mesa.vocal1 || '—') + '</td></tr>' +
+          '<tr><td><b>Vocal 2°:</b></td><td>' + esc(a.mesa.vocal2 || '—') + '</td><td></td><td></td></tr>' +
+        '</table>' +
+        '<p class="acta-texto-intro">procedió a cumplir su cometido con el resultado que se consigna a continuación:</p>' +
+        '<p style="font-size:11px;font-style:italic;margin:4px 0 10px">NOTA: Será considerada como fraudulenta toda enmienda o raspadura que no haya sido salvada expresamente con la firma de todos los miembros de la mesa. El número de alumnos examinados se anotará con letras y números.</p>' +
+      '</div>' +
+
+      // ── Acciones guardar ──
       (ed ? '<div class="acciones"><button class="boton" id="guardarActa" disabled>Guardar cambios</button>' +
-            '<span style="color:var(--suave);font-size:12px">La nota definitiva y en letras se calculan automáticamente.</span></div>' : '') +
-      '<div class="tabla-ancha"><table><thead><tr><th style="width:36px">N°</th>' +
-      '<th style="width:92px">Documento</th><th>Apellido y nombre</th>' +
-      '<th style="width:70px">Teórico</th><th style="width:70px">Práctico</th>' +
-      '<th style="width:70px">Definitiva</th><th style="width:110px">En letras</th>' +
-      '</tr></thead><tbody>' + (filas || '') + '</tbody></table></div>';
+            '<span style="color:var(--suave);font-size:12px">La nota definitiva y en letras se calculan automáticamente. ≥7 Aprobado · <7 Desaprobado</span></div>' : '') +
+
+      // ── Tabla de alumnos ──
+      '<div class="tabla-ancha"><table><thead><tr>' +
+        '<th style="width:36px">N° de orden</th>' +
+        '<th style="width:70px">Permiso de examen N°</th>' +
+        '<th style="width:92px">N° doc. de identidad</th>' +
+        '<th>Apellido y nombre</th>' +
+        '<th style="width:60px">Teórico N°</th><th style="width:70px">Teórico Letras</th>' +
+        '<th style="width:60px">Práctico N°</th><th style="width:70px">Práctico Letras</th>' +
+        '<th style="width:60px">Definitiva N°</th><th style="width:90px">Definitiva Letras</th>' +
+      '</tr></thead><tbody>' + (filas || '') + '</tbody></table></div>' +
+
+      // ── Resumen ──
+      '<div class="acta-resumen">' +
+        '<table class="acta-resumen-tabla">' +
+          '<tr><td>Aprobados</td><td><b>' + nApr + '</b></td></tr>' +
+          '<tr><td>Desaprobados</td><td><b>' + nDes + '</b></td></tr>' +
+          '<tr><td>Ausentes</td><td><b>' + nAus + '</b></td></tr>' +
+          '<tr style="border-top:2px solid #333"><td><b>Total</b></td><td><b>' + totalEst + '</b></td></tr>' +
+        '</table>' +
+        '<p class="acta-texto-intro" style="margin-top:14px">Se hace constar que sobre un total de ' + enLetras(totalEst) + ' (' + totalEst + ') alumnos/as, ' +
+          'resultaron ' + enLetras(nApr) + ' (' + nApr + ') aprobados/as, ' +
+          enLetras(nDes) + ' (' + nDes + ') desaprobados/as y ' +
+          enLetras(nAus) + ' (' + nAus + ') ausentes.</p>' +
+      '</div>' +
+
+      // ── Firmas ──
+      '<div class="acta-firmas">' +
+        '<div class="acta-firma"><div class="acta-firma-linea"></div><b>Vocal 2°</b><br><small>Firma y aclaración</small></div>' +
+        '<div class="acta-firma"><div class="acta-firma-linea"></div><b>Presidente/a de mesa</b><br><small>Firma y aclaración</small></div>' +
+        '<div class="acta-firma"><div class="acta-firma-linea"></div><b>Vocal 1°</b><br><small>Firma y aclaración</small></div>' +
+      '</div>';
 
     if (!ed) return;
     var pend = {};
@@ -454,25 +543,28 @@ function verAnaliticoEstudiante(doc) {
   estado.pestania = 'analitico';
   pintarPestania();
   setTimeout(function () {
-    if ($('selEst')) {
-      $('selEst').value = doc;
-      $('generar').click();
-    }
+    if ($('selEst')) { $('selEst').value = doc; $('generar').click(); }
   }, 100);
 }
 
-// ---------- PESTAÑA: ANALÍTICO (CON CONTROL DE BORRADOR VS OFICIAL) ----------
-function pintarAnalitico() {
+// ---------- PESTAÑA: ANALÍTICO (notas) y CERTIFICADO (impresión oficial) ----------
+// modoImpresion=false → muestra notas (pestaña Analítico)
+// modoImpresion=true  → Certificado listo para imprimir (pestaña Certificado)
+function pintarAnalitico(modoImpresion) {
   var opciones = estado.datos.estudiantes.map(function (e) {
     return '<option value="' + esc(e.documento) + '">' + esc(e.apellido) + ', ' +
            esc(e.nombres) + '</option>';
   }).join('');
 
+  var tituloBoton = modoImpresion ? 'Ver el certificado' : 'Ver el analítico';
+  var tituloPestania = modoImpresion ? 'Certificado' : 'Analítico';
+
   $('panel').innerHTML =
+    '<h2 style="font-size:16px;margin:0 0 10px">' + tituloPestania + '</h2>' +
     '<div class="acciones" style="background:#fff;padding:10px 14px;border:1px solid var(--borde);border-radius:6px;align-items:center">' +
       '<label style="display:flex;align-items:center;gap:6px">Estudiante: <select id="selEst" style="min-width:220px">' + opciones + '</select></label>' +
       '<label style="display:flex;align-items:center;gap:6px">Emisión: <input type="date" id="fecha"></label>' +
-      '<button class="boton" id="generar" style="background:#1F4E78">Ver el analítico</button>' +
+      '<button class="boton" id="generar" style="background:#1F4E78">' + tituloBoton + '</button>' +
       '<button class="boton suave" id="imprimir" disabled style="opacity:0.5;cursor:not-allowed">Imprimir</button>' +
     '</div>' +
     '<div id="bannerEstadoAnalitico"></div>' +
@@ -482,11 +574,8 @@ function pintarAnalitico() {
 
   $('generar').addEventListener('click', async function () {
     var doc = $('selEst').value;
-    if (!doc) {
-      avisar('Ese estudiante no tiene documento registrado.', 'error');
-      return;
-    }
-    $('salida').innerHTML = '<div class="cargando">Generando analítico oficial…</div>';
+    if (!doc) { avisar('Ese estudiante no tiene documento registrado.', 'error'); return; }
+    $('salida').innerHTML = '<div class="cargando">Generando documento oficial…</div>';
     var f = $('fecha').value || '';
     try {
       var url = '/api/curso/' + encodeURIComponent(estado.curso.id) + '/analitico?documento=' + encodeURIComponent(doc) +
@@ -494,128 +583,121 @@ function pintarAnalitico() {
       var r = await llamar(url);
       var an = r.analitico;
       var docOf = an.documentoOficial || {};
-
       var bannerBox = $('bannerEstadoAnalitico');
       var btnImp = $('imprimir');
 
       if (an.esBorrador) {
-        var msg = docOf.mensajeEstado || 'Este analítico se encuentra en estado BORRADOR - no válido: requiere aprobación del Departamento de Títulos para imprimir.';
+        var msg = docOf.mensajeEstado || 'Documento en estado BORRADOR – no válido: requiere aprobación del Departamento de Títulos para imprimir.';
         bannerBox.innerHTML = '<div class="banner-aviso-analitico">' + esc(msg) + '</div>';
-        btnImp.disabled = true;
-        btnImp.style.opacity = '0.5';
-        btnImp.style.cursor = 'not-allowed';
+        btnImp.disabled = true; btnImp.style.opacity = '0.5'; btnImp.style.cursor = 'not-allowed';
         btnImp.title = 'Impresión bloqueada: requiere aprobación del Departamento de Títulos';
       } else {
         bannerBox.innerHTML =
           '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333">' +
-            '✅ <b>Certificado Oficial APROBADO:</b> Registrado bajo el N° <b>' + esc(an.numeroCertificado) + '</b>. Calificaciones congeladas y habilitado para impresión oficial.' +
+            '✅ <b>Certificado Oficial APROBADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. Calificaciones congeladas – habilitado para impresión oficial.' +
           '</div>';
-        btnImp.disabled = false;
-        btnImp.style.opacity = '1';
-        btnImp.style.cursor = 'pointer';
-        btnImp.style.background = 'var(--azul)';
-        btnImp.style.color = '#fff';
+        btnImp.disabled = false; btnImp.style.opacity = '1'; btnImp.style.cursor = 'pointer';
+        btnImp.style.background = 'var(--azul)'; btnImp.style.color = '#fff';
         btnImp.title = 'Imprimir certificado oficial';
       }
 
-      $('salida').innerHTML = armarAnalitico(an);
-    } catch (e) {
-      problema(e);
-      $('salida').innerHTML = '';
-    }
+      $('salida').innerHTML = modoImpresion ? armarCertificado(an) : armarAnalitico(an);
+    } catch (e) { problema(e); $('salida').innerHTML = ''; }
   });
 
-  $('imprimir').addEventListener('click', function () {
-    if (!$('imprimir').disabled) {
-      window.print();
-    }
-  });
-
-  // Auto-generar para el primer estudiante al abrir
-  setTimeout(function () {
-    if ($('generar')) $('generar').click();
-  }, 50);
+  $('imprimir').addEventListener('click', function () { if (!$('imprimir').disabled) window.print(); });
+  setTimeout(function () { if ($('generar')) $('generar').click(); }, 50);
 }
 
 function armarAnalitico(r) {
+  // Analítico: muestra notas y en letras, SIN columna Condición, CON marca de agua si es borrador
   var d = r.documentoOficial;
-  if (!d) {
-    return armarAnaliticoCeldas(r);
-  }
+  if (!d) { return armarAnaliticoCeldas(r); }
 
-  // ── Número de certificado en formato oficial: 2026-00000086-38 ──
   var certNroFormateado = d.certNro || '__________________';
-
-  // ── Marca de agua BORRADOR ──
   var watermark = d.esBorrador
-    ? '<div class="marca-agua-borrador-oficial">BORRADOR<br>NO VÁLIDO</div>'
-    : '';
-
-  // ── Escudo de fondo semitransparente ──
+    ? '<div class="marca-agua-borrador-oficial">BORRADOR<br>NO VÁLIDO</div>' : '';
   var escudoFondo = '<img src="/img/escudo_nacional.png" class="hoja-fondo-escudo" alt="" aria-hidden="true">';
 
-  // ── Filas del trayecto curricular ──
   var filasModulos = (d.trayecto || []).map(function (m) {
     return '<tr>' +
-      '<td style="text-align:center">'                   + esc(m.nro)           + '</td>' +
-      '<td>'                                              + esc(m.modulo)        + '</td>' +
-      '<td style="text-align:center">'                   + esc(m.tipo)          + '</td>' +
-      '<td style="text-align:center">'                   + esc(m.periodo)       + '</td>' +
-      '<td style="text-align:center">'                   + esc(m.hsReloj)       + '</td>' +
-      '<td style="text-align:center">'                   + esc(m.hsCat)         + '</td>' +
-      '<td style="text-align:center;font-weight:bold">'  + esc(m.nota || '')    + '</td>' +
-      '<td style="text-align:center">'                   + esc(m.enLetras || '')+ '</td>' +
-      '<td style="text-align:center">'                   + esc(m.condicion)     + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.nro)        + '</td>' +
+      '<td>'                                             + esc(m.modulo)     + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.tipo)       + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.periodo)    + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.hsReloj)    + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.hsCat)      + '</td>' +
+      '<td style="text-align:center;font-weight:bold">' + esc(m.nota || '') + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.enLetras || '') + '</td>' +
     '</tr>';
   }).join('');
 
-  // ── QR placeholder (se reemplaza con QR real cuando haya cert aprobado) ──
-  var qrHtml = d.esBorrador
-    ? '<div class="hoja-qr-placeholder">QR<br>PENDIENTE</div>'
-    : '<div class="hoja-qr-placeholder" style="border-color:#000;font-weight:bold">QR<br>' + esc(certNroFormateado) + '</div>';
+  return _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasModulos, false);
+}
 
-  // ── Layout completo ──
+function armarCertificado(r) {
+  // Certificado: igual que analítico pero sin marca de agua y con QR de validación real
+  var d = r.documentoOficial;
+  if (!d) { return armarAnaliticoCeldas(r); }
+
+  var certNroFormateado = d.certNro || '__________________';
+  var watermark = d.esBorrador
+    ? '<div class="marca-agua-borrador-oficial">BORRADOR<br>NO VÁLIDO</div>' : '';
+  var escudoFondo = '<img src="/img/escudo_nacional.png" class="hoja-fondo-escudo" alt="" aria-hidden="true">';
+
+  var filasModulos = (d.trayecto || []).map(function (m) {
+    return '<tr>' +
+      '<td style="text-align:center">'                  + esc(m.nro)        + '</td>' +
+      '<td>'                                             + esc(m.modulo)     + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.tipo)       + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.periodo)    + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.hsReloj)    + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.hsCat)      + '</td>' +
+      '<td style="text-align:center;font-weight:bold">' + esc(m.nota || '') + '</td>' +
+      '<td style="text-align:center">'                  + esc(m.enLetras || '') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasModulos, true);
+}
+
+// ── Función interna compartida ──────────────────────────────────────────────
+function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasModulos, esImpresion) {
+  var validarPath = '/validar?nro=' + encodeURIComponent(d.esBorrador ? '' : certNroFormateado) +
+                    '&dni=' + encodeURIComponent(String(d.dniFormateado || '').replace(/\./g, ''));
+  var validarFullUrl = window.location.origin + validarPath;
+  var qrImgSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(validarFullUrl);
+  var qrHtml = '<a href="' + esc(validarPath) + '" target="_blank" title="Verificar validez del título">' +
+    '<img src="' + esc(qrImgSrc) + '" alt="QR Validación" style="width:82px;height:82px;border:1px solid #222;padding:2px;background:#fff" ' +
+    'onerror="this.outerHTML=\'<div class=hoja-qr-placeholder style=border-color:#000;font-weight:bold>VERIFICAR<br>VALIDEZ<br>QR</div>\'">' +
+    '</a>';
+
   return '<div class="hoja-oficial">' +
-    escudoFondo +
-    watermark +
-
-    // ── Fila superior: QR | Escudo+República | Nro Cert ──
+    escudoFondo + watermark +
     '<div class="hoja-cabecera">' +
       '<div class="hoja-qr">' + qrHtml + '</div>' +
-
       '<div class="hoja-escudo-bloque">' +
         '<img src="/img/escudo_nacional.png" alt="Escudo Nacional" style="height:68px;display:block;margin:0 auto 4px">' +
         '<p class="hoja-republica">República Argentina</p>' +
         '<p class="hoja-ley-nac">LEY DE EDUCACIÓN NACIONAL N° 26.206</p>' +
         '<p class="hoja-provincia">PROVINCIA DE JUJUY</p>' +
       '</div>' +
-
       '<div class="hoja-cert-nro">' + esc(certNroFormateado) + '</div>' +
     '</div>' +
-
-    // ── Bloque secundario: Ley Provincial / Ministerio / Título doc ──
     '<div class="hoja-subtitulos">' +
       '<p>LEY PROVINCIAL N°5807</p>' +
       '<p>MINISTERIO DE EDUCACIÓN</p>' +
       '<p>SECRETARÍA DE GESTIÓN EDUCATIVA</p>' +
     '</div>' +
-    '<div class="hoja-titulo-doc">Analítico Parcial</div>' +
-
-    // ── Párrafo de certifica ──
+    '<div class="hoja-titulo-doc">' + (esImpresion ? 'Certificado' : 'Analítico Parcial') + '</div>' +
     '<p class="hoja-parrafo">' +
-      'La autoridad del establecimiento educativo, ' +
-      '<b>' + esc(d.establecimiento) + '</b> CUE ' +
-      esc(d.cue) + ', ubicado en ' +
-      '<b>' + esc(d.domicilio) + '</b>' +
-      ', de <b>' + esc(d.localidad) + '</b>, provincia de JUJUY, certifica que ' +
-      '<b>' + esc(d.estudianteNombre) + '</b>' +
-      ', con lugar de nacimiento en ' + esc(d.lugarNac) +
-      ', el ' + esc(d.fechaNac) +
+      'La autoridad del establecimiento educativo, <b>' + esc(d.establecimiento) + '</b> CUE ' +
+      esc(d.cue) + ', ubicado en <b>' + esc(d.domicilio) + '</b>, de <b>' + esc(d.localidad) +
+      '</b>, provincia de JUJUY, certifica que <b>' + esc(d.estudianteNombre) + '</b>, con lugar ' +
+      'de nacimiento en ' + esc(d.lugarNac) + ', el ' + esc(d.fechaNac) +
       ', Tipo de Documento ' + esc(d.tipoDoc) + ' N° <b>' + esc(d.dniFormateado) + '</b>' +
       ', aprobó los espacios curriculares que con sus respectivas calificaciones a continuación se expresan:' +
     '</p>' +
-
-    // ── Tabla trayecto curricular ──
     '<div class="hoja-seccion">TRAYECTO CURRICULAR</div>' +
     '<table class="tabla-trayecto">' +
       '<thead><tr>' +
@@ -626,20 +708,20 @@ function armarAnalitico(r) {
         '<th style="width:52px">Hs reloj</th>' +
         '<th style="width:52px">Hs cát.</th>' +
         '<th style="width:38px">Nota</th>' +
-        '<th style="width:72px">En letras</th>' +
-        '<th style="width:80px">Condición</th>' +
+        '<th style="width:80px">En letras</th>' +
       '</tr></thead>' +
       '<tbody>' +
         filasModulos +
         '<tr style="font-weight:bold">' +
-          '<td colspan="4" style="text-align:left;font-weight:bold">Carga horaria total</td>' +
+          '<td colspan="4" style="text-align:left">Carga horaria total</td>' +
           '<td style="text-align:center">' + esc(d.cargaHorariaTotal.reloj) + '</td>' +
           '<td style="text-align:center">' + esc(d.cargaHorariaTotal.cat)  + '</td>' +
-          '<td colspan="3"></td>' +
+          '<td colspan="2"></td>' +
         '</tr>' +
       '</tbody>' +
     '</table>' +
   '</div>';
+}
 }
 
 function armarAnaliticoCeldas(r) {

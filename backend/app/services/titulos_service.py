@@ -248,3 +248,35 @@ def aprobar_en_lote(ids_solicitudes: List[str], sesion_usr: Dict[str, Any]) -> L
         except Exception:
             pass
     return aprobados
+
+def validar_certificado_por_numero(nro_certificado: str, dni: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Verifica públicamente (vía QR) si un certificado o título es válido y fue aprobado por Títulos.
+    """
+    nro_limpio = str(nro_certificado or "").strip()
+    dni_limpio = str(dni or "").strip()
+
+    for sol in _SOLICITUDES_CACHE.values():
+        match_nro = bool(nro_limpio and sol.get("numeroCertificado") == nro_limpio)
+        match_dni = bool(dni_limpio and sol.get("documento") == dni_limpio)
+        if match_nro or ( not nro_limpio and match_dni ):
+            es_valido = (sol.get("estado") == EstadoCertificado.APROBADO and bool(sol.get("numeroCertificado")))
+            return {
+                "valido": es_valido,
+                "estado": sol.get("estado"),
+                "numeroCertificado": sol.get("numeroCertificado", ""),
+                "estudiante": sol.get("estudiante", ""),
+                "documento": sol.get("documento", ""),
+                "oferta": sol.get("oferta", ""),
+                "institucion": sol.get("institucion", ""),
+                "cue": sol.get("cue", ""),
+                "ciclo": sol.get("ciclo", ""),
+                "fechaAprobacion": sol.get("fechaAprobacion", "")
+            }
+
+    return {
+        "valido": False,
+        "estado": "No registrado / Borrador",
+        "numeroCertificado": nro_limpio,
+        "mensaje": "El certificado consultado no figura como aprobado en el Registro Oficial del Departamento de Títulos."
+    }

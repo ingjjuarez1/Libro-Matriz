@@ -24,7 +24,8 @@ from backend.app.routers.api import (
     api_acta, api_guardar_acta, api_analitico, api_resumen,
     api_usuarios, api_instalar_panel, api_importar_cursos,
     api_listar_solicitudes, api_crear_solicitud, api_aprobar_solicitud,
-    api_observar_solicitud, api_aprobar_lote_solicitudes
+    api_observar_solicitud, api_aprobar_lote_solicitudes,
+    api_validar_certificado, pagina_validar_certificado
 )
 from backend.app.services.google_service import google_client
 from backend.app.core.config import PANEL_ID
@@ -64,6 +65,8 @@ routes = [
     Route("/api/solicitudes/aprobar-lote", endpoint=api_aprobar_lote_solicitudes, methods=["POST"]),
     Route("/api/solicitudes/{id_solicitud}/aprobar", endpoint=api_aprobar_solicitud, methods=["POST"]),
     Route("/api/solicitudes/{id_solicitud}/observar", endpoint=api_observar_solicitud, methods=["POST"]),
+    Route("/api/validar-certificado", endpoint=api_validar_certificado, methods=["GET"]),
+    Route("/validar", endpoint=pagina_validar_certificado, methods=["GET"]),
     
     # Archivos estáticos del frontend
     Mount("/css", app=StaticFiles(directory=str(BASE_DIR / "frontend" / "css")), name="css"),
@@ -84,10 +87,12 @@ app = Starlette(debug=True, routes=routes, middleware=middleware)
 
 if __name__ == "__main__":
     import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    host = os.environ.get("HOST", "0.0.0.0")
     print("\n========================================================")
     print("   Iniciando Libro Matriz FP · DETP Jujuy")
     print("   Backend REST + Frontend Web")
     print(f"   Estado de Google Drive: {'CONECTADO' if google_client.is_connected() else 'PENDIENTE DE CREDENCIALES'}")
-    print("   URL local: http://localhost:8000")
+    print(f"   URL local: http://localhost:{port}")
     print("========================================================\n")
-    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host=host, port=port, reload=False)

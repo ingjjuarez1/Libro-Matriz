@@ -6,7 +6,7 @@ Reemplaza todas las llamadas de google.script.run.
 import json
 from typing import Dict, Any, Optional
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, HTMLResponse
 from backend.app.core.auth import (
     sesion, alcanza_cue, AuthException, PermissionDeniedException, obtener_usuarios_panel
 )
@@ -20,7 +20,7 @@ from backend.app.core.config import PANEL_ID
 
 from backend.app.services.titulos_service import (
     listar_solicitudes, crear_o_reingresar_solicitud, aprobar_solicitud,
-    observar_solicitud, aprobar_en_lote
+    observar_solicitud, aprobar_en_lote, validar_certificado_por_numero
 )
 
 def get_current_user_email(request: Request) -> str:
@@ -298,3 +298,58 @@ async def api_aprobar_lote_solicitudes(request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+async def api_validar_certificado(request: Request) -> JSONResponse:
+    """Endpoint JSON público para validar un certificado vía QR."""
+    nro = request.query_params.get("nro", "")
+    dni = request.query_params.get("dni", "")
+    res = validar_certificado_por_numero(nro, dni)
+    return JSONResponse({"ok": True, "validacion": res})
+
+async def pagina_validar_certificado(request: Request) -> HTMLResponse:
+    """Página web pública devuelta al escanear el código QR del certificado."""
+    nro = request.query_params.get("nro", "")
+    dni = request.query_params.get("dni", "")
+    res = validar_certificado_por_numero(nro, dni)
+    es_valido = res.get("valido", False)
+
+    if es_valido:
+        badge = '<div style="background:#e6f4ea;border:2px solid #34a853;color:#137333;padding:16px;border-radius:8px;font-size:18px;font-weight:bold;text-align:center;margin:16px 0">✅ TÍTULO / CERTIFICADO OFICIAL VÁLIDO</div>'
+        detalle = f"""
+        <table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:14px">
+          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>N° de Certificado:</b></td><td style="padding:8px"><b>{res.get('numeroCertificado')}</b></td></tr>
+          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>Estudiante:</b></td><td style="padding:8px">{res.get('estudiante')}</td></tr>
+          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>DNI:</b></td><td style="padding:8px">{res.get('documento')}</td></tr>
+          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>Oferta Formativa:</b></td><td style="padding:8px">{res.get('oferta')}</td></tr>
+          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>Institución:</b></td><td style="padding:8px">{res.get('institucion')} (CUE {res.get('cue')})</td></tr>
+          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>Ciclo Lectivo:</b></td><td style="padding:8px">{res.get('ciclo')}</td></tr>
+          <tr><td style="padding:8px;color:#555"><b>Fecha de Aprobación:</b></td><td style="padding:8px">{res.get('fechaAprobacion')}</td></tr>
+        </table>
+        """
+    else:
+        badge = '<div style="background:#fce8e6;border:2px solid #ea4335;color:#c5221f;padding:16px;border-radius:8px;font-size:18px;font-weight:bold;text-align:center;margin:16px 0">❌ DOCUMENTO NO VÁLIDO / BORRADOR</div>'
+        detalle = f'<p style="text-align:center;color:#555;font-size:14px">{res.get("mensaje", "Este documento aún no fue aprobado por el Departamento de Títulos.")}</p>'
+
+    html = f"""<!DOCTYPE html>
+    <html lang="es-AR">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Validación Oficial de Certificados · DETP Jujuy</title>
+    </head>
+    <body style="font-family:Segoe UI,Arial,sans-serif;background:#f6f8fa;margin:0;padding:24px">
+      <div style="max-width:520px;margin:20px auto;background:#fff;border:1px solid #c9d3dd;border-radius:10px;padding:28px;box-shadow:0 4px 14px rgba(0,0,0,0.08)">
+        <div style="text-align:center;border-bottom:1px solid #eee;padding-bottom:14px">
+          <img src="/img/escudo_nacional.png" alt="Escudo" style="height:56px">
+          <h2 style="margin:8px 0 2px;color:#1F4E78;font-size:18px">Ministerio de Educación · Provincia de Jujuy</h2>
+          <div style="font-size:12px;color:#5b6b7c">Dirección de Educación Técnico Profesional · Departamento de Títulos</div>
+        </div>
+        {badge}
+        {detalle}
+        <div style="margin-top:22px;text-align:center;font-size:11px;color:#888">
+          Sistema Integrado de Libro Matriz de Formación Profesional
+        </div>
+      </div>
+    </body>
+    </html>"""
+    return HTMLResponse(html)

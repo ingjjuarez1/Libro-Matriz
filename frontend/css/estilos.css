@@ -712,16 +712,104 @@ td.nota input:disabled {
   border: 1px solid var(--borde);
 }
 
-@media print {
-  .barra, .migas, .acciones, .pestanias, .aviso, .selector-rol {
-    display: none !important;
-  }
-  main {
-    padding: 0;
-    max-width: none;
-  }
-  .analitico {
-    border: none;
-    padding: 0;
-  }
+/* ============================================================
+   ACTA DE EXAMEN
+   ============================================================ */
+
+.acta-encabezado {
+  font-family: "Times New Roman", Times, Georgia, serif;
+  color: #000;
+  margin-bottom: 10px;
 }
+
+.acta-libro-folio {
+  text-align: right;
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid #ccc;
+}
+
+.acta-titulo {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 10px 0 12px;
+  font-family: "Times New Roman", serif;
+}
+
+.acta-ficha {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.acta-ficha td {
+  padding: 3px 6px;
+  vertical-align: top;
+}
+
+.acta-ficha td:first-child {
+  width: 160px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.acta-texto-intro {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 6px 0;
+  font-family: "Times New Roman", serif;
+}
+
+.acta-resumen {
+  margin: 18px 0 10px;
+  font-family: "Times New Roman", serif;
+}
+
+.acta-resumen-tabla {
+  border-collapse: collapse;
+  float: right;
+  font-size: 12px;
+  margin-left: 24px;
+}
+
+.acta-resumen-tabla td {
+  border: 1px solid #333;
+  padding: 3px 10px;
+  text-align: right;
+}
+
+.acta-resumen-tabla td:first-child {
+  text-align: left;
+}
+
+.acta-firmas {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 48px;
+  text-align: center;
+  font-family: "Times New Roman", serif;
+  font-size: 12px;
+  clear: both;
+}
+
+.acta-firma {
+  flex: 1;
+  max-width: 200px;
+}
+
+.acta-firma-linea {
+  border-top: 1px solid #000;
+  margin-bottom: 4px;
+}
+
+@media print {
+  .acta-resumen-tabla { float: none; margin: 0 auto; }
+}
+
+
