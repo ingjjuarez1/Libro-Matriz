@@ -1,0 +1,348 @@
+[
+ {
+  "cue": "380059300",
+  "region": "R3",
+  "nombre": "Centro de Formación Profesional N° 1 - San Salvador de Jujuy",
+  "localidad": "San Salvador de Jujuy",
+  "localizaciones": [
+   "380059300"
+  ]
+ },
+ {
+  "cue": "380059500",
+  "region": "R4",
+  "nombre": "Escuela Profesional N° 7 “Felisa S.R. de S. de Bustamante”",
+  "localidad": "San Pedro de Jujuy",
+  "localizaciones": [
+   "380059500"
+  ]
+ },
+ {
+  "cue": "380059600",
+  "region": "R5",
+  "nombre": "Escuela Profesional N° 11",
+  "localidad": "Calilegua",
+  "localizaciones": [
+   "380059600"
+  ]
+ },
+ {
+  "cue": "380059700",
+  "region": "R5",
+  "nombre": "Escuela Profesional N° 14 “Santa Bárbara”",
+  "localidad": "Yuto",
+  "localizaciones": [
+   "380059700"
+  ]
+ },
+ {
+  "cue": "380059800",
+  "region": "R3",
+  "nombre": "Escuela Profesional N° 10 “Patricias Argentinas”",
+  "localidad": "San Salvador de Jujuy",
+  "localizaciones": [
+   "380059800"
+  ]
+ },
+ {
+  "cue": "380059900",
+  "region": "R5",
+  "nombre": "Escuela Profesional N° 3",
+  "localidad": "Libertador General San Martín",
+  "localizaciones": [
+   "380059900"
+  ]
+ },
+ {
+  "cue": "380060000",
+  "region": "R6",
+  "nombre": "Escuela Profesional N° 13 “Damas Mendocinas”",
+  "localidad": "Palpalá",
+  "localizaciones": [
+   "380060000"
+  ]
+ },
+ {
+  "cue": "380060200",
+  "region": "R2",
+  "nombre": "Escuela Profesional N° 2",
+  "localidad": "El Aguilar",
+  "localizaciones": [
+   "380060200"
+  ]
+ },
+ {
+  "cue": "380060400",
+  "region": "R4",
+  "nombre": "Centro de Formación Profesional N° 1 - San Pedro de Jujuy",
+  "localidad": "San Pedro de Jujuy",
+  "localizaciones": [
+   "380060400"
+  ]
+ },
+ {
+  "cue": "380060500",
+  "region": "R5",
+  "nombre": "Centro de Formación Profesional N° 8",
+  "localidad": "",
+  "localizaciones": [
+   "380060500"
+  ]
+ },
+ {
+  "cue": "380060600",
+  "region": "R3",
+  "nombre": "Escuela Profesional N° 8 “Sarmiento”",
+  "localidad": "San Salvador de Jujuy",
+  "localizaciones": [
+   "380060600"
+  ]
+ },
+ {
+  "cue": "380060700",
+  "region": "R1",
+  "nombre": "Escuela Profesional N° 4 “Juana Manuela Gorriti”",
+  "localidad": "La Quiaca",
+  "localizaciones": [
+   "380060700"
+  ]
+ },
+ {
+  "cue": "380060800",
+  "region": "R7",
+  "nombre": "Centro de Formación Profesional N° 7",
+  "localidad": "Abra Pampa",
+  "localizaciones": [
+   "380060800"
+  ]
+ },
+ {
+  "cue": "380060900",
+  "region": "R4",
+  "nombre": "Centro de Formación Profesional N° 9",
+  "localidad": "",
+  "localizaciones": [
+   "380060900"
+  ]
+ },
+ {
+  "cue": "380061000",
+  "region": "R3",
+  "nombre": "Centro de Formación Profesional N° 5",
+  "localidad": "San Salvador de Jujuy",
+  "localizaciones": [
+   "380061000"
+  ]
+ },
+ {
+  "cue": "380061100",
+  "region": "R5",
+  "nombre": "Escuela de Capacitación Laboral N° 615",
+  "localidad": "Libertador General San Martín",
+  "localizaciones": [
+   "380061100"
+  ]
+ },
+ {
+  "cue": "380061200",
+  "region": "R6",
+  "nombre": "Escuela Profesional N° 6",
+  "localidad": "Perico",
+  "localizaciones": [
+   "380061200"
+  ]
+ },
+ {
+  "cue": "380061300",
+  "region": "R7",
+  "nombre": "Centro de Formación Profesional N° 6",
+  "localidad": "Abra Pampa",
+  "localizaciones": [
+   "380061300"
+  ]
+ },
+ {
+  "cue": "380061400",
+  "region": "R3",
+  "nombre": "Centro de Formación Profesional N° 4",
+  "localidad": "Susques",
+  "localizaciones": [
+   "380061400"
+  ]
+ },
+ {
+  "cue": "380061500",
+  "region": "R2",
+  "nombre": "Escuela Profesional N° 5 “Coronel Manuel Álvarez Prado”",
+  "localidad": "Tilcara",
+  "localizaciones": [
+   "380061500"
+  ]
+ },
+ {
+  "cue": "380061600",
+  "region": "R4",
+  "nombre": "Escuela Profesional N° 9 “Gregoria Matorras”",
+  "localidad": "La Mendieta",
+  "localizaciones": [
+   "380061600"
+  ]
+ },
+ {
+  "cue": "380077200",
+  "region": "R1",
+  "nombre": "Centro de Educación No Formal N° 1",
+  "localidad": "La Quiaca",
+  "localizaciones": [
+   "380077200"
+  ]
+ },
+ {
+  "cue": "380079300",
+  "region": "R3",
+  "nombre": "Escuela de Capacitación Laboral de Volcán",
+  "localidad": "Volcán",
+  "localizaciones": [
+   "380079300"
+  ]
+ },
+ {
+  "cue": "380084000",
+  "region": "R6",
+  "nombre": "Centro de Formación Profesional Municipal N° 1 - Región 6",
+  "localidad": "",
+  "localizaciones": [
+   "380084000"
+  ]
+ },
+ {
+  "cue": "380089800",
+  "region": "R5",
+  "nombre": "Centro de Formación Profesional N° 1 - Fraile Pintado",
+  "localidad": "Fraile Pintado",
+  "localizaciones": [
+   "380089800"
+  ]
+ },
+ {
+  "cue": "380093900",
+  "region": "R3",
+  "nombre": "Centro de Formación Profesional Nuevo Horizonte",
+  "localidad": "",
+  "localizaciones": [
+   "380093900"
+  ]
+ },
+ {
+  "cue": "380094500",
+  "region": "R3",
+  "nombre": "Centro de Formación Profesional N° 1 Aulas Talleres Móviles",
+  "localidad": "",
+  "localizaciones": [
+   "380094500",
+   "380094501",
+   "380094502",
+   "380094504",
+   "380094505",
+   "380094506",
+   "380094507"
+  ]
+ },
+ {
+  "cue": "380098401",
+  "region": "R3",
+  "nombre": "Centro de Formación Profesional San Expedito",
+  "localidad": "",
+  "localizaciones": [
+   "380098401"
+  ]
+ },
+ {
+  "cue": "380099100",
+  "region": "R4",
+  "nombre": "Centro de Formación Profesional “Escuela Profesional Oficios San Pedro”",
+  "localidad": "",
+  "localizaciones": [
+   "380099100"
+  ]
+ },
+ {
+  "cue": "380101500",
+  "region": "R3",
+  "nombre": "Centro de Formación Profesional N° 2",
+  "localidad": "",
+  "localizaciones": [
+   "380101500",
+   "380101501",
+   "380101502",
+   "380101503",
+   "380101505",
+   "380101506",
+   "380101507",
+   "380101510"
+  ]
+ },
+ {
+  "cue": "380101600",
+  "region": "R3",
+  "nombre": "Centro de Formación y Capacitación Profesional N° 1 “La Salle”",
+  "localidad": "",
+  "localizaciones": [
+   "380101600"
+  ]
+ },
+ {
+  "cue": "380104700",
+  "region": "R6",
+  "nombre": "Centro de Formación Profesional N° 2 “Nuevo Horizonte”",
+  "localidad": "",
+  "localizaciones": [
+   "380104700"
+  ]
+ },
+ {
+  "cue": "380107700",
+  "region": "R3",
+  "nombre": "Instituto Tecnológico Quinoa - Centro de Formación Profesional",
+  "localidad": "",
+  "localizaciones": [
+   "380107700"
+  ]
+ },
+ {
+  "cue": "380107900",
+  "region": "R3",
+  "nombre": "Centro de Formación Profesional y Capacitación Laboral IGA",
+  "localidad": "",
+  "localizaciones": [
+   "380107900"
+  ]
+ },
+ {
+  "cue": "380108300",
+  "region": "R3",
+  "nombre": "Centro de Formación Profesional Municipal N° 1 - Región 3",
+  "localidad": "",
+  "localizaciones": [
+   "380108300"
+  ]
+ },
+ {
+  "cue": "",
+  "region": "",
+  "nombre": "Centro de Educación Agrícola N° 3",
+  "localidad": "Fraile Pintado",
+  "localizaciones": [
+   "(sin CUE)"
+  ]
+ },
+ {
+  "cue": "",
+  "region": "",
+  "nombre": "Centro de Educación Agrícola N° 5",
+  "localidad": "San Pedro de Jujuy",
+  "localizaciones": [
+   "(sin CUE)"
+  ]
+ }
+]

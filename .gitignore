@@ -1,0 +1,17 @@
+# Credenciales y variables sensibles
+credentials/service_account.json
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+
+# Logs y temporales
+*.log
+.DS_Store
+Thumbs.db

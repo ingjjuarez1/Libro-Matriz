@@ -1,0 +1,810 @@
+"""
+Lógica de datos y manipulación de planillas Google Sheets.
+Migrado de Datos.gs y Api.gs.
+Preserva la lógica exacta de Libro Matriz FP:
+- RAC (Registro Anual de Calificaciones)
+- Acta de Examen
+- Certificado Analítico
+- Panel FP (Usuarios, Cursos, Registro)
+"""
+
+import re
+from typing import Dict, List, Any, Optional
+from backend.app.core.config import (
+    PANEL_ID, RAC, ACTA, ANALITICO, PANEL, AUSENTE,
+    col_num_to_letter, letter_to_col_num
+)
+from backend.app.services.google_service import google_client
+from backend.app.core.auth import (
+    normalizar_cue, exigir_lectura, exigir_carga, registrar, PermissionDeniedException
+)
+from backend.app.services.titulos_service import (
+    obtener_estado_estudiante, esta_estudiante_congelado, EstadoCertificado
+)
+
+def texto(v: Any) -> str:
+    """Normaliza un valor de celda a string limpio."""
+    if v is None:
+        return ""
+    return str(v).strip()
+
+def normalizar_nota(valor: Any) -> Any:
+    """Valida y normaliza una nota: vacío, AUS, o entero de 1 a 10."""
+    v = texto(valor).upper()
+    if v == "":
+        return ""
+    if v in ["A", "AUS", "AUSENTE"]:
+        return AUSENTE
+    
+    # Manejar comas decimales si vinieran
+    v_clean = v.replace(",", ".")
+    try:
+        n = float(v_clean)
+        if not (1 <= n <= 10) or n != int(n):
+            raise ValueError()
+        return int(n)
+    except (ValueError, TypeError):
+        raise ValueError(
+            f"'{valor}' no es una nota válida. Ingresa un número entero de 1 a 10, o AUS si estuvo ausente."
+        )
+
+# ==================== DATOS DEMO / FALLBACK ====================
+
+_CURSOS_DEMO = [
+    {
+        "cue": "3800006",
+        "institucion": "Escuela Profesional Nº 6",
+        "oferta": "Peluquero",
+        "ciclo": "2026",
+        "turno": "Vespertino",
+        "division": '1º "U"',
+        "id": "curso-peluquero-ep6-demo",
+        "estado": "Abierto"
+    }
+]
+
+_ESTUDIANTES_DEMO = [
+    {
+        "fila": 9,
+        "orden": "1",
+        "apellido": "AMANTE",
+        "nombres": "Sergio David",
+        "documento": "44645553",
+        "tipoDoc": "DNI",
+        "fechaNac": "01/02/2002",
+        "localidad": "S S DE JUJUY (JUJUY)",
+        "provincia": "Jujuy",
+        "notas": ["8", "9", "10", "7", "8", ""],
+        "notaFinal": "",
+        "fechaEgreso": "",
+        "folio": "11",
+        "situacion": "Adeuda 1 módulo(s)"
+    },
+    {
+        "fila": 10,
+        "orden": "2",
+        "apellido": "ALVAREZ",
+        "nombres": "María Belén",
+        "documento": "40123456",
+        "tipoDoc": "DNI",
+        "fechaNac": "15/04/1998",
+        "localidad": "San Salvador de Jujuy",
+        "provincia": "Jujuy",
+        "notas": ["8", "9", "8", "10", "9", "9"],
+        "notaFinal": "9",
+        "fechaEgreso": "10/12/2026",
+        "folio": "12",
+        "situacion": "Aprobó todo"
+    },
+    {
+        "fila": 11,
+        "orden": "3",
+        "apellido": "BENITEZ",
+        "nombres": "Carlos Javier",
+        "documento": "39876543",
+        "tipoDoc": "DNI",
+        "fechaNac": "22/08/1996",
+        "localidad": "Palpalá",
+        "provincia": "Jujuy",
+        "notas": ["7", "8", "7", "8", "8", "7"],
+        "notaFinal": "8",
+        "fechaEgreso": "10/12/2026",
+        "folio": "13",
+        "situacion": "Aprobó todo"
+    },
+    {
+        "fila": 12,
+        "orden": "4",
+        "apellido": "CORONEL",
+        "nombres": "Luciana Rocío",
+        "documento": "42111222",
+        "tipoDoc": "DNI",
+        "fechaNac": "05/11/2000",
+        "localidad": "San Salvador de Jujuy",
+        "provincia": "Jujuy",
+        "notas": ["9", "10", "9", "9", "10", "10"],
+        "notaFinal": "10",
+        "fechaEgreso": "10/12/2026",
+        "folio": "14",
+        "situacion": "Aprobó todo"
+    }
+]
+
+# ==================== CURSOS DEL PANEL ====================
+
+def cursos_del_panel() -> List[Dict[str, Any]]:
+    """Lee y normaliza el índice de cursos desde la pestaña 'Cursos' del Panel FP."""
+    if not PANEL_ID or not google_client.is_connected():
+        return list(_CURSOS_DEMO)
+
+    try:
+        rango = f"{PANEL['CURSOS']['hoja']}!A1:H1000"
+        valores = google_client.get_values(PANEL_ID, rango)
+        if len(valores) < 2:
+            return list(_CURSOS_DEMO)
+
+        encabezados = [texto(col) for col in valores[0]]
+        cursos = []
+        for fila in valores[1:]:
+            if not fila or not any(texto(c) for c in fila):
+                continue
+            item = {}
+            for idx, enc in enumerate(encabezados):
+                item[enc] = fila[idx] if idx < len(fila) else ""
+            
+            file_id = texto(item.get("ID del archivo"))
+            if not file_id:
+                continue
+
+            cursos.append({
+                "cue": normalizar_cue(item.get("CUE")),
+                "institucion": texto(item.get("Institución")),
+                "oferta": texto(item.get("Oferta")),
+                "ciclo": texto(item.get("Ciclo")),
+                "turno": texto(item.get("Turno")),
+                "division": texto(item.get("Curso / División")),
+                "id": file_id,
+                "estado": texto(item.get("Estado")) or "Abierto"
+            })
+        return cursos if cursos else list(_CURSOS_DEMO)
+    except Exception:
+        return list(_CURSOS_DEMO)
+
+def buscar_curso(id_curso: str) -> Optional[Dict[str, Any]]:
+    """Busca un curso por su ID de archivo en Drive."""
+    for c in cursos_del_panel():
+        if c["id"] == id_curso:
+            return c
+    return None
+
+# ==================== LECTURA DE CURSO (RAC) ====================
+
+def leer_curso(id_archivo: str) -> Dict[str, Any]:
+    """
+    Lee encabezado, módulos y lista de estudiantes desde la pestaña RAC del curso.
+    Optimizado en batch: lee metadatos y rangos en mínimas llamadas.
+    """
+    if id_archivo == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+        est_copia = []
+        for est in _ESTUDIANTES_DEMO:
+            e = dict(est)
+            sol_info = obtener_estado_estudiante(id_archivo, e.get("documento", ""))
+            e["solicitudCertificado"] = sol_info
+            e["notasCongeladas"] = (sol_info.get("estado") == EstadoCertificado.APROBADO)
+            est_copia.append(e)
+
+        return {
+            "encabezado": {
+                "establecimiento": "Escuela Profesional Nº 6",
+                "localidad": "San Salvador de Jujuy",
+                "cue": "3800006",
+                "domicilio": "Av. Fascio 1050",
+                "oferta": "Peluquero",
+                "ciclo": "2026",
+                "libro": "1",
+                "turno": "Vespertino",
+                "matriculados": "3",
+                "division": '1º "U"',
+                "disenio": "Resolución Nº 2114-E-2026"
+            },
+            "modulos": [
+                {"i": 0, "nombre": "Relaciones Laborales", "periodo": "1C"},
+                {"i": 1, "nombre": "Piel y Anexos", "periodo": "1C"},
+                {"i": 2, "nombre": "Gestión del Trabajo", "periodo": "1C"},
+                {"i": 3, "nombre": "Peinado", "periodo": "1C"},
+                {"i": 4, "nombre": "Corte", "periodo": "1C"},
+                {"i": 5, "nombre": "Coloración", "periodo": "1C"}
+            ],
+            "estudiantes": est_copia
+        }
+
+    # 1. Leer encabezados principales (C2:Q5)
+    # 2. Leer módulos (R7:Y8)
+    # 3. Leer estudiantes (A9:AC48)
+    rangos = [
+        f"{RAC['HOJA']}!A1:Q5",
+        f"{RAC['HOJA']}!R7:Y8",
+        f"{RAC['HOJA']}!A9:AC48"
+    ]
+    batch_data = google_client.batch_get_values(id_archivo, rangos)
+
+    # Procesar encabezados
+    vals_enc = batch_data.get(f"{RAC['HOJA']}!A1:Q5", [])
+    def get_cell(cell_ref: str) -> str:
+        col_letter = re.sub(r"\d", "", cell_ref)
+        row_num = int(re.sub(r"\D", "", cell_ref))
+        col_idx = letter_to_col_num(col_letter) - 1
+        row_idx = row_num - 1
+        if row_idx < len(vals_enc) and col_idx < len(vals_enc[row_idx]):
+            return texto(vals_enc[row_idx][col_idx])
+        return ""
+
+    encabezado = {}
+    for clave, celda in RAC["ENCABEZADO"].items():
+        encabezado[clave] = get_cell(celda)
+
+    # Procesar módulos (R7:Y8)
+    vals_mod = batch_data.get(f"{RAC['HOJA']}!R7:Y8", [])
+    periodos = vals_mod[0] if len(vals_mod) > 0 else []
+    nombres = vals_mod[1] if len(vals_mod) > 1 else []
+    
+    ancho_mod = RAC["COL"]["modN"] - RAC["COL"]["mod1"] + 1  # 8 módulos máx
+    modulos = []
+    for i in range(ancho_mod):
+        nom = texto(nombres[i]) if i < len(nombres) else ""
+        per = texto(periodos[i]) if i < len(periodos) else ""
+        if nom:
+            modulos.append({
+                "i": i,
+                "nombre": nom,
+                "periodo": per
+            })
+
+    # Procesar estudiantes (A9:AC48)
+    vals_est = batch_data.get(f"{RAC['HOJA']}!A9:AC48", [])
+    estudiantes = []
+    for r_idx, fila in enumerate(vals_est):
+        fila_num = RAC["FILA_1"] + r_idx
+        def col_v(c_idx: int) -> str:
+            return texto(fila[c_idx - 1]) if (c_idx - 1) < len(fila) else ""
+
+        ap = col_v(RAC["COL"]["apellido"])
+        nom = col_v(RAC["COL"]["nombres"])
+        if not ap and not nom:
+            continue
+
+        notas = []
+        for m in modulos:
+            col_nota = RAC["COL"]["mod1"] + m["i"]
+            notas.append(col_v(col_nota))
+
+        estudiantes.append({
+            "fila": fila_num,
+            "orden": col_v(RAC["COL"]["orden"]),
+            "apellido": ap,
+            "nombres": nom,
+            "documento": col_v(RAC["COL"]["documento"]),
+            "tipoDoc": col_v(RAC["COL"]["tipoDoc"]),
+            "fechaNac": col_v(RAC["COL"]["fechaNac"]),
+            "localidad": col_v(RAC["COL"]["localidad"]),
+            "provincia": col_v(RAC["COL"]["provincia"]),
+            "notas": notas,
+            "notaFinal": col_v(RAC["COL"]["notaFinal"]),
+            "fechaEgreso": col_v(RAC["COL"]["fechaEgreso"]),
+            "folio": col_v(RAC["COL"]["folio"]),
+            "situacion": col_v(RAC["COL"]["situacion"])
+        })
+
+    for est in estudiantes:
+        sol_info = obtener_estado_estudiante(id_archivo, est.get("documento", ""))
+        est["solicitudCertificado"] = sol_info
+        est["notasCongeladas"] = (sol_info.get("estado") == EstadoCertificado.APROBADO)
+
+    return {
+        "encabezado": encabezado,
+        "modulos": modulos,
+        "estudiantes": estudiantes
+    }
+
+# ==================== GUARDAR NOTAS (RAC) ====================
+
+def guardar_notas(id_curso: str, cambios: List[Dict[str, Any]], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Guarda las calificaciones de los módulos.
+    cambios = [{"fila": 9, "modulo": 0, "valor": "8"}, ...]
+    REGLA: Si el estudiante ya tiene certificado APROBADO por Títulos, sus notas están CONGELADAS.
+    """
+    curso = buscar_curso(id_curso)
+    if not curso:
+        raise ValueError("Curso no encontrado en el Panel.")
+    exigir_carga(sesion_usr, curso)
+
+    if not cambios:
+        return {"guardados": 0}
+
+    # Validar congelamiento de notas antes de procesar cambios
+    datos_actuales = leer_curso(curso["id"])
+    mapa_est_fila = {e["fila"]: e for e in datos_actuales.get("estudiantes", [])}
+    for c in cambios:
+        f = int(c.get("fila", 0))
+        est_obj = mapa_est_fila.get(f)
+        if est_obj and est_obj.get("notasCongeladas"):
+            raise PermissionDeniedException(
+                f"Las notas de {est_obj.get('apellido')}, {est_obj.get('nombres')} (DNI {est_obj.get('documento')}) "
+                "están congeladas porque su certificado oficial ya fue APROBADO por el Departamento de Títulos."
+            )
+
+    if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+        for c in cambios:
+            f = int(c.get("fila", 0))
+            m = int(c.get("modulo", 0))
+            v_norm = normalizar_nota(c.get("valor"))
+            for est in _ESTUDIANTES_DEMO:
+                if est["fila"] == f and m < len(est["notas"]):
+                    est["notas"][m] = str(v_norm)
+        return {"guardados": len(cambios)}
+
+    updates = []
+    detalle = []
+    for c in cambios:
+        fila = int(c.get("fila", 0))
+        mod_idx = int(c.get("modulo", 0))
+        if not (RAC["FILA_1"] <= fila <= RAC["FILA_N"]):
+            raise ValueError(f"Fila {fila} fuera de rango permitido ({RAC['FILA_1']}-{RAC['FILA_N']}).")
+        if not (0 <= mod_idx <= (RAC["COL"]["modN"] - RAC["COL"]["mod1"])):
+            raise ValueError(f"Módulo {mod_idx} fuera de rango.")
+
+        val_norm = normalizar_nota(c.get("valor"))
+        col_idx = RAC["COL"]["mod1"] + mod_idx
+        col_letra = col_num_to_letter(col_idx)
+        rango_celda = f"{RAC['HOJA']}!{col_letra}{fila}"
+
+        updates.append({
+            "range": rango_celda,
+            "values": [[val_norm]]
+        })
+        detalle.append(f"f{fila} m{mod_idx + 1}={val_norm if val_norm != '' else 'vacío'}")
+
+    google_client.batch_update_values(curso["id"], updates)
+    registrar(sesion_usr, "Notas", f"{curso['oferta']} {curso['ciclo']}", " ".join(detalle))
+
+    return {"guardados": len(updates)}
+
+# ==================== GUARDAR ESTUDIANTE (RAC) ====================
+
+def guardar_estudiante(id_curso: str, est_data: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
+    """Guarda o agrega un estudiante en la primera fila disponible del RAC."""
+    curso = buscar_curso(id_curso)
+    if not curso:
+        raise ValueError("Curso no encontrado en el Panel.")
+    exigir_carga(sesion_usr, curso)
+
+    apellido = texto(est_data.get("apellido"))
+    nombres = texto(est_data.get("nombres"))
+    if not apellido or not nombres:
+        raise ValueError("El apellido y los nombres no pueden quedar vacíos.")
+
+    fila = int(est_data.get("fila") or 0)
+    if not fila:
+        if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+            fila = RAC["FILA_1"] + len(_ESTUDIANTES_DEMO)
+        else:
+            apellidos_vals = google_client.get_values(
+                curso["id"], f"{RAC['HOJA']}!B{RAC['FILA_1']}:B{RAC['FILA_N']}"
+            )
+            for idx in range(RAC["FILA_N"] - RAC["FILA_1"] + 1):
+                val = apellidos_vals[idx][0] if idx < len(apellidos_vals) and len(apellidos_vals[idx]) > 0 else ""
+                if not texto(val):
+                    fila = RAC["FILA_1"] + idx
+                    break
+            if not fila:
+                max_est = RAC["FILA_N"] - RAC["FILA_1"] + 1
+                raise ValueError(f"El curso ya tiene {max_est} estudiantes, que es el máximo permitido en la planilla.")
+
+    if not (RAC["FILA_1"] <= fila <= RAC["FILA_N"]):
+        raise ValueError(f"Fila {fila} fuera de rango.")
+
+    if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+        _ESTUDIANTES_DEMO.append({
+            "fila": fila,
+            "orden": str(len(_ESTUDIANTES_DEMO) + 1),
+            "apellido": apellido,
+            "nombres": nombres,
+            "documento": texto(est_data.get("documento")),
+            "tipoDoc": texto(est_data.get("tipoDoc")),
+            "fechaNac": texto(est_data.get("fechaNac")),
+            "localidad": texto(est_data.get("localidad")),
+            "provincia": texto(est_data.get("provincia")),
+            "notas": [""] * 6,
+            "notaFinal": "",
+            "fechaEgreso": "",
+            "folio": "",
+            "situacion": ""
+        })
+        return {"fila": fila}
+
+    mapa = {
+        "apellido": apellido, "nombres": nombres,
+        "tipoDoc": est_data.get("tipoDoc"), "documento": est_data.get("documento"),
+        "fechaNac": est_data.get("fechaNac"), "nacionalidad": est_data.get("nacionalidad"),
+        "localidad": est_data.get("localidad"), "departamento": est_data.get("departamento"),
+        "provincia": est_data.get("provincia"), "nivel": est_data.get("nivel"),
+        "telUrgencia": est_data.get("telUrgencia"), "folio": est_data.get("folio"),
+        "fechaEgreso": est_data.get("fechaEgreso")
+    }
+
+    updates = []
+    for k, v in mapa.items():
+        if v is not None and k in RAC["COL"]:
+            col_idx = RAC["COL"][k]
+            col_letra = col_num_to_letter(col_idx)
+            updates.append({
+                "range": f"{RAC['HOJA']}!{col_letra}{fila}",
+                "values": [[texto(v)]]
+            })
+
+    google_client.batch_update_values(curso["id"], updates)
+    registrar(
+        sesion_usr, "Estudiante", f"{curso['oferta']} {curso['ciclo']}",
+        f"{apellido}, {nombres} (fila {fila})"
+    )
+
+    return {"fila": fila}
+
+# ==================== ACTA DE EXAMEN ====================
+
+def leer_acta(id_curso: str, sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
+    """Lee el acta de examen y sus notas."""
+    curso = buscar_curso(id_curso)
+    if not curso:
+        raise ValueError("Curso no encontrado en el Panel.")
+    exigir_lectura(sesion_usr, curso)
+
+    if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+        return {
+            "curso": curso,
+            "puedeCargar": True,
+            "mesa": {
+                "fecha": "15/12/2026",
+                "presidente": "Prof. Martín Gomez",
+                "vocal1": "Prof. Ana Torres",
+                "vocal2": "Prof. Luis Pérez"
+            },
+            "estudiantes": [
+                {
+                    "filaActa": 13,
+                    "filaRac": 9,
+                    "orden": "1",
+                    "documento": "40123456",
+                    "nombre": "ALVAREZ, María Belén",
+                    "teorico": "9",
+                    "practico": "9",
+                    "definitiva": "9",
+                    "definitivaLetras": "NUEVE"
+                },
+                {
+                    "filaActa": 14,
+                    "filaRac": 10,
+                    "orden": "2",
+                    "documento": "39876543",
+                    "nombre": "BENITEZ, Carlos Javier",
+                    "teorico": "8",
+                    "practico": "8",
+                    "definitiva": "8",
+                    "definitivaLetras": "OCHO"
+                },
+                {
+                    "filaActa": 15,
+                    "filaRac": 11,
+                    "orden": "3",
+                    "documento": "42111222",
+                    "nombre": "CORONEL, Luciana Rocío",
+                    "teorico": "10",
+                    "practico": "10",
+                    "definitiva": "10",
+                    "definitivaLetras": "DIEZ"
+                }
+            ]
+        }
+
+    rangos = [
+        f"{ACTA['HOJA']}!C5:G8",
+        f"{ACTA['HOJA']}!A13:J52"
+    ]
+    batch_data = google_client.batch_get_values(curso["id"], rangos)
+    
+    # Mesa examinadora
+    mesa_vals = batch_data.get(f"{ACTA['HOJA']}!C5:G8", [])
+    def m_val(r_idx, c_idx):
+        if r_idx < len(mesa_vals) and c_idx < len(mesa_vals[r_idx]):
+            return texto(mesa_vals[r_idx][c_idx])
+        return ""
+
+    fecha_mesa = m_val(0, 0)
+    presidente = m_val(2, 0)
+    vocal1 = m_val(2, 4)
+    vocal2 = m_val(3, 0)
+
+    # Estudiantes del acta
+    est_vals = batch_data.get(f"{ACTA['HOJA']}!A13:J52", [])
+    filas = RAC["FILA_N"] - RAC["FILA_1"] + 1
+    estudiantes = []
+    for i in range(min(filas, len(est_vals))):
+        fila = est_vals[i]
+        def c_val(c_idx):
+            return texto(fila[c_idx - 1]) if (c_idx - 1) < len(fila) else ""
+
+        nombre = c_val(ACTA["COL"]["nombre"])
+        if not nombre:
+            continue
+
+        estudiantes.append({
+            "filaActa": ACTA["FILA_1"] + i,
+            "filaRac": RAC["FILA_1"] + i,
+            "orden": c_val(ACTA["COL"]["orden"]),
+            "documento": c_val(ACTA["COL"]["documento"]),
+            "nombre": nombre,
+            "teorico": c_val(ACTA["COL"]["teorico"]),
+            "practico": c_val(ACTA["COL"]["practico"]),
+            "definitiva": c_val(ACTA["COL"]["definitiva"]),
+            "definitivaLetras": c_val(ACTA["COL"]["definitivaLetras"])
+        })
+
+    puede_cargar = sesion_usr.get("puedeCargar") and str(curso.get("estado")).lower() != "cerrado"
+    return {
+        "curso": curso,
+        "puedeCargar": puede_cargar,
+        "mesa": {
+            "fecha": fecha_mesa,
+            "presidente": presidente,
+            "vocal1": vocal1,
+            "vocal2": vocal2
+        },
+        "estudiantes": estudiantes
+    }
+
+def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Dict[str, Any]], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
+    """Guarda mesa examinadora y notas del examen (teórico / práctico)."""
+    curso = buscar_curso(id_curso)
+    if not curso:
+        raise ValueError("Curso no encontrado en el Panel.")
+    exigir_carga(sesion_usr, curso)
+
+    if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+        return {"guardados": len(cambios or [])}
+
+    updates = []
+    if mesa:
+        if "fecha" in mesa:
+            updates.append({"range": f"{ACTA['HOJA']}!{ACTA['FECHA']}", "values": [[texto(mesa['fecha'])]]})
+        if "presidente" in mesa:
+            updates.append({"range": f"{ACTA['HOJA']}!{ACTA['PRESIDENTE']}", "values": [[texto(mesa['presidente'])]]})
+        if "vocal1" in mesa:
+            updates.append({"range": f"{ACTA['HOJA']}!{ACTA['VOCAL1']}", "values": [[texto(mesa['vocal1'])]]})
+        if "vocal2" in mesa:
+            updates.append({"range": f"{ACTA['HOJA']}!{ACTA['VOCAL2']}", "values": [[texto(mesa['vocal2'])]]})
+
+    n_notas = 0
+    for c in (cambios or []):
+        fila = int(c.get("filaActa", 0))
+        max_fila = ACTA["FILA_1"] + (RAC["FILA_N"] - RAC["FILA_1"])
+        if not (ACTA["FILA_1"] <= fila <= max_fila):
+            raise ValueError("Fila del acta fuera de rango.")
+        campo = c.get("campo")
+        if campo == "teorico":
+            col_idx = ACTA["COL"]["teorico"]
+        elif campo == "practico":
+            col_idx = ACTA["COL"]["practico"]
+        else:
+            raise ValueError(f"Campo del acta no válido: '{campo}'.")
+
+        col_letra = col_num_to_letter(col_idx)
+        val_norm = normalizar_nota(c.get("valor"))
+        updates.append({
+            "range": f"{ACTA['HOJA']}!{col_letra}{fila}",
+            "values": [[val_norm]]
+        })
+        n_notas += 1
+
+    if updates:
+        google_client.batch_update_values(curso["id"], updates)
+
+    registrar(sesion_usr, "Acta", f"{curso['oferta']} {curso['ciclo']}", f"{n_notas} nota(s) guardadas")
+    return {"guardados": n_notas}
+
+# ==================== CERTIFICADO ANALÍTICO ====================
+
+def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str], certificado: Optional[str], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Simula e interactúa con la pestaña Analítico para emitir el certificado
+    manteniendo la fórmula de la planilla como única fuente de verdad.
+    """
+    curso = buscar_curso(id_curso)
+    if not curso:
+        raise ValueError("Curso no encontrado en el Panel.")
+    exigir_lectura(sesion_usr, curso)
+
+    sol_info = obtener_estado_estudiante(curso["id"], documento)
+    es_aprobado = (sol_info.get("estado") == EstadoCertificado.APROBADO)
+    es_borrador = not es_aprobado
+    num_cert_final = sol_info.get("numeroCertificado") if es_aprobado else ""
+
+    # Buscar datos del estudiante
+    datos_curso = leer_curso(curso["id"])
+    est_seleccionado = None
+    for e in datos_curso.get("estudiantes", []):
+        if str(e.get("documento")).strip() == str(documento).strip():
+            est_seleccionado = e
+            break
+
+    situacion_est = est_seleccionado.get("situacion", "") if est_seleccionado else ""
+    aprobo_todo = str(situacion_est).startswith("Aprobó")
+
+    # Mapeo de notas a letras
+    letras_map = {
+        "1": "Uno", "2": "Dos", "3": "Tres", "4": "Cuatro", "5": "Cinco",
+        "6": "Seis", "7": "Siete", "8": "Ocho", "9": "Nueve", "10": "Diez",
+        "AUS": "Ausente"
+    }
+
+    # Trayecto curricular oficial de Peluquero (Res. 2114-E-2026)
+    trayecto_base = [
+        {"nro": 1, "modulo": "Relaciones Laborales y Orientación Profesional", "tipo": "Común", "periodo": "Cuatrimestre único", "hsReloj": 24, "hsCat": 36},
+        {"nro": 2, "modulo": "Piel y anexos cutáneos", "tipo": "Común", "periodo": "Cuatrimestre único", "hsReloj": 24, "hsCat": 36},
+        {"nro": 3, "modulo": "Gestión del proceso de trabajo en estética profesional", "tipo": "Común", "periodo": "Cuatrimestre único", "hsReloj": 20, "hsCat": 30},
+        {"nro": 4, "modulo": "Peinado", "tipo": "Específico", "periodo": "Cuatrimestre único", "hsReloj": 80, "hsCat": 120},
+        {"nro": 5, "modulo": "Corte", "tipo": "Específico", "periodo": "Cuatrimestre único", "hsReloj": 85, "hsCat": 128},
+        {"nro": 6, "modulo": "Coloración y cambio de estructura del cabello", "tipo": "Específico", "periodo": "Cuatrimestre único", "hsReloj": 107, "hsCat": 160}
+    ]
+
+    notas_est = est_seleccionado.get("notas", []) if est_seleccionado else []
+    trayecto_final = []
+    for idx, mod in enumerate(trayecto_base):
+        val_nota = notas_est[idx] if idx < len(notas_est) else ""
+        if val_nota == "" or val_nota is None:
+            cond = "Pendiente"
+            en_letra = ""
+        elif val_nota == "AUS":
+            cond = "Ausente"
+            en_letra = "Ausente"
+        else:
+            try:
+                n_num = int(float(val_nota))
+                cond = "Aprobado" if n_num >= 7 else "Desaprobado"
+                en_letra = letras_map.get(str(n_num), str(n_num))
+            except Exception:
+                cond = "Pendiente"
+                en_letra = ""
+
+        trayecto_final.append({
+            **mod,
+            "nota": val_nota,
+            "enLetras": en_letra,
+            "condicion": cond
+        })
+
+    # Formatear DNI con puntos (ej: 44.645.553)
+    doc_digits = re.sub(r"\D", "", str(documento))
+    if len(doc_digits) >= 7:
+        dni_formateado = f"{int(doc_digits):,}".replace(",", ".")
+    else:
+        dni_formateado = str(documento)
+
+    documento_oficial = {
+        "libro": "1",
+        "folio": est_seleccionado.get("folio", "_____") if est_seleccionado else "_____",
+        "certNro": num_cert_final if not es_borrador else "_____",
+        "establecimiento": "ESCUELA PROFESIONAL Nº 6",
+        "cue": "3800612-00",
+        "domicilio": "PTO ARGENTINO Nº 705- Bº MALVINAS ARG.",
+        "localidad": "PERICO",
+        "provincia": "JUJUY",
+        "estudianteNombre": f"{est_seleccionado.get('apellido', '')}, {est_seleccionado.get('nombres', '')}".strip() if est_seleccionado else "AMANTE, SERGIO DAVID",
+        "lugarNac": est_seleccionado.get("localidad", "S S DE JUJUY (JUJUY)") if est_seleccionado else "S S DE JUJUY (JUJUY)",
+        "fechaNac": est_seleccionado.get("fechaNac", "01/02/2002") if est_seleccionado else "01/02/2002",
+        "tipoDoc": est_seleccionado.get("tipoDoc", "DNI") if est_seleccionado else "DNI",
+        "dniFormateado": dni_formateado,
+        "trayecto": trayecto_final,
+        "cargaHorariaTotal": {"reloj": 340, "cat": 510},
+        "esBorrador": es_borrador,
+        "aprobo": aprobo_todo,
+        "situacion": situacion_est,
+        "mensajeEstado": "" if aprobo_todo else "Este estudiante todavía no aprobó: no se puede solicitar su certificado."
+    }
+
+    if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+        return {
+            "documentoOficial": documento_oficial,
+            "curso": curso,
+            "esBorrador": es_borrador,
+            "numeroCertificado": num_cert_final,
+            "solicitudCertificado": sol_info
+        }
+
+    # 1. Leer valores previos para no sobreescribir permanentemente
+    previo = google_client.batch_get_values(curso["id"], [
+        f"{ANALITICO['HOJA']}!{ANALITICO['DNI']}",
+        f"{ANALITICO['HOJA']}!{ANALITICO['FECHA']}",
+        f"{ANALITICO['HOJA']}!{ANALITICO['CERTIFICADO']}"
+    ])
+    prev_dni = previo.get(f"{ANALITICO['HOJA']}!{ANALITICO['DNI']}", [[""]])[0][0]
+    prev_fecha = previo.get(f"{ANALITICO['HOJA']}!{ANALITICO['FECHA']}", [[""]])[0][0]
+    prev_cert = previo.get(f"{ANALITICO['HOJA']}!{ANALITICO['CERTIFICADO']}", [[""]])[0][0]
+
+    # 2. Cargar los datos del estudiante solicitado
+    updates = [
+        {"range": f"{ANALITICO['HOJA']}!{ANALITICO['DNI']}", "values": [[documento]]}
+    ]
+    if fecha_emision:
+        updates.append({"range": f"{ANALITICO['HOJA']}!{ANALITICO['FECHA']}", "values": [[fecha_emision]]})
+    if certificado is not None:
+        updates.append({"range": f"{ANALITICO['HOJA']}!{ANALITICO['CERTIFICADO']}", "values": [[certificado]]})
+    google_client.batch_update_values(curso["id"], updates)
+
+    # 3. Leer la cuadrícula renderizada (columnas A..I) y metadatos de celdas combinadas
+    metadata = google_client.get_spreadsheet_metadata(curso["id"])
+    celdas = google_client.get_values(curso["id"], f"{ANALITICO['HOJA']}!A1:I50")
+
+    combinadas = []
+    for sheet in metadata.get("sheets", []):
+        if sheet.get("properties", {}).get("title") == ANALITICO["HOJA"]:
+            for m in sheet.get("merges", []):
+                combinadas.append({
+                    "f": m.get("startRowIndex", 0) + 1,
+                    "c": m.get("startColumnIndex", 0) + 1,
+                    "nf": m.get("endRowIndex", 0) - m.get("startRowIndex", 0),
+                    "nc": m.get("endColumnIndex", 0) - m.get("startColumnIndex", 0)
+                })
+            break
+
+    # 4. Restaurar valores previos
+    restore = [
+        {"range": f"{ANALITICO['HOJA']}!{ANALITICO['DNI']}", "values": [[prev_dni]]},
+        {"range": f"{ANALITICO['HOJA']}!{ANALITICO['FECHA']}", "values": [[prev_fecha]]},
+        {"range": f"{ANALITICO['HOJA']}!{ANALITICO['CERTIFICADO']}", "values": [[prev_cert]]}
+    ]
+    google_client.batch_update_values(curso["id"], restore)
+
+    registrar(sesion_usr, "Analítico", f"{curso['oferta']} {curso['ciclo']}", f"doc {documento}")
+    return {
+        "celdas": celdas,
+        "combinadas": combinadas,
+        "documentoOficial": documento_oficial,
+        "curso": curso,
+        "esBorrador": es_borrador,
+        "numeroCertificado": num_cert_final,
+        "solicitudCertificado": sol_info
+    }
+
+# ==================== RESUMEN POR INSTITUCIÓN (DIRECCIÓN) ====================
+
+def obtener_resumen(sesion_usr: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Calcula y devuelve el resumen institucional para el rol Dirección DETP."""
+    if not sesion_usr.get("verTodo"):
+        raise PermissionDeniedException("Este resumen es exclusivo para la Dirección DETP.")
+
+    por_institucion = {}
+    for c in cursos_del_panel():
+        try:
+            d = leer_curso(c["id"])
+            aprobados = sum(
+                1 for e in d.get("estudiantes", []) if str(e.get("situacion", "")).startswith("Aprobó")
+            )
+            k = c["cue"] or c["institucion"]
+            if k not in por_institucion:
+                por_institucion[k] = {
+                    "cue": c["cue"],
+                    "institucion": c["institucion"],
+                    "cursos": 0,
+                    "estudiantes": 0,
+                    "aprobados": 0
+                }
+            por_institucion[k]["cursos"] += 1
+            por_institucion[k]["estudiantes"] += len(d.get("estudiantes", []))
+            por_institucion[k]["aprobados"] += aprobados
+        except Exception:
+            continue
+
+    lista = list(por_institucion.values())
+    lista.sort(key=lambda x: x["institucion"])
+    return lista

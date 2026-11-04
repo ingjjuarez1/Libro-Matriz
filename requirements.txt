@@ -1,0 +1,6 @@
+starlette>=0.30.0
+uvicorn>=0.23.0
+google-auth>=2.20.0
+requests>=2.30.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
