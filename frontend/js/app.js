@@ -1102,8 +1102,8 @@ async function verAdminUsuarios() {
     var filas = usuarios.map(function (u) {
       var esOficial = String(u.Email || '').toLowerCase().endsWith('@jujuy.edu.ar');
       var badgeCorreo = esOficial
-        ? '<span class="badge-estado badge-aprobado" style="margin-left:6px">Oficial @jujuy.edu.ar</span>'
-        : '<span class="badge-estado badge-no-solicitado" style="margin-left:6px">Externo</span>';
+        ? '<span class="badge-estado badge-aprobado" style="margin-left:6px">@jujuy.edu.ar</span>'
+        : '<span class="badge-estado badge-pendiente" style="margin-left:6px">Autorizado</span>';
       var esPrincipal = String(u.Email || '').toLowerCase() === 'sge.detp.areapedagogica@jujuy.edu.ar';
 
       return '<tr>' +
@@ -1115,40 +1115,41 @@ async function verAdminUsuarios() {
           '<span class="badge-estado ' + (u.Activo === 'Sí' ? 'badge-aprobado' : 'badge-observado') + '">' + esc(u.Activo) + '</span>' +
         '</td>' +
         '<td style="text-align:center">' +
+          '<button class="boton suave" style="padding:4px 8px;font-size:12px;margin-right:4px" onclick="cargarUsuarioEnFormulario(\'' + esc(u.Email) + '\', \'' + esc(u.Nombre) + '\', \'' + esc(u.Rol) + '\', \'' + esc(u.CUE || '') + '\')">Editar Rol</button>' +
           (esPrincipal
-            ? '<span style="color:var(--suave);font-size:12px">Coordinación Principal</span>'
-            : '<button class="boton suave" style="padding:4px 10px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="borrarUsuarioSistema(\'' + esc(u.Email) + '\')">Borrar</button>') +
+            ? '<span style="color:var(--suave);font-size:11px">Principal</span>'
+            : '<button class="boton suave" style="padding:4px 8px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="borrarUsuarioSistema(\'' + esc(u.Email) + '\')">Borrar</button>') +
         '</td>' +
       '</tr>';
     }).join('');
 
     $('main').innerHTML =
       '<h1>Administración de Usuarios · Dirección DETP</h1>' +
-      '<p style="color:var(--suave)">Solo los usuarios con rol <b>Dirección DETP</b> pueden dar de alta o borrar cuentas autorizadas en el sistema.</p>' +
+      '<p style="color:var(--suave)">Pueden ingresar usuarios con <b>cualquier correo electrónico</b> (<code>@jujuy.edu.ar</code>, <code>@gmail.com</code>, etc.), siempre que un usuario con rol <b>Dirección DETP</b> los dé de alta aquí y les asigne su rol.</p>' +
       '<div style="background:#fff;border:1px solid var(--borde);border-radius:8px;padding:16px;margin:14px 0">' +
-        '<h3 style="margin:0 0 12px;font-size:14px">+ Agregar o Actualizar Usuario</h3>' +
+        '<h3 style="margin:0 0 12px;font-size:14px">+ Crear Usuario o Modificar Rol</h3>' +
         '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;align-items:end">' +
-          '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Correo (@jujuy.edu.ar u otro)</label>' +
-            '<input id="usr_email" class="buscar" style="margin:0;width:100%" placeholder="usuario@jujuy.edu.ar"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Correo electrónico (cualquier dominio)</label>' +
+            '<input id="usr_email" class="buscar" style="margin:0;width:100%" placeholder="ejemplo@gmail.com o @jujuy.edu.ar"></div>' +
           '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Nombre y Apellido / Área</label>' +
             '<input id="usr_nombre" class="buscar" style="margin:0;width:100%" placeholder="Ej: Dir. Escuela Prof. N° 6"></div>' +
-          '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Rol en el sistema</label>' +
+          '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Rol asignado por Dirección</label>' +
             '<select id="usr_rol" class="buscar" style="margin:0;width:100%">' +
               '<option value="Administrativo">Administrativo (Carga escuela)</option>' +
               '<option value="Directivo">Directivo (Consulta escuela)</option>' +
               '<option value="titulos">titulos (Departamento de Títulos)</option>' +
               '<option value="Dirección DETP">Dirección DETP (Crea/Borra usuarios)</option>' +
             '</select></div>' +
-          '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">CUE (obligatorio para escuelas)</label>' +
+          '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">CUE (solo para escuelas)</label>' +
             '<input id="usr_cue" class="buscar" style="margin:0;width:100%" placeholder="Ej: 3800006"></div>' +
-          '<div><button class="boton" id="btnGuardarUsr" style="width:100%">Guardar Usuario</button></div>' +
+          '<div><button class="boton" id="btnGuardarUsr" style="width:100%">Guardar Usuario y Rol</button></div>' +
         '</div>' +
       '</div>' +
       '<div class="tabla-ancha"><table><thead><tr>' +
-        '<th>Correo Electrónico</th><th>Nombre / Cargo</th><th>Rol</th>' +
+        '<th>Correo Electrónico</th><th>Nombre / Cargo</th><th>Rol Asignado</th>' +
         '<th style="width:120px;text-align:center">CUE Asignado</th>' +
-        '<th style="width:90px;text-align:center">Activo</th>' +
-        '<th style="width:110px;text-align:center">Acción</th>' +
+        '<th style="width:80px;text-align:center">Activo</th>' +
+        '<th style="width:170px;text-align:center">Acciones</th>' +
       '</tr></thead><tbody>' + filas + '</tbody></table></div>';
 
     $('btnGuardarUsr').addEventListener('click', async function () {
@@ -1171,6 +1172,15 @@ async function verAdminUsuarios() {
   } catch (e) {
     problema(e);
   }
+}
+
+function cargarUsuarioEnFormulario(email, nombre, rol, cue) {
+  if ($('usr_email')) $('usr_email').value = email;
+  if ($('usr_nombre')) $('usr_nombre').value = nombre;
+  if ($('usr_rol')) $('usr_rol').value = rol;
+  if ($('usr_cue')) $('usr_cue').value = cue;
+  if ($('usr_email')) $('usr_email').focus();
+  avisar('Editando rol de ' + email + '. Modificá los datos arriba y tocá Guardar.');
 }
 
 async function borrarUsuarioSistema(emailObj) {
