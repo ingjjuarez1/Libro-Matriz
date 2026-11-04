@@ -8,7 +8,8 @@ from typing import Dict, Any, Optional
 from starlette.requests import Request
 from starlette.responses import JSONResponse, HTMLResponse
 from backend.app.core.auth import (
-    sesion, alcanza_cue, AuthException, PermissionDeniedException, obtener_usuarios_panel
+    sesion, alcanza_cue, AuthException, PermissionDeniedException,
+    obtener_usuarios_panel, guardar_usuario_panel, eliminar_usuario_panel
 )
 from backend.app.services.datos_service import (
     cursos_del_panel, buscar_curso, leer_curso, guardar_notas,
@@ -170,10 +171,27 @@ async def api_resumen(request: Request) -> JSONResponse:
 
 async def api_usuarios(request: Request) -> JSONResponse:
     try:
-        usuarios = obtener_usuarios_panel()
-        return JSONResponse({"ok": True, "usuarios": usuarios})
+        if request.method == "GET":
+            usuarios = obtener_usuarios_panel()
+            return JSONResponse({"ok": True, "usuarios": usuarios})
+        
+        email = get_current_user_email(request)
+        s = sesion(email)
+        body = await request.json()
+
+        if request.method == "POST":
+            usr = guardar_usuario_panel(body, s)
+            return JSONResponse({"ok": True, "usuario": usr})
+        elif request.method == "DELETE":
+            email_obj = body.get("Email") or request.query_params.get("email", "")
+            eliminar_usuario_panel(email_obj, s)
+            return JSONResponse({"ok": True, "eliminado": email_obj})
+
+        return JSONResponse({"ok": False, "error": "Método no soportado"}, status_code=405)
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 async def api_instalar_panel(request: Request) -> JSONResponse:
     try:

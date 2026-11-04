@@ -55,7 +55,7 @@ routes = [
     Route("/api/curso/{id_curso}/acta", endpoint=api_guardar_acta, methods=["POST"]),
     Route("/api/curso/{id_curso}/analitico", endpoint=api_analitico, methods=["GET"]),
     Route("/api/resumen", endpoint=api_resumen, methods=["GET"]),
-    Route("/api/usuarios", endpoint=api_usuarios, methods=["GET"]),
+    Route("/api/usuarios", endpoint=api_usuarios, methods=["GET", "POST", "DELETE"]),
     Route("/api/instalar-panel", endpoint=api_instalar_panel, methods=["POST"]),
     Route("/api/importar-cursos", endpoint=api_importar_cursos, methods=["POST"]),
     

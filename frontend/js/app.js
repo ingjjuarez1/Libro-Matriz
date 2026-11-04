@@ -10,7 +10,7 @@ var estado = {
   curso: null,
   datos: null,
   pestania: 'notas',
-  emailActual: localStorage.getItem('lm_email') || 'titulos@educacion.jujuy.gob.ar',
+  emailActual: localStorage.getItem('lm_email') || 'sge.detp.areapedagogica@jujuy.edu.ar',
   filtroBandeja: 'Pendiente'
 };
 
@@ -151,6 +151,7 @@ function verCursos() {
       (estado.sesion.puedeCargar || estado.sesion.verTodo ? '<button class="boton" id="btnNuevoCurso">+ Nuevo curso</button>' : '') +
       (estado.sesion.verTodo ? '<button class="boton suave" id="btnResumen">Resumen por institución</button>' : '') +
       '<button class="boton suave" id="btnTitulos">Certificados de Títulos</button>' +
+      (estado.sesion.puedeAdministrarUsuarios ? '<button class="boton suave" id="btnUsuarios">👤 Administrar Usuarios</button>' : '') +
     '</div>' +
     '<input class="buscar" id="buscar" placeholder="Buscar por institución, oferta o CUE…">' +
     '<div class="tarjetas" id="lista"></div>';
@@ -158,6 +159,7 @@ function verCursos() {
   if ($('btnNuevoCurso')) $('btnNuevoCurso').addEventListener('click', mostrarModalNuevoCurso);
   if ($('btnResumen')) $('btnResumen').addEventListener('click', verResumen);
   if ($('btnTitulos')) $('btnTitulos').addEventListener('click', verBandejaTitulos);
+  if ($('btnUsuarios')) $('btnUsuarios').addEventListener('click', verAdminUsuarios);
   $('buscar').addEventListener('input', pintarLista);
   pintarLista();
 }
@@ -1061,5 +1063,99 @@ async function verResumen() {
       }).join('') + '</tbody></table>';
   } catch (err) {
     problema(err);
+  }
+}
+
+// ---------- ADMINISTRACIÓN DE USUARIOS (EXCLUSIVO ROL DIRECCIÓN DETP) ----------
+async function verAdminUsuarios() {
+  $('migas').hidden = false;
+  $('main').innerHTML = '<div class="cargando">Cargando padrón de usuarios autorizados…</div>';
+  try {
+    var r = await llamar('/api/usuarios');
+    var usuarios = r.usuarios || [];
+
+    var filas = usuarios.map(function (u) {
+      var esOficial = String(u.Email || '').toLowerCase().endsWith('@jujuy.edu.ar');
+      var badgeCorreo = esOficial
+        ? '<span class="badge-estado badge-aprobado" style="margin-left:6px">Oficial @jujuy.edu.ar</span>'
+        : '<span class="badge-estado badge-no-solicitado" style="margin-left:6px">Externo</span>';
+      var esPrincipal = String(u.Email || '').toLowerCase() === 'sge.detp.areapedagogica@jujuy.edu.ar';
+
+      return '<tr>' +
+        '<td><b>' + esc(u.Email) + '</b>' + badgeCorreo + '</td>' +
+        '<td>' + esc(u.Nombre) + '</td>' +
+        '<td><b>' + esc(u.Rol) + '</b></td>' +
+        '<td style="text-align:center">' + esc(u.CUE || 'Todas (Global)') + '</td>' +
+        '<td style="text-align:center">' +
+          '<span class="badge-estado ' + (u.Activo === 'Sí' ? 'badge-aprobado' : 'badge-observado') + '">' + esc(u.Activo) + '</span>' +
+        '</td>' +
+        '<td style="text-align:center">' +
+          (esPrincipal
+            ? '<span style="color:var(--suave);font-size:12px">Coordinación Principal</span>'
+            : '<button class="boton suave" style="padding:4px 10px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="borrarUsuarioSistema(\'' + esc(u.Email) + '\')">Borrar</button>') +
+        '</td>' +
+      '</tr>';
+    }).join('');
+
+    $('main').innerHTML =
+      '<h1>Administración de Usuarios · Dirección DETP</h1>' +
+      '<p style="color:var(--suave)">Solo los usuarios con rol <b>Dirección DETP</b> pueden dar de alta o borrar cuentas autorizadas en el sistema.</p>' +
+      '<div style="background:#fff;border:1px solid var(--borde);border-radius:8px;padding:16px;margin:14px 0">' +
+        '<h3 style="margin:0 0 12px;font-size:14px">+ Agregar o Actualizar Usuario</h3>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;align-items:end">' +
+          '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Correo (@jujuy.edu.ar u otro)</label>' +
+            '<input id="usr_email" class="buscar" style="margin:0;width:100%" placeholder="usuario@jujuy.edu.ar"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Nombre y Apellido / Área</label>' +
+            '<input id="usr_nombre" class="buscar" style="margin:0;width:100%" placeholder="Ej: Dir. Escuela Prof. N° 6"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Rol en el sistema</label>' +
+            '<select id="usr_rol" class="buscar" style="margin:0;width:100%">' +
+              '<option value="Administrativo">Administrativo (Carga escuela)</option>' +
+              '<option value="Directivo">Directivo (Consulta escuela)</option>' +
+              '<option value="titulos">titulos (Departamento de Títulos)</option>' +
+              '<option value="Dirección DETP">Dirección DETP (Crea/Borra usuarios)</option>' +
+            '</select></div>' +
+          '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">CUE (obligatorio para escuelas)</label>' +
+            '<input id="usr_cue" class="buscar" style="margin:0;width:100%" placeholder="Ej: 3800006"></div>' +
+          '<div><button class="boton" id="btnGuardarUsr" style="width:100%">Guardar Usuario</button></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="tabla-ancha"><table><thead><tr>' +
+        '<th>Correo Electrónico</th><th>Nombre / Cargo</th><th>Rol</th>' +
+        '<th style="width:120px;text-align:center">CUE Asignado</th>' +
+        '<th style="width:90px;text-align:center">Activo</th>' +
+        '<th style="width:110px;text-align:center">Acción</th>' +
+      '</tr></thead><tbody>' + filas + '</tbody></table></div>';
+
+    $('btnGuardarUsr').addEventListener('click', async function () {
+      var payload = {
+        Email: $('usr_email').value.trim(),
+        Nombre: $('usr_nombre').value.trim(),
+        Rol: $('usr_rol').value,
+        CUE: $('usr_cue').value.trim(),
+        Activo: 'Sí'
+      };
+      try {
+        await llamar('/api/usuarios', 'POST', payload);
+        avisar('Usuario guardado correctamente', 'ok');
+        await cargarUsuariosPrueba();
+        verAdminUsuarios();
+      } catch (e) {
+        problema(e);
+      }
+    });
+  } catch (e) {
+    problema(e);
+  }
+}
+
+async function borrarUsuarioSistema(emailObj) {
+  if (!confirm('¿Seguro que deseas borrar al usuario ' + emailObj + '?')) return;
+  try {
+    await llamar('/api/usuarios', 'DELETE', { Email: emailObj });
+    avisar('Usuario eliminado: ' + emailObj, 'ok');
+    await cargarUsuariosPrueba();
+    verAdminUsuarios();
+  } catch (e) {
+    problema(e);
   }
 }

@@ -7,7 +7,9 @@ aquí en el servidor antes de realizar cualquier cambio en Google Drive / Sheets
 """
 
 import re
+import json
 import datetime
+from pathlib import Path
 from typing import Dict, List, Any, Optional
 from backend.app.core.config import Roles, PANEL, PANEL_ID
 from backend.app.services.google_service import google_client
@@ -18,6 +20,71 @@ class AuthException(Exception):
 class PermissionDeniedException(Exception):
     pass
 
+USUARIOS_FILE = Path(__file__).resolve().parent.parent.parent / "data" / "usuarios.json"
+
+_USUARIOS_INICIALES: List[Dict[str, Any]] = [
+    {
+        "Email": "sge.detp.areapedagogica@jujuy.edu.ar",
+        "Nombre": "Coordinación Área Pedagógica DETP",
+        "Rol": Roles.DIRECCION,
+        "CUE": "",
+        "Activo": "Sí",
+        "Oficial": True
+    },
+    {
+        "Email": "titulos@jujuy.edu.ar",
+        "Nombre": "Departamento de Títulos",
+        "Rol": Roles.TITULOS,
+        "CUE": "",
+        "Activo": "Sí",
+        "Oficial": True
+    },
+    {
+        "Email": "directivo.ep6@jujuy.edu.ar",
+        "Nombre": "Directivo EP Nº 6",
+        "Rol": Roles.DIRECTIVO,
+        "CUE": "3800006",
+        "Activo": "Sí",
+        "Oficial": True
+    },
+    {
+        "Email": "admin.ep6@jujuy.edu.ar",
+        "Nombre": "Administrativo EP Nº 6",
+        "Rol": Roles.ADMINISTRATIVO,
+        "CUE": "3800006",
+        "Activo": "Sí",
+        "Oficial": True
+    },
+    {
+        "Email": "titulos@educacion.jujuy.gob.ar",
+        "Nombre": "Departamento de Títulos (Secundario)",
+        "Rol": Roles.TITULOS,
+        "CUE": "",
+        "Activo": "Sí",
+        "Oficial": False
+    }
+]
+
+def _cargar_usuarios_locales() -> List[Dict[str, Any]]:
+    if USUARIOS_FILE.exists():
+        try:
+            with open(USUARIOS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list) and len(data) > 0:
+                    return data
+        except Exception:
+            pass
+    _guardar_usuarios_locales(_USUARIOS_INICIALES)
+    return list(_USUARIOS_INICIALES)
+
+def _guardar_usuarios_locales(lista: List[Dict[str, Any]]):
+    try:
+        USUARIOS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(USUARIOS_FILE, "w", encoding="utf-8") as f:
+            json.dump(lista, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
 def normalizar_cue(cue_val: Any) -> str:
     """Extrae únicamente dígitos del CUE."""
     if not cue_val:
@@ -25,44 +92,17 @@ def normalizar_cue(cue_val: Any) -> str:
     return re.sub(r"\D", "", str(cue_val))
 
 def obtener_usuarios_panel() -> List[Dict[str, Any]]:
-    """Lee la pestaña 'Usuarios' del Panel FP."""
+    """Lee la pestaña 'Usuarios' del Panel FP o el almacén local administrado por DETP/Títulos."""
     if not PANEL_ID or not google_client.is_connected():
-        # Usuarios para pruebas locales con todos los roles
-        return [
-            {
-                "Email": "admin@educacion.jujuy.gob.ar",
-                "Nombre": "Coordinación DETP Jujuy",
-                "Rol": Roles.DIRECCION,
-                "CUE": "",
-                "Activo": "Sí"
-            },
-            {
-                "Email": "titulos@educacion.jujuy.gob.ar",
-                "Nombre": "Departamento de Títulos",
-                "Rol": Roles.TITULOS,
-                "CUE": "",
-                "Activo": "Sí"
-            },
-            {
-                "Email": "directivo@ep6.jujuy.gob.ar",
-                "Nombre": "Directivo EP Nº 6",
-                "Rol": Roles.DIRECTIVO,
-                "CUE": "3800006",
-                "Activo": "Sí"
-            },
-            {
-                "Email": "admin@ep6.jujuy.gob.ar",
-                "Nombre": "Administrativo EP Nº 6",
-                "Rol": Roles.ADMINISTRATIVO,
-                "CUE": "3800006",
-                "Activo": "Sí"
-            }
-        ]
+        usuarios = _cargar_usuarios_locales()
+        for u in usuarios:
+            u["Oficial"] = str(u.get("Email", "")).strip().lower().endswith("@jujuy.edu.ar")
+        return usuarios
 
     try:
-        valores = google_client.get_values(PANEL_ID, f"{PANEL['USUARIOS']['hoja']}!A1:E100")
+        valores = google_client.get_values(PANEL_ID, f"{PANEL['USUARIOS']['hoja']}!A1:E200")
         if len(valores) < 2:
-            return []
+            return _cargar_usuarios_locales()
         
         encabezados = [str(col).strip() for col in valores[0]]
         usuarios = []
@@ -72,14 +112,95 @@ def obtener_usuarios_panel() -> List[Dict[str, Any]]:
             item = {}
             for idx, enc in enumerate(encabezados):
                 item[enc] = str(fila[idx]).strip() if idx < len(fila) else ""
+            item["Oficial"] = str(item.get("Email", "")).strip().lower().endswith("@jujuy.edu.ar")
             usuarios.append(item)
         return usuarios
     except Exception as e:
         raise RuntimeError(f"Error al leer la hoja Usuarios del Panel FP: {e}")
 
+def guardar_usuario_panel(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Crea o actualiza un usuario en la administración centralizada.
+    EXCLUSIVO para el rol 'Dirección DETP' (Coordinación).
+    """
+    if sesion_usr.get("rol") != Roles.DIRECCION:
+        raise PermissionDeniedException("Solo los usuarios con rol 'Dirección DETP' pueden crear o modificar usuarios.")
+
+    email = str(datos.get("Email", "")).strip().lower()
+    if not email or "@" not in email:
+        raise ValueError("Debes ingresar un correo electrónico válido (ej: usuario@jujuy.edu.ar).")
+
+    nombre = str(datos.get("Nombre", "")).strip() or email.split("@")[0]
+    rol = str(datos.get("Rol", Roles.ADMINISTRATIVO)).strip()
+    if rol not in Roles.ALL:
+        raise ValueError(f"Rol inválido '{rol}'. Roles permitidos: {', '.join(Roles.ALL)}.")
+
+    cue = str(datos.get("CUE", "")).strip()
+    if rol in [Roles.DIRECTIVO, Roles.ADMINISTRATIVO] and not normalizar_cue(cue):
+        raise ValueError("Para los roles Directivo y Administrativo es obligatorio indicar el CUE de la institución.")
+
+    activo = "Sí" if str(datos.get("Activo", "Sí")).strip().lower() not in ["no", "false", "0"] else "No"
+
+    nuevo_item = {
+        "Email": email,
+        "Nombre": nombre,
+        "Rol": rol,
+        "CUE": cue,
+        "Activo": activo,
+        "Oficial": email.endswith("@jujuy.edu.ar")
+    }
+
+    usuarios = _cargar_usuarios_locales()
+    actualizado = False
+    for idx, u in enumerate(usuarios):
+        if str(u.get("Email", "")).strip().lower() == email:
+            usuarios[idx] = nuevo_item
+            actualizado = True
+            break
+    if not actualizado:
+        usuarios.append(nuevo_item)
+
+    _guardar_usuarios_locales(usuarios)
+
+    if PANEL_ID and google_client.is_connected() and not actualizado:
+        try:
+            google_client.append_row(
+                PANEL_ID,
+                PANEL["USUARIOS"]["hoja"],
+                [email, nombre, rol, cue, activo]
+            )
+        except Exception:
+            pass
+
+    registrar(
+        sesion_usr,
+        "Actualización Usuario" if actualizado else "Alta Usuario",
+        cue,
+        f"{email} ({rol}) - Activo: {activo}"
+    )
+    return nuevo_item
+
+def eliminar_usuario_panel(email_objetivo: str, sesion_usr: Dict[str, Any]) -> bool:
+    """Elimina un usuario del registro (EXCLUSIVO para rol Dirección DETP)."""
+    if sesion_usr.get("rol") != Roles.DIRECCION:
+        raise PermissionDeniedException("Solo los usuarios con rol 'Dirección DETP' pueden borrar usuarios.")
+
+    email_norm = str(email_objetivo or "").strip().lower()
+    if email_norm == "sge.detp.areapedagogica@jujuy.edu.ar":
+        raise ValueError("No se puede eliminar la cuenta principal de Coordinación DETP.")
+
+    usuarios = _cargar_usuarios_locales()
+    nuevos = [u for u in usuarios if str(u.get("Email", "")).strip().lower() != email_norm]
+    if len(nuevos) == len(usuarios):
+        raise ValueError(f"No se encontró el usuario {email_norm}.")
+
+    _guardar_usuarios_locales(nuevos)
+    registrar(sesion_usr, "Baja Usuario", "", f"Eliminado: {email_norm}")
+    return True
+
 def sesion(email: Optional[str] = None) -> Dict[str, Any]:
     """
-    Verifica la identidad y devuelve {email, nombre, rol, cues, puedeCargar, verTodo}.
+    Verifica la identidad y devuelve {email, nombre, rol, cues, puedeCargar, verTodo, puedeAdministrarUsuarios}.
     Lanza AuthException si la cuenta no está autorizada.
     """
     if not email:
@@ -130,7 +251,8 @@ def sesion(email: Optional[str] = None) -> Dict[str, Any]:
         "cues": cues,
         "verTodo": ver_todo,
         "puedeCargar": (rol == Roles.ADMINISTRATIVO),
-        "esTitulos": es_titulos
+        "esTitulos": es_titulos,
+        "puedeAdministrarUsuarios": (rol == Roles.DIRECCION)
     }
 
 def alcanza_cue(s: Dict[str, Any], cue: Any) -> bool:
