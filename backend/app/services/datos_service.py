@@ -21,6 +21,11 @@ from backend.app.core.auth import (
 from backend.app.services.titulos_service import (
     obtener_estado_estudiante, esta_estudiante_congelado, EstadoCertificado
 )
+from backend.app.services.excel_importer import (
+    procesar_archivo_excel, _calcular_situacion_y_promedio
+)
+
+_CURSOS_IMPORTADOS: Dict[str, Dict[str, Any]] = {}
 
 def texto(v: Any) -> str:
     """Normaliza un valor de celda a string limpio."""
@@ -184,6 +189,21 @@ def leer_curso(id_archivo: str) -> Dict[str, Any]:
     Lee encabezado, módulos y lista de estudiantes desde la pestaña RAC del curso.
     Optimizado en batch: lee metadatos y rangos en mínimas llamadas.
     """
+    if id_archivo in _CURSOS_IMPORTADOS:
+        datos_imp = _CURSOS_IMPORTADOS[id_archivo]["datosCurso"]
+        est_copia = []
+        for est in datos_imp.get("estudiantes", []):
+            e = dict(est)
+            sol_info = obtener_estado_estudiante(id_archivo, e.get("documento", ""))
+            e["solicitudCertificado"] = sol_info
+            e["notasCongeladas"] = (sol_info.get("estado") == EstadoCertificado.APROBADO)
+            est_copia.append(e)
+        return {
+            "encabezado": datos_imp["encabezado"],
+            "modulos": datos_imp["modulos"],
+            "estudiantes": est_copia
+        }
+
     if id_archivo == "curso-peluquero-ep6-demo" or not google_client.is_connected():
         est_copia = []
         for est in _ESTUDIANTES_DEMO:
@@ -334,6 +354,20 @@ def guardar_notas(id_curso: str, cambios: List[Dict[str, Any]], sesion_usr: Dict
                 "están congeladas porque su certificado oficial ya fue APROBADO por el Departamento de Títulos."
             )
 
+    if curso["id"] in _CURSOS_IMPORTADOS:
+        est_lista = _CURSOS_IMPORTADOS[curso["id"]]["datosCurso"]["estudiantes"]
+        for c in cambios:
+            f = int(c.get("fila", 0))
+            m = int(c.get("modulo", 0))
+            v_norm = normalizar_nota(c.get("valor"))
+            for est in est_lista:
+                if est["fila"] == f and m < len(est["notas"]):
+                    est["notas"][m] = str(v_norm)
+                    nf, sit = _calcular_situacion_y_promedio(est["notas"])
+                    est["notaFinal"] = nf
+                    est["situacion"] = sit
+        return {"guardados": len(cambios)}
+
     if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
         for c in cambios:
             f = int(c.get("fila", 0))
@@ -342,6 +376,9 @@ def guardar_notas(id_curso: str, cambios: List[Dict[str, Any]], sesion_usr: Dict
             for est in _ESTUDIANTES_DEMO:
                 if est["fila"] == f and m < len(est["notas"]):
                     est["notas"][m] = str(v_norm)
+                    nf, sit = _calcular_situacion_y_promedio(est["notas"])
+                    est["notaFinal"] = nf
+                    est["situacion"] = sit
         return {"guardados": len(cambios)}
 
     updates = []
@@ -386,7 +423,7 @@ def guardar_estudiante(id_curso: str, est_data: Dict[str, Any], sesion_usr: Dict
 
     fila = int(est_data.get("fila") or 0)
     if not fila:
-        if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+        if curso["id"] == "curso-peluquero-ep6-demo" or curso["id"] in _CURSOS_IMPORTADOS or not google_client.is_connected():
             fila = RAC["FILA_1"] + len(_ESTUDIANTES_DEMO)
         else:
             apellidos_vals = google_client.get_values(
@@ -404,7 +441,7 @@ def guardar_estudiante(id_curso: str, est_data: Dict[str, Any], sesion_usr: Dict
     if not (RAC["FILA_1"] <= fila <= RAC["FILA_N"]):
         raise ValueError(f"Fila {fila} fuera de rango.")
 
-    if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+    if curso["id"] == "curso-peluquero-ep6-demo" or curso["id"] in _CURSOS_IMPORTADOS or not google_client.is_connected():
         _ESTUDIANTES_DEMO.append({
             "fila": fila,
             "orden": str(len(_ESTUDIANTES_DEMO) + 1),
@@ -459,6 +496,15 @@ def leer_acta(id_curso: str, sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
     if not curso:
         raise ValueError("Curso no encontrado en el Panel.")
     exigir_lectura(sesion_usr, curso)
+
+    if curso["id"] in _CURSOS_IMPORTADOS:
+        acta_imp = _CURSOS_IMPORTADOS[curso["id"]]["actaCurso"]
+        return {
+            "curso": curso,
+            "puedeCargar": bool(sesion_usr.get("puedeCargar") or sesion_usr.get("verTodo")),
+            "mesa": acta_imp["mesa"],
+            "estudiantes": acta_imp["estudiantes"]
+        }
 
     if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
         return {
@@ -570,7 +616,7 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
         raise ValueError("Curso no encontrado en el Panel.")
     exigir_carga(sesion_usr, curso)
 
-    if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+    if curso["id"] == "curso-peluquero-ep6-demo" or curso["id"] in _CURSOS_IMPORTADOS or not google_client.is_connected():
         return {"guardados": len(cambios or [])}
 
     updates = []
@@ -712,7 +758,7 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
         "mensajeEstado": "" if aprobo_todo else "Este estudiante todavía no aprobó: no se puede solicitar su certificado."
     }
 
-    if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+    if curso["id"] == "curso-peluquero-ep6-demo" or curso["id"] in _CURSOS_IMPORTADOS or not google_client.is_connected():
         return {
             "documentoOficial": documento_oficial,
             "curso": curso,
@@ -808,3 +854,34 @@ def obtener_resumen(sesion_usr: Dict[str, Any]) -> List[Dict[str, Any]]:
     lista = list(por_institucion.values())
     lista.sort(key=lambda x: x["institucion"])
     return lista
+
+# ==================== IMPORTADOR DE VIEJO EXCEL (.XLSM / .XLSX) ====================
+
+def importar_excel_en_sistema(contenido: bytes, nombre_archivo: str, sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Procesa un archivo Excel (.xlsm o .xlsx), extrae la nómina de estudiantes,
+    calificaciones y acta de examen, y lo registra inmediatamente en el sistema.
+    """
+    paquete = procesar_archivo_excel(contenido, nombre_archivo)
+    resumen = paquete["resumenCurso"]
+
+    # Si el usuario pertenece a una escuela con CUE específico, asignar su CUE si el Excel no tenía uno válido
+    if not sesion_usr.get("verTodo") and sesion_usr.get("cues"):
+        resumen["cue"] = sesion_usr["cues"][0]
+        paquete["datosCurso"]["encabezado"]["cue"] = sesion_usr["cues"][0]
+
+    id_curso = resumen["id"]
+    _CURSOS_IMPORTADOS[id_curso] = paquete
+    _CURSOS_DEMO.append(resumen)
+
+    registrar(
+        sesion_usr,
+        "Importación Excel",
+        f"{resumen['oferta']} ({resumen['cue']})",
+        f"Archivo '{nombre_archivo}' importado con {len(paquete['datosCurso']['estudiantes'])} estudiantes"
+    )
+    return {
+        "curso": resumen,
+        "cantidadEstudiantes": len(paquete["datosCurso"]["estudiantes"]),
+        "cantidadModulos": len(paquete["datosCurso"]["modulos"])
+    }

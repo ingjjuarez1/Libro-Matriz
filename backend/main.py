@@ -22,7 +22,7 @@ from starlette.responses import FileResponse, JSONResponse
 from backend.app.routers.api import (
     api_inicio, api_curso, api_guardar_notas, api_guardar_estudiante,
     api_acta, api_guardar_acta, api_analitico, api_resumen,
-    api_usuarios, api_instalar_panel, api_importar_cursos,
+    api_usuarios, api_instalar_panel, api_importar_cursos, api_importar_excel,
     api_listar_solicitudes, api_crear_solicitud, api_aprobar_solicitud,
     api_observar_solicitud, api_aprobar_lote_solicitudes,
     api_validar_certificado, pagina_validar_certificado
@@ -58,6 +58,7 @@ routes = [
     Route("/api/usuarios", endpoint=api_usuarios, methods=["GET", "POST", "DELETE"]),
     Route("/api/instalar-panel", endpoint=api_instalar_panel, methods=["POST"]),
     Route("/api/importar-cursos", endpoint=api_importar_cursos, methods=["POST"]),
+    Route("/api/importar-excel", endpoint=api_importar_excel, methods=["POST"]),
     
     # Endpoints del circuito de emisión de certificados (rol 'titulos' y escuelas)
     Route("/api/solicitudes", endpoint=api_listar_solicitudes, methods=["GET"]),

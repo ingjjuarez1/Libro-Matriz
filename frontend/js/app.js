@@ -157,6 +157,7 @@ function verCursos() {
     '<p style="color:var(--suave);margin:0 0 12px">' + subtitulo + '</p>' +
     '<div class="acciones">' +
       (estado.sesion.puedeCargar || estado.sesion.verTodo ? '<button class="boton" id="btnNuevoCurso">+ Nuevo curso</button>' : '') +
+      (estado.sesion.puedeCargar || estado.sesion.verTodo ? '<button class="boton" id="btnImportarExcel" style="background:#137333">📥 Importar Viejo Excel</button>' : '') +
       (estado.sesion.verTodo ? '<button class="boton suave" id="btnResumen">Resumen por institución</button>' : '') +
       '<button class="boton suave" id="btnTitulos">Certificados de Títulos</button>' +
       (estado.sesion.puedeAdministrarUsuarios ? '<button class="boton suave" id="btnUsuarios">👤 Administrar Usuarios</button>' : '') +
@@ -165,6 +166,7 @@ function verCursos() {
     '<div class="tarjetas" id="lista"></div>';
 
   if ($('btnNuevoCurso')) $('btnNuevoCurso').addEventListener('click', mostrarModalNuevoCurso);
+  if ($('btnImportarExcel')) $('btnImportarExcel').addEventListener('click', mostrarModalImportarExcel);
   if ($('btnResumen')) $('btnResumen').addEventListener('click', verResumen);
   if ($('btnTitulos')) $('btnTitulos').addEventListener('click', verBandejaTitulos);
   if ($('btnUsuarios')) $('btnUsuarios').addEventListener('click', verAdminUsuarios);
@@ -379,6 +381,15 @@ async function pintarActa() {
       var pracLetras = es.practicoLetras || notaALetras(es.practico);
       var defLetras = es.definitivaLetras || notaALetras(es.definitiva);
 
+      var badgeCond = '—';
+      if (condStr === 'Aprobado') {
+        badgeCond = '<span class="badge-estado badge-aprobado">Aprobado</span>';
+      } else if (condStr === 'Desaprobado') {
+        badgeCond = '<span class="badge-estado badge-observado">Desaprobado</span>';
+      } else if (condStr === 'Ausente') {
+        badgeCond = '<span class="badge-estado badge-no-solicitado">Ausente</span>';
+      }
+
       return '<tr>' +
         '<td style="text-align:center">' + esc(es.orden) + '</td>' +
         '<td style="text-align:center">' + esc(es.permiso || '') + '</td>' +
@@ -390,6 +401,7 @@ async function pintarActa() {
         '<td style="text-align:center">' + esc(pracLetras) + '</td>' +
         '<td style="text-align:center;font-weight:bold">' + esc(es.definitiva) + '</td>' +
         '<td style="text-align:center">' + esc(defLetras) + '</td>' +
+        '<td style="text-align:center">' + badgeCond + '</td>' +
       '</tr>';
     }).join('');
 
@@ -438,6 +450,7 @@ async function pintarActa() {
         '<th style="width:60px">Teórico N°</th><th style="width:70px">Teórico Letras</th>' +
         '<th style="width:60px">Práctico N°</th><th style="width:70px">Práctico Letras</th>' +
         '<th style="width:60px">Definitiva N°</th><th style="width:90px">Definitiva Letras</th>' +
+        '<th style="width:105px">Condición</th>' +
       '</tr></thead><tbody>' + (filas || '') + '</tbody></table></div>' +
 
       // ── Resumen ──
@@ -1023,6 +1036,68 @@ function mostrarModalNuevoCurso() {
     estado.cursos.push(nuevo);
     avisar('Curso registrado con éxito', 'ok');
     verCursos();
+  });
+}
+
+// ---------- MODAL IMPORTAR VIEJO EXCEL (.XLSM / .XLSX) ----------
+function mostrarModalImportarExcel() {
+  $('migas').hidden = false;
+  var modal = document.createElement('div');
+  modal.style.background = '#fff';
+  modal.style.padding = '24px';
+  modal.style.maxWidth = '540px';
+  modal.style.margin = '20px auto';
+  modal.style.border = '1px solid var(--borde)';
+  modal.style.borderRadius = '8px';
+  modal.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)';
+
+  modal.innerHTML =
+    '<h2>📥 Importar Viejo Excel (.xlsm / .xlsx)</h2>' +
+    '<p style="color:var(--suave);font-size:13px;line-height:1.5;margin-top:4px">' +
+      'Seleccioná el archivo histórico de Excel con macros (<b>.xlsm</b>) o planilla (<b>.xlsx</b>) de la escuela. ' +
+      'El conversor automático migrará la nómina de estudiantes, los módulos, las calificaciones y el Acta de Examen sin necesidad de volver a tipear.' +
+    '</p>' +
+    '<div style="border:2px dashed var(--azul);background:var(--celeste);padding:20px;border-radius:8px;text-align:center;margin:16px 0">' +
+      '<input type="file" id="inp_excel_file" accept=".xlsm,.xlsx" style="font-size:13px;width:100%">' +
+    '</div>' +
+    '<div id="estado_importacion" style="font-size:13px;color:var(--azul);margin:8px 0"></div>' +
+    '<div class="acciones" style="justify-content:flex-end;margin-top:14px">' +
+      '<button class="boton suave" id="imp_cancelar">Cancelar</button>' +
+      '<button class="boton" id="imp_procesar" style="background:#137333">Convertir e Importar Curso</button>' +
+    '</div>';
+
+  $('main').innerHTML = '';
+  $('main').appendChild(modal);
+
+  $('imp_cancelar').addEventListener('click', verCursos);
+  $('imp_procesar').addEventListener('click', function () {
+    var input = $('inp_excel_file');
+    if (!input.files || !input.files.length) {
+      avisar('Seleccioná primero un archivo Excel (.xlsm o .xlsx)', 'error');
+      return;
+    }
+    var archivo = input.files[0];
+    $('imp_procesar').disabled = true;
+    $('estado_importacion').textContent = '⏳ Leyendo y convirtiendo ' + archivo.name + '…';
+
+    var reader = new FileReader();
+    reader.onload = async function (ev) {
+      try {
+        var b64 = ev.target.result;
+        var res = await llamar('/api/importar-excel', 'POST', {
+          nombreArchivo: archivo.name,
+          contenidoBase64: b64
+        });
+        estado.cursos.push(res.curso);
+        avisar('¡Excel importado con éxito! (' + res.cantidadEstudiantes + ' estudiantes y ' + res.cantidadModulos + ' módulos)', 'ok');
+        abrirCurso(res.curso.id);
+      } catch (e) {
+        problema(e);
+        $('imp_procesar').disabled = false;
+        $('estado_importacion').textContent = '';
+      }
+    };
+    reader.readAsDataURL(archivo);
   });
 }
 

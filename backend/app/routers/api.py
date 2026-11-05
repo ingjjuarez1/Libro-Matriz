@@ -4,6 +4,7 @@ Reemplaza todas las llamadas de google.script.run.
 """
 
 import json
+import base64
 from typing import Dict, Any, Optional
 from starlette.requests import Request
 from starlette.responses import JSONResponse, HTMLResponse
@@ -14,7 +15,7 @@ from backend.app.core.auth import (
 from backend.app.services.datos_service import (
     cursos_del_panel, buscar_curso, leer_curso, guardar_notas,
     guardar_estudiante, leer_acta, guardar_acta, obtener_analitico,
-    obtener_resumen
+    obtener_resumen, importar_excel_en_sistema
 )
 from backend.app.services.instalador_service import instalar_panel, importar_cursos_de_carpeta
 from backend.app.core.config import PANEL_ID
@@ -212,6 +213,24 @@ async def api_importar_cursos(request: Request) -> JSONResponse:
         return JSONResponse({"ok": True, "importados": cantidad})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+async def api_importar_excel(request: Request) -> JSONResponse:
+    """Recibe un Viejo Excel (.xlsm o .xlsx) en base64 y crea el curso con su nómina y notas."""
+    try:
+        email = get_current_user_email(request)
+        s = sesion(email)
+        body = await request.json()
+        nombre_archivo = str(body.get("nombreArchivo", "Libro_Matriz.xlsx"))
+        b64_str = str(body.get("contenidoBase64", ""))
+        if "," in b64_str:
+            b64_str = b64_str.split(",", 1)[1]
+        contenido = base64.b64decode(b64_str)
+        res = importar_excel_en_sistema(contenido, nombre_archivo, s)
+        return JSONResponse({"ok": True, **res})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 # ==================== MÓDULO CIRCUITO DE CERTIFICADOS (TÍTULOS) ====================
 
