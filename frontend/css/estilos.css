@@ -249,7 +249,7 @@ th {
 thead th.mod {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  height: 140px;
+  height: 175px;
   font-size: 11px;
   white-space: nowrap;
   text-align: left;

@@ -272,24 +272,93 @@ function notaCondicion(val) {
   return n >= 7 ? 'Aprobado' : 'Desaprobado';
 }
 
+function _etiquetaCuatrimestre(m) {
+  var p = String(m.periodo || '').toLowerCase();
+  if (m.cuatrimestre === 2 || p.indexOf('2') !== -1) return '2° Cuatrimestre';
+  if (m.cuatrimestre === 3 || p.indexOf('3') !== -1) return '3° Cuatrimestre';
+  if (p.indexOf('unico') !== -1 || p.indexOf('único') !== -1) return 'Cuatrimestre único';
+  return '1° Cuatrimestre';
+}
+
+function _etiquetaCortaCuat(m) {
+  var c = _etiquetaCuatrimestre(m);
+  if (c.indexOf('2°') === 0) return '2°C';
+  if (c.indexOf('3°') === 0) return '3°C';
+  return '1°C';
+}
+
 function pintarNotas() {
   var d = estado.datos, editable = d.puedeCargar;
   if (!d.estudiantes.length) {
     $('panel').innerHTML = '<div class="vacio">El curso todavía no tiene estudiantes cargados en la pestaña RAC.</div>';
     return;
   }
-  var th = d.modulos.map(function (m) {
-    return '<th class="mod" title="' + esc(m.nombre) + '">' + esc(m.nombre) +
-           (m.periodo ? ' · ' + esc(m.periodo) : '') + '</th>';
+
+  var filtroCuat = estado.filtroCuatrimestre || 'Todos';
+  var cuatrimestresDisponibles = [];
+  d.modulos.forEach(function (m) {
+    var et = _etiquetaCuatrimestre(m);
+    if (cuatrimestresDisponibles.indexOf(et) === -1) cuatrimestresDisponibles.push(et);
+  });
+
+  var modulosVisibles = d.modulos.filter(function (m) {
+    if (filtroCuat === 'Todos') return true;
+    return _etiquetaCuatrimestre(m) === filtroCuat;
+  });
+  if (!modulosVisibles.length) {
+    modulosVisibles = d.modulos;
+    filtroCuat = 'Todos';
+  }
+
+  // Agrupar módulos visibles por cuatrimestre para la fila superior del encabezado
+  var gruposCuat = [];
+  modulosVisibles.forEach(function (m) {
+    var et = _etiquetaCuatrimestre(m);
+    if (!gruposCuat.length || gruposCuat[gruposCuat.length - 1].nombre !== et) {
+      gruposCuat.push({ nombre: et, cantidad: 1 });
+    } else {
+      gruposCuat[gruposCuat.length - 1].cantidad++;
+    }
+  });
+
+  var thGrupos = gruposCuat.map(function (g) {
+    var bg = g.nombre.indexOf('2°') === 0 ? '#d9ead3' : (g.nombre.indexOf('3°') === 0 ? '#fce5cd' : '#cfe2f3');
+    var colorTxt = g.nombre.indexOf('2°') === 0 ? '#135c2d' : '#1F4E78';
+    return '<th colspan="' + g.cantidad + '" style="text-align:center;background:' + bg + ';color:' + colorTxt + ';font-size:12px;letter-spacing:0.4px;text-transform:uppercase;border-bottom:2px solid ' + colorTxt + '">' +
+           '📌 ' + esc(g.nombre) + ' (' + g.cantidad + ' mód.)</th>';
   }).join('');
+
+  var th = modulosVisibles.map(function (m) {
+    var corto = _etiquetaCortaCuat(m);
+    return '<th class="mod" title="' + esc(m.nombre) + ' (' + esc(_etiquetaCuatrimestre(m)) + ')">' +
+           '<b style="color:var(--azul)">[' + esc(corto) + ']</b> ' + esc(m.nombre) + '</th>';
+  }).join('');
+
+  var tieneDosCuat = cuatrimestresDisponibles.indexOf('1° Cuatrimestre') !== -1 &&
+                     cuatrimestresDisponibles.indexOf('2° Cuatrimestre') !== -1;
 
   var hayCongelados = false;
   var filas = d.estudiantes.map(function (es) {
     if (es.notasCongeladas) hayCongelados = true;
     var bloqueado = !editable || es.notasCongeladas;
 
-    var celdas = es.notas.map(function (n, i) {
-      // Colorear según condición
+    // Calcular promedios de 1°C y 2°C si corresponde
+    var suma1 = 0, cnt1 = 0, suma2 = 0, cnt2 = 0;
+    d.modulos.forEach(function (m, idxAll) {
+      var valStr = es.notas[idxAll];
+      var num = parseFloat(valStr);
+      if (!isNaN(num)) {
+        var et = _etiquetaCuatrimestre(m);
+        if (et.indexOf('2°') === 0) { suma2 += num; cnt2++; }
+        else { suma1 += num; cnt1++; }
+      }
+    });
+    var prom1C = cnt1 ? Math.round(suma1 / cnt1) : '—';
+    var prom2C = cnt2 ? Math.round(suma2 / cnt2) : '—';
+
+    var celdas = modulosVisibles.map(function (m) {
+      var idxReal = m.i;
+      var n = (es.notas && idxReal < es.notas.length) ? es.notas[idxReal] : '';
       var cond = notaCondicion(n);
       var color = cond === 'Aprobado' ? '#137333' : cond === 'Desaprobado' ? '#b3261e' : '';
       var estilo = color ? 'style="text-align:center;color:' + color + ';font-weight:bold"' : 'style="text-align:center"';
@@ -297,25 +366,51 @@ function pintarNotas() {
         return '<td class="nota" ' + estilo + '><input value="' + esc(n) + '" disabled ' +
                'title="' + (es.notasCongeladas ? '🔒 Calificaciones congeladas por certificado oficial aprobado' : '') + '"></td>';
       }
-      return '<td class="nota"><input value="' + esc(n) + '" maxlength="3" ' +
-             'data-fila="' + es.fila + '" data-mod="' + d.modulos[i].i + '"></td>';
+      return '<td class="nota" ' + estilo + '><input value="' + esc(n) + '" maxlength="3" ' +
+             'data-fila="' + es.fila + '" data-mod="' + idxReal + '"></td>';
     }).join('');
 
     var candado = es.notasCongeladas ? ' <span title="Certificado Aprobado - Notas Congeladas">🔒</span>' : '';
-    // Nota final y situación calculadas en el cliente
     var notaFinal = es.notaFinal || '';
-    var situacion = es.situacion || '';
+    var celdasPromCuat = '';
+    if (tieneDosCuat && filtroCuat === 'Todos') {
+      celdasPromCuat =
+        '<td style="text-align:center;background:#f4f8fc;font-weight:600;color:#1F4E78">' + esc(prom1C) + '</td>' +
+        '<td style="text-align:center;background:#f3faf5;font-weight:600;color:#135c2d">' + esc(prom2C) + '</td>';
+    }
 
     return '<tr><td style="text-align:center">' + esc(es.orden) + '</td>' +
       '<td>' + esc(es.apellido) + ', ' + esc(es.nombres) + candado + '</td>' +
       '<td style="text-align:center">' + esc(es.documento) + '</td>' +
       celdas +
-      '<td style="text-align:center;font-weight:bold">' + esc(notaFinal) + '</td>' +
+      celdasPromCuat +
+      '<td style="text-align:center;font-weight:bold;background:#fafafa">' + esc(notaFinal) + '</td>' +
     '</tr>';
   }).join('');
 
+  var barraFiltroCuat = '';
+  if (cuatrimestresDisponibles.length > 1) {
+    barraFiltroCuat =
+      '<div style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;flex-wrap:wrap">' +
+        '<span style="font-size:12px;font-weight:600;color:var(--suave)">Ver período:</span>' +
+        '<button type="button" class="boton ' + (filtroCuat === 'Todos' ? '' : 'suave') + '" style="padding:4px 12px;font-size:12px" data-cuat="Todos">Todos (' + d.modulos.length + ' módulos)</button>' +
+        cuatrimestresDisponibles.map(function (c) {
+          var activo = filtroCuat === c;
+          return '<button type="button" class="boton ' + (activo ? '' : 'suave') + '" style="padding:4px 12px;font-size:12px" data-cuat="' + esc(c) + '">' + esc(c) + '</button>';
+        }).join('') +
+      '</div>';
+  }
+
+  var colsExtraFinal = (tieneDosCuat && filtroCuat === 'Todos') ? 3 : 1;
+  var thExtraFinal = (tieneDosCuat && filtroCuat === 'Todos')
+    ? '<th class="mod" style="background:#e8f1fa">Prom. 1° Cuat.</th>' +
+      '<th class="mod" style="background:#e6f4ea">Prom. 2° Cuat.</th>' +
+      '<th class="mod">Nota final</th>'
+    : '<th class="mod">Nota final</th>';
+
   $('panel').innerHTML =
     '<h2 style="font-size:16px;margin:0 0 10px">Registro Anual de Calificaciones</h2>' +
+    barraFiltroCuat +
     (hayCongelados
       ? '<div class="alerta-congelado">🔒 <b>Atención:</b> Los estudiantes con certificado oficial aprobado tienen sus calificaciones <b>congeladas e inmutables</b>.</div>'
       : '') +
@@ -324,10 +419,24 @@ function pintarNotas() {
         '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente. ≥7 Aprobado · <7 Desaprobado</span></div>'
       : '<div class="acciones"><span style="color:var(--suave);font-size:12px">' +
         'Tu rol es de consulta: puedes visualizar, no modificar.</span></div>') +
-    '<div class="tabla-ancha"><table><thead><tr>' +
-      '<th style="width:36px">N°</th><th>Apellido y nombres</th><th style="width:92px">Documento</th>' +
-      th + '<th class="mod">Nota final</th>' +
-    '</tr></thead><tbody>' + filas + '</tbody></table></div>';
+    '<div class="tabla-ancha"><table><thead>' +
+      '<tr>' +
+        '<th colspan="3" style="text-align:center;background:#e9eef4">DATOS DEL ESTUDIANTE</th>' +
+        thGrupos +
+        '<th colspan="' + colsExtraFinal + '" style="text-align:center;background:#e9eef4">PROMEDIO</th>' +
+      '</tr>' +
+      '<tr>' +
+        '<th style="width:36px">N°</th><th>Apellido y nombres</th><th style="width:92px">Documento</th>' +
+        th + thExtraFinal +
+      '</tr>' +
+    '</thead><tbody>' + filas + '</tbody></table></div>';
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-cuat]'), function (btn) {
+    btn.addEventListener('click', function () {
+      estado.filtroCuatrimestre = btn.dataset.cuat;
+      pintarNotas();
+    });
+  });
 
   if (!editable) return;
   var pendientes = {};
@@ -664,7 +773,7 @@ function armarAnalitico(r) {
   var certNroFormateado = d.certNro || '__________________';
   var watermark = d.esBorrador
     ? '<div class="marca-agua-borrador-oficial">BORRADOR<br>NO VÁLIDO</div>' : '';
-  var escudoFondo = '<img src="/img/escudo_nacional.png" class="hoja-fondo-escudo" alt="" aria-hidden="true">';
+  var escudoFondo = '<img src="/img/escudo_nacional.png?v=20261105b" class="hoja-fondo-escudo" alt="" aria-hidden="true">';
 
   var filasModulos = (d.trayecto || []).map(function (m) {
     return '<tr>' +
@@ -698,7 +807,7 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
     '<div class="hoja-cabecera">' +
       '<div class="hoja-qr">' + qrHtml + '</div>' +
       '<div class="hoja-escudo-bloque">' +
-        '<img src="/img/escudo_nacional.png" alt="Escudo Nacional" style="height:68px;display:block;margin:0 auto 4px">' +
+        '<img src="/img/escudo_nacional.png?v=20261105b" alt="Escudo Nacional" style="height:68px;display:block;margin:0 auto 4px">' +
         '<p class="hoja-republica">República Argentina</p>' +
         '<p class="hoja-ley-nac">LEY DE EDUCACIÓN NACIONAL N° 26.206</p>' +
         '<p class="hoja-provincia">PROVINCIA DE JUJUY</p>' +
@@ -707,7 +816,6 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
     '</div>' +
     '<div class="hoja-subtitulos">' +
       '<p>LEY PROVINCIAL N°5807</p>' +
-      '<p>MINISTERIO DE EDUCACIÓN</p>' +
       '<p>SECRETARÍA DE GESTIÓN EDUCATIVA</p>' +
     '</div>' +
     '<div class="hoja-titulo-doc">Certificado</div>' +

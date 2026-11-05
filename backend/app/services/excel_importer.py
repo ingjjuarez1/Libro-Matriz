@@ -239,42 +239,125 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
     div_letra = _celda(po, "G22") or '"U"'
     division = f"{curso_num}° {div_letra}".strip()
 
-    # Extraer módulos desde 'Reg Notas' fila 12
+    # Determinar si la oferta es de 1 cuatrimestre o de 2/3 cuatrimestres
+    duracion_rn = str(_celda(rn, "AD8") or _celda(po, "A18") or "").strip().lower()
+    es_cuat_unico = "1 cuatrimestre" in duracion_rn
+
+    # Extraer módulos desde 'Reg Notas' fila 12 (1° Cuatrimestre, 2° Cuatrimestre, 3° Cuatrimestre)
+    # En Reg Notas:
+    # - 1° Cuatrimestre: DNI en col 2 (B), Nombre en col 6 (F), módulos en cols 17..40 (Q..AN; 17..28 Comunes, 29..40 Específicos)
+    # - 2° Cuatrimestre: DNI en col 43 (AQ), Nombre en col 47 (AU), módulos en cols 58..81 (BF..CC; 58..69 Comunes, 70..81 Específicos)
+    # - 3° Cuatrimestre: DNI en col 84 (CF), Nombre en col 88 (CJ), módulos en cols 99..122 (CU..DR; 99..110 Comunes, 111..122 Específicos)
     mods_info = []
     if rn:
-        for k, (c0, c1, dni_col) in enumerate([(17, 41, 2), (58, 82, 47), (99, 123, 79)]):
+        bloques = [
+            (0, 17, 40, 29, 2, 6, 2),
+            (1, 58, 81, 70, 43, 47, 47),
+            (2, 99, 122, 111, 84, 88, 79),
+        ]
+        for k, c0, c1, col_esp_inicio, dni_col_rn, nom_col_rn, dni_col_d2 in bloques:
+            etiqueta_per = "Cuatrimestre único" if (es_cuat_unico and k == 0) else f"{k + 1}° Cuatrimestre"
+            etiqueta_corta = "1C" if (es_cuat_unico and k == 0) else f"{k + 1}°C"
             for c in range(c0, c1 + 1, 2):
                 nom = str(_celda(rn, 12, c) or "").strip()
                 if nom and nom != "-":
+                    tipo_mod = "Específico" if c >= col_esp_inicio else "Común"
                     mods_info.append({
                         "nombre": nom,
-                        "periodo": f"{k + 1}C",
+                        "periodo": etiqueta_per,
+                        "periodoCorto": etiqueta_corta,
+                        "cuatrimestre": k + 1,
+                        "tipo": tipo_mod,
+                        "col_rn_t": c,
+                        "col_rn_p": c + 1,
+                        "dni_col_rn": dni_col_rn,
+                        "nom_col_rn": nom_col_rn,
                         "col_d2": c - 9 * k,
-                        "dni_col": dni_col
+                        "dni_col_d2": dni_col_d2
                     })
 
     if not mods_info:
         mods_info = [
-            {"nombre": f"Módulo {i+1}", "periodo": "1C", "col_d2": 18 + i * 2, "dni_col": 2}
+            {
+                "nombre": f"Módulo {i+1}",
+                "periodo": "1° Cuatrimestre",
+                "periodoCorto": "1°C",
+                "cuatrimestre": 1,
+                "tipo": "Común" if i < 2 else "Específico",
+                "col_rn_t": 17 + i * 2,
+                "col_rn_p": 18 + i * 2,
+                "dni_col_rn": 2,
+                "nom_col_rn": 6,
+                "col_d2": 17 + i * 2,
+                "dni_col_d2": 2
+            }
             for i in range(6)
         ]
 
     modulos = [
-        {"i": idx, "nombre": m["nombre"], "periodo": m["periodo"]}
-        for idx, m in enumerate(mods_info[:8])
+        {
+            "i": idx,
+            "nombre": m["nombre"],
+            "periodo": m["periodo"],
+            "periodoCorto": m["periodoCorto"],
+            "cuatrimestre": m["cuatrimestre"],
+            "tipo": m["tipo"]
+        }
+        for idx, m in enumerate(mods_info[:12])
     ]
 
-    # Leer notas de Datos2 indexadas por DNI
+    # 1) Leer notas desde 'Reg Notas' (Teórico y Práctico de 1° y 2° Cuatrimestre) indexadas por DNI y por Nombre
     notas_por_dni: Dict[str, Dict[int, str]] = {}
+    notas_por_nombre: Dict[str, Dict[int, str]] = {}
+
+    if rn:
+        for idx, m in enumerate(mods_info[:12]):
+            for r in range(14, 240):
+                dni_val = re.sub(r"\D", "", str(_celda(rn, r, m["dni_col_rn"]) or ""))
+                nom_val = _norm(_celda(rn, r, m["nom_col_rn"]))
+                if not dni_val and not nom_val:
+                    continue
+                vt = _celda(rn, r, m["col_rn_t"])
+                vp = _celda(rn, r, m["col_rn_p"])
+                nota_calc = ""
+                vals_num = []
+                for vx in (vt, vp):
+                    if isinstance(vx, (int, float)) and 1 <= vx <= 10:
+                        vals_num.append(float(vx))
+                    elif str(vx or "").strip().upper() in ("AUS", "AUSENTE"):
+                        nota_calc = "AUS"
+                if vals_num:
+                    prom_mod = sum(vals_num) / len(vals_num)
+                    # En el viejo Excel si el promedio da entero o decimal se redondea a entero en la libreta
+                    nota_calc = str(int(round(prom_mod)))
+                if nota_calc:
+                    if dni_val:
+                        notas_por_dni.setdefault(dni_val, {})[idx] = nota_calc
+                    if nom_val:
+                        notas_por_nombre.setdefault(nom_val, {})[idx] = nota_calc
+
+    # 2) Completar o sobreescribir con notas de 'Datos2' si existen valores calculados válidos (1..10)
     if d2:
-        for idx, m in enumerate(mods_info[:8]):
-            for r in range(5, 220):
-                dni_val = str(_celda(d2, r, m["dni_col"]) or "").strip()
-                dni_clean = re.sub(r"\D", "", dni_val)
-                if dni_clean:
+        for idx, m in enumerate(mods_info[:12]):
+            for r in range(5, 240):
+                dni_val = re.sub(r"\D", "", str(_celda(d2, r, m["dni_col_d2"]) or ""))
+                if dni_val:
                     v = _celda(d2, r, m["col_d2"])
                     if isinstance(v, (int, float)) and 1 <= v <= 10:
-                        notas_por_dni.setdefault(dni_clean, {})[idx] = str(int(round(v)))
+                        notas_por_dni.setdefault(dni_val, {})[idx] = str(int(round(v)))
+
+    # 3) Respaldo adicional desde 'Historial Módulos' si existe en el libro
+    hm = hojas.get("Historial Módulos", {})
+    if hm:
+        mapa_nom_mod = {_norm(m["nombre"]): idx for idx, m in enumerate(modulos)}
+        for r in range(5, 600):
+            dni_hm = re.sub(r"\D", "", str(_celda(hm, r, 3) or ""))
+            mod_hm = _norm(_celda(hm, r, 11))
+            cal_hm = _celda(hm, r, 12)
+            if dni_hm and mod_hm in mapa_nom_mod and isinstance(cal_hm, (int, float)) and 1 <= cal_hm <= 10:
+                idx_m = mapa_nom_mod[mod_hm]
+                if idx_m not in notas_por_dni.get(dni_hm, {}):
+                    notas_por_dni.setdefault(dni_hm, {})[idx_m] = str(int(round(cal_hm)))
 
     # Leer estudiantes
     estudiantes = []
@@ -292,8 +375,10 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
 
         notas_est = []
         mapa_n = notas_por_dni.get(dni, {})
+        mapa_nom = notas_por_nombre.get(_norm(f"{ape} {nom}"), {})
         for idx in range(len(modulos)):
-            notas_est.append(mapa_n.get(idx, ""))
+            val_m = mapa_n.get(idx, "") or mapa_nom.get(idx, "")
+            notas_est.append(val_m)
 
         nota_final, situacion = _calcular_situacion_y_promedio(notas_est)
         estudiantes.append({
@@ -352,29 +437,78 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
 def _importar_planilla_rac(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_archivo: str) -> Dict[str, Any]:
     rac = hojas["RAC"]
     establecimiento = str(_celda(rac, "C2") or "Escuela Profesional").strip()
-    cue = re.sub(r"\D", "", str(_celda(rac, "J2") or "3800006")) or "3800006"
-    localidad = str(_celda(rac, "N2") or "Jujuy").strip()
+    # Soportar tanto versión donde CUE está en M2 y Localidad en J2 como donde CUE está en J2
+    val_j2 = str(_celda(rac, "J2") or "").strip()
+    val_m2 = str(_celda(rac, "M2") or "").strip()
+    if re.search(r"\d{5,}", val_m2):
+        cue = re.sub(r"\D", "", val_m2)[:7] or "3800006"
+        localidad = val_j2 or "Jujuy"
+    else:
+        cue = re.sub(r"\D", "", val_j2)[:7] or "3800006"
+        localidad = str(_celda(rac, "N2") or "Jujuy").strip()
     domicilio = str(_celda(rac, "Q2") or "").strip()
     oferta = str(_celda(rac, "C3") or "Oferta Formativa").strip()
-    libro = str(_celda(rac, "J3") or "1").strip()
-    ciclo = str(_celda(rac, "N3") or "2026").strip()
+    val_j3 = str(_celda(rac, "J3") or "").strip()
+    val_m3 = str(_celda(rac, "M3") or "").strip()
+    if re.match(r"^20\d{2}$", val_j3):
+        ciclo = val_j3
+        libro = val_m3 or "1"
+    else:
+        libro = val_j3 or "1"
+        ciclo = str(_celda(rac, "N3") or "2026").strip()
     turno_raw = str(_celda(rac, "C4") or "Vespertino").strip()
     turno = "Vespertino" if _norm(turno_raw) in ("noche", "nocturno", "vespertino") else turno_raw
-    division = str(_celda(rac, "N4") or '1º "U"').strip()
+    division = str(_celda(rac, "J4") or _celda(rac, "N4") or '1º "U"').strip()
     disenio = str(_celda(rac, "C5") or "Res. Ministerial").strip()
 
     modulos = []
-    for i in range(8):
+    for i in range(10):
         col = 18 + i
-        per = str(_celda(rac, 7, col) or "1C").strip()
+        per_raw = str(_celda(rac, 7, col) or "1C").strip()
         nom = str(_celda(rac, 8, col) or "").strip()
         if nom:
-            modulos.append({"i": i, "nombre": nom, "periodo": per})
+            p_low = per_raw.lower()
+            if "2" in p_low:
+                periodo = "2° Cuatrimestre"
+                periodo_corto = "2°C"
+                cuat = 2
+            elif "3" in p_low:
+                periodo = "3° Cuatrimestre"
+                periodo_corto = "3°C"
+                cuat = 3
+            elif "unico" in _norm(p_low):
+                periodo = "Cuatrimestre único"
+                periodo_corto = "1C"
+                cuat = 1
+            else:
+                periodo = "1° Cuatrimestre"
+                periodo_corto = "1°C"
+                cuat = 1
+            modulos.append({
+                "i": len(modulos),
+                "col_rac": col,
+                "nombre": nom,
+                "periodo": periodo,
+                "periodoCorto": periodo_corto,
+                "cuatrimestre": cuat,
+                "tipo": "Común" if len(modulos) < 3 else "Específico"
+            })
     if not modulos:
-        modulos = [{"i": i, "nombre": f"Módulo {i+1}", "periodo": "1C"} for i in range(6)]
+        modulos = [
+            {
+                "i": i,
+                "col_rac": 18 + i,
+                "nombre": f"Módulo {i+1}",
+                "periodo": "1° Cuatrimestre",
+                "periodoCorto": "1°C",
+                "cuatrimestre": 1,
+                "tipo": "Común" if i < 2 else "Específico"
+            }
+            for i in range(6)
+        ]
 
     estudiantes = []
-    for r in range(9, 49):
+    for r in range(9, 60):
         ape = str(_celda(rac, r, 2) or "").strip()
         nom = str(_celda(rac, r, 3) or "").strip()
         dni = re.sub(r"\D", "", str(_celda(rac, r, 7) or ""))
@@ -382,8 +516,8 @@ def _importar_planilla_rac(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_
             continue
         notas_est = []
         for m in modulos:
-            v = _celda(rac, r, 18 + m["i"])
-            notas_est.append(str(int(v)) if isinstance(v, (int, float)) else str(v or "").strip())
+            v = _celda(rac, r, m.get("col_rac", 18 + m["i"]))
+            notas_est.append(str(int(round(v))) if isinstance(v, (int, float)) else str(v or "").strip())
         nota_final, situacion = _calcular_situacion_y_promedio(notas_est)
         estudiantes.append({
             "fila": r,

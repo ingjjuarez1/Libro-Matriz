@@ -693,15 +693,46 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
         "AUS": "Ausente"
     }
 
-    # Trayecto curricular oficial de Peluquero (Res. 2114-E-2026)
-    trayecto_base = [
-        {"nro": 1, "modulo": "Relaciones Laborales y Orientación Profesional", "tipo": "Común", "periodo": "Cuatrimestre único", "hsReloj": 24, "hsCat": 36},
-        {"nro": 2, "modulo": "Piel y anexos cutáneos", "tipo": "Común", "periodo": "Cuatrimestre único", "hsReloj": 24, "hsCat": 36},
-        {"nro": 3, "modulo": "Gestión del proceso de trabajo en estética profesional", "tipo": "Común", "periodo": "Cuatrimestre único", "hsReloj": 20, "hsCat": 30},
-        {"nro": 4, "modulo": "Peinado", "tipo": "Específico", "periodo": "Cuatrimestre único", "hsReloj": 80, "hsCat": 120},
-        {"nro": 5, "modulo": "Corte", "tipo": "Específico", "periodo": "Cuatrimestre único", "hsReloj": 85, "hsCat": 128},
-        {"nro": 6, "modulo": "Coloración y cambio de estructura del cabello", "tipo": "Específico", "periodo": "Cuatrimestre único", "hsReloj": 107, "hsCat": 160}
-    ]
+    # Trayecto curricular oficial de Peluquero (Res. 2114-E-2026) o dinámico para cursos importados
+    enc_curso = datos_curso.get("encabezado", {})
+    mods_curso = datos_curso.get("modulos", [])
+
+    if curso["id"] == "curso-peluquero-ep6-demo" or not mods_curso:
+        trayecto_base = [
+            {"nro": 1, "modulo": "Relaciones Laborales y Orientación Profesional", "tipo": "Común", "periodo": "Cuatrimestre único", "hsReloj": 24, "hsCat": 36},
+            {"nro": 2, "modulo": "Piel y anexos cutáneos", "tipo": "Común", "periodo": "Cuatrimestre único", "hsReloj": 24, "hsCat": 36},
+            {"nro": 3, "modulo": "Gestión del proceso de trabajo en estética profesional", "tipo": "Común", "periodo": "Cuatrimestre único", "hsReloj": 20, "hsCat": 30},
+            {"nro": 4, "modulo": "Peinado", "tipo": "Específico", "periodo": "Cuatrimestre único", "hsReloj": 80, "hsCat": 120},
+            {"nro": 5, "modulo": "Corte", "tipo": "Específico", "periodo": "Cuatrimestre único", "hsReloj": 85, "hsCat": 128},
+            {"nro": 6, "modulo": "Coloración y cambio de estructura del cabello", "tipo": "Específico", "periodo": "Cuatrimestre único", "hsReloj": 107, "hsCat": 160}
+        ]
+        carga_total = {"reloj": 340, "cat": 510}
+    else:
+        trayecto_base = []
+        tot_reloj = 0
+        tot_cat = 0
+        for idx_m, m in enumerate(mods_curso):
+            per_str = str(m.get("periodo", "1° Cuatrimestre")).strip()
+            if per_str == "1C":
+                per_str = "1° Cuatrimestre"
+            elif per_str == "2C":
+                per_str = "2° Cuatrimestre"
+            elif per_str == "3C":
+                per_str = "3° Cuatrimestre"
+            tipo_str = m.get("tipo") or ("Común" if idx_m < 3 else "Específico")
+            hs_r = int(m.get("hsReloj") or (32 if tipo_str == "Común" else 96))
+            hs_c = int(m.get("hsCat") or round(hs_r * 1.5))
+            tot_reloj += hs_r
+            tot_cat += hs_c
+            trayecto_base.append({
+                "nro": idx_m + 1,
+                "modulo": m.get("nombre", f"Módulo {idx_m + 1}"),
+                "tipo": tipo_str,
+                "periodo": per_str,
+                "hsReloj": hs_r,
+                "hsCat": hs_c
+            })
+        carga_total = {"reloj": tot_reloj, "cat": tot_cat}
 
     notas_est = est_seleccionado.get("notas", []) if est_seleccionado else []
     trayecto_final = []
@@ -736,14 +767,15 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
     else:
         dni_formateado = str(documento)
 
+    es_demo_ep6 = (curso["id"] == "curso-peluquero-ep6-demo")
     documento_oficial = {
-        "libro": "1",
+        "libro": str(enc_curso.get("libro") or "1"),
         "folio": est_seleccionado.get("folio", "_____") if est_seleccionado else "_____",
         "certNro": num_cert_final if not es_borrador else "_____",
-        "establecimiento": "ESCUELA PROFESIONAL Nº 6",
-        "cue": "3800612-00",
-        "domicilio": "PTO ARGENTINO Nº 705- Bº MALVINAS ARG.",
-        "localidad": "PERICO",
+        "establecimiento": "ESCUELA PROFESIONAL Nº 6" if es_demo_ep6 else str(enc_curso.get("establecimiento") or curso.get("institucion") or "ESCUELA PROFESIONAL").upper(),
+        "cue": "3800612-00" if es_demo_ep6 else str(enc_curso.get("cue") or curso.get("cue") or "3800006"),
+        "domicilio": "PTO ARGENTINO Nº 705- Bº MALVINAS ARG." if es_demo_ep6 else str(enc_curso.get("domicilio") or "S/D").upper(),
+        "localidad": "PERICO" if es_demo_ep6 else str(enc_curso.get("localidad") or "JUJUY").upper(),
         "provincia": "JUJUY",
         "estudianteNombre": f"{est_seleccionado.get('apellido', '')}, {est_seleccionado.get('nombres', '')}".strip() if est_seleccionado else "AMANTE, SERGIO DAVID",
         "lugarNac": est_seleccionado.get("localidad", "S S DE JUJUY (JUJUY)") if est_seleccionado else "S S DE JUJUY (JUJUY)",
@@ -751,7 +783,7 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
         "tipoDoc": est_seleccionado.get("tipoDoc", "DNI") if est_seleccionado else "DNI",
         "dniFormateado": dni_formateado,
         "trayecto": trayecto_final,
-        "cargaHorariaTotal": {"reloj": 340, "cat": 510},
+        "cargaHorariaTotal": carga_total,
         "esBorrador": es_borrador,
         "aprobo": aprobo_todo,
         "situacion": situacion_est,
