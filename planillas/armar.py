@@ -153,7 +153,7 @@ NUM.append("cincuenta")
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
          "octubre", "noviembre", "diciembre"]
 columnas = {1: [e for e, _, _ in establ], 2: [l for _, l, _ in establ], 3: [c for _, _, c in establ],
-            4: ["Mañana", "Tarde", "Vespertino", "Noche"],
+            4: ["Mañana", "Tarde", "Vespertino"],
             5: ["Primario incompleto", "Primario completo", "Secundario incompleto", "Secundario completo",
                 "Terciario / Universitario"], 6: ["Sí", "No"],
             7: ["DNI", "Pasaporte", "Cédula de identidad", "Otro"],

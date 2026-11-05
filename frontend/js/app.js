@@ -1030,7 +1030,7 @@ function mostrarModalNuevoCurso() {
       '<label>CUE <input id="nc_cue" placeholder="Ej: 3800006" value="3800006"></label>' +
       '<label>Oferta Formativa <input id="nc_oferta" placeholder="Ej: Peluquero" value="Peluquero"></label>' +
       '<label>Ciclo <input id="nc_ciclo" placeholder="2026" value="2026"></label>' +
-      '<label>Turno <select id="nc_turno"><option>Vespertino</option><option>Mañana</option><option>Tarde</option><option>Noche</option></select></label>' +
+      '<label>Turno <select id="nc_turno"><option>Vespertino</option><option>Mañana</option><option>Tarde</option></select></label>' +
       '<label>Curso / División <input id="nc_division" placeholder=\'1º "U"\' value=\'1º "U"\'></label>' +
       '<label>ID del archivo de Google Drive <input id="nc_id" placeholder="ID de la planilla de Google Drive"></label>' +
       '<div class="acciones" style="justify-content:flex-end;margin-top:14px">' +
