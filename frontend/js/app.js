@@ -388,6 +388,9 @@ function pintarNotas() {
     return '<tr><td style="text-align:center">' + esc(es.orden) + '</td>' +
       '<td>' + esc(es.apellido) + ', ' + esc(es.nombres) + candado + '</td>' +
       '<td style="text-align:center">' + esc(es.documento) + '</td>' +
+      '<td style="text-align:center">' + esc(es.fechaNac || '—') + '</td>' +
+      '<td style="text-align:center">' + esc(es.provincia || 'Jujuy') + '</td>' +
+      '<td style="text-align:center">' + esc(es.pais || 'Argentina') + '</td>' +
       celdas +
       celdasPromCuat +
       '<td style="text-align:center;font-weight:bold;background:#fafafa">' + esc(notaFinal) + '</td>' +
@@ -430,12 +433,16 @@ function pintarNotas() {
         'Tu rol es de consulta: puedes visualizar, no modificar.</span></div>') +
     '<div class="tabla-ancha"><table><thead>' +
       '<tr>' +
-        '<th colspan="3" style="text-align:center;background:#e9eef4">DATOS DEL ESTUDIANTE</th>' +
+        '<th colspan="4" style="text-align:center;background:#e9eef4">DATOS DEL ESTUDIANTE</th>' +
+        '<th colspan="2" style="text-align:center;background:#dce6f1">LUGAR DE NACIMIENTO</th>' +
         thGrupos +
         '<th colspan="' + colsExtraFinal + '" style="text-align:center;background:#e9eef4">PROMEDIO</th>' +
       '</tr>' +
       '<tr>' +
         '<th style="width:36px">N°</th><th>Apellido y nombres</th><th style="width:92px">Documento</th>' +
+        '<th style="width:96px;text-align:center">Fecha de nacimiento</th>' +
+        '<th style="width:92px;text-align:center">Provincia</th>' +
+        '<th style="width:88px;text-align:center">País</th>' +
         th + thExtraFinal +
       '</tr>' +
     '</thead><tbody>' + filas + '</tbody></table></div>';
@@ -1149,11 +1156,11 @@ function mostrarModalNuevoEstudiante() {
         '<label style="display:block;font-size:12px;font-weight:600">Folio N° (opcional)' +
           '<input id="ne_folio" style="width:100%;margin-top:4px" placeholder="Autocompletar">' +
         '</label>' +
-        '<label style="display:block;font-size:12px;font-weight:600">Localidad de Nacimiento' +
-          '<input id="ne_localidad" style="width:100%;margin-top:4px" value="San Salvador de Jujuy">' +
-        '</label>' +
-        '<label style="display:block;font-size:12px;font-weight:600">Provincia' +
+        '<label style="display:block;font-size:12px;font-weight:600">Lugar de Nac. · Provincia' +
           '<input id="ne_provincia" style="width:100%;margin-top:4px" value="Jujuy">' +
+        '</label>' +
+        '<label style="display:block;font-size:12px;font-weight:600">Lugar de Nac. · País' +
+          '<input id="ne_pais" style="width:100%;margin-top:4px" value="Argentina">' +
         '</label>' +
       '</div>' +
       '<div class="acciones" style="justify-content:flex-end;margin-top:16px">' +
@@ -1181,8 +1188,8 @@ function mostrarModalNuevoEstudiante() {
         tipoDoc: $('ne_tipodoc').value,
         documento: doc,
         fechaNac: $('ne_fechanac').value.trim(),
-        localidad: $('ne_localidad').value.trim(),
         provincia: $('ne_provincia').value.trim(),
+        pais: $('ne_pais').value.trim(),
         folio: $('ne_folio').value.trim()
       });
       cerrarModal();

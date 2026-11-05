@@ -62,6 +62,26 @@ def _excel_serial_a_fecha(val: Any) -> str:
         pass
     return s
 
+def _normalizar_pais(val: Any) -> str:
+    """Normaliza abreviaturas de nacionalidad/país (ej: 'Arg' -> 'Argentina')."""
+    s = str(val or "").strip()
+    if not s:
+        return "Argentina"
+    n = _norm(s)
+    if n.startswith("arg"):
+        return "Argentina"
+    if n.startswith("bol"):
+        return "Bolivia"
+    if n.startswith("per"):
+        return "Perú"
+    if n.startswith("par"):
+        return "Paraguay"
+    if n.startswith("chi"):
+        return "Chile"
+    if n.startswith("uru"):
+        return "Uruguay"
+    return s
+
 def leer_libro_excel_bytes(contenido: bytes) -> Dict[str, Dict[Tuple[int, int], Any]]:
     """
     Lee un archivo .xlsx o .xlsm en memoria usando zipfile + ElementTree.
@@ -370,8 +390,9 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
         dni_raw = str(_celda(es, f"I{r}") or "").strip()
         dni = re.sub(r"\D", "", dni_raw) or str(r)
         fecha_nac = _excel_serial_a_fecha(_celda(es, f"F{r}"))
-        loc_nac = str(_celda(es, f"R{r}") or localidad).strip()
-        prov_nac = str(_celda(es, f"P{r}") or "Jujuy").strip()
+        loc_nac = str(_celda(es, f"O{r}") or localidad).strip()
+        prov_nac = str(_celda(es, f"Q{r}") or _celda(es, f"L{r}") or "Jujuy").strip()
+        pais_nac = _normalizar_pais(_celda(es, f"G{r}"))
 
         notas_est = []
         mapa_n = notas_por_dni.get(dni, {})
@@ -391,6 +412,7 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
             "fechaNac": fecha_nac,
             "localidad": loc_nac,
             "provincia": prov_nac,
+            "pais": pais_nac,
             "notas": notas_est,
             "notaFinal": nota_final,
             "fechaEgreso": "",
@@ -527,8 +549,9 @@ def _importar_planilla_rac(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_
             "documento": dni or str(r),
             "tipoDoc": str(_celda(rac, r, 6) or "DNI"),
             "fechaNac": _excel_serial_a_fecha(_celda(rac, r, 4)),
-            "localidad": str(_celda(rac, r, 8) or localidad),
-            "provincia": str(_celda(rac, r, 10) or "Jujuy"),
+            "localidad": str(_celda(rac, r, 9) or localidad),
+            "provincia": str(_celda(rac, r, 11) or "Jujuy"),
+            "pais": _normalizar_pais(_celda(rac, r, 5)),
             "notas": notas_est,
             "notaFinal": nota_final,
             "fechaEgreso": _excel_serial_a_fecha(_celda(rac, r, 17)),
