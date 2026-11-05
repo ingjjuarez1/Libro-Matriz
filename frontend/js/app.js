@@ -73,6 +73,20 @@ function problema(e) {
 
 // ---------- INICIALIZACIÓN ----------
 window.addEventListener('load', async function () {
+  if ($('btnTopImportar')) {
+    $('btnTopImportar').addEventListener('click', mostrarModalImportarExcel);
+  }
+  if ($('btnTopUsuarios')) {
+    $('btnTopUsuarios').addEventListener('click', async function () {
+      if (!estado.sesion || !estado.sesion.puedeAdministrarUsuarios) {
+        estado.emailActual = 'sge.detp.areapedagogica@jujuy.edu.ar';
+        localStorage.setItem('lm_email', estado.emailActual);
+        await cargarUsuariosPrueba();
+        await iniciarSesion();
+      }
+      verAdminUsuarios();
+    });
+  }
   await cargarUsuariosPrueba();
   await iniciarSesion();
 });
@@ -100,13 +114,13 @@ async function cargarUsuariosPrueba() {
       select.appendChild(opt);
     });
 
-    select.addEventListener('change', function () {
+    select.onchange = function () {
       if (select.value) {
         estado.emailActual = select.value;
         localStorage.setItem('lm_email', select.value);
         iniciarSesion();
       }
-    });
+    };
   } catch (err) {
     console.warn('No se pudo cargar la lista de usuarios para prueba:', err);
   }
@@ -156,8 +170,8 @@ function verCursos() {
     '<h1>Cursos</h1>' +
     '<p style="color:var(--suave);margin:0 0 12px">' + subtitulo + '</p>' +
     '<div class="acciones">' +
-      (estado.sesion.puedeCargar || estado.sesion.verTodo ? '<button class="boton" id="btnNuevoCurso">+ Nuevo curso</button>' : '') +
-      (estado.sesion.puedeCargar || estado.sesion.verTodo ? '<button class="boton" id="btnImportarExcel" style="background:#137333">📥 Importar Viejo Excel</button>' : '') +
+      '<button class="boton" id="btnNuevoCurso">+ Nuevo curso</button>' +
+      '<button class="boton" id="btnImportarExcel" style="background:#137333">📥 Importar Viejo Excel</button>' +
       (estado.sesion.verTodo ? '<button class="boton suave" id="btnResumen">Resumen por institución</button>' : '') +
       '<button class="boton suave" id="btnTitulos">Certificados de Títulos</button>' +
       (estado.sesion.puedeAdministrarUsuarios ? '<button class="boton suave" id="btnUsuarios">👤 Administrar Usuarios</button>' : '') +
