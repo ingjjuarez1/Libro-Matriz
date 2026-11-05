@@ -416,49 +416,92 @@ def guardar_estudiante(id_curso: str, est_data: Dict[str, Any], sesion_usr: Dict
         raise ValueError("Curso no encontrado en el Panel.")
     exigir_carga(sesion_usr, curso)
 
-    apellido = texto(est_data.get("apellido"))
+    apellido = texto(est_data.get("apellido")).upper()
     nombres = texto(est_data.get("nombres"))
     if not apellido or not nombres:
         raise ValueError("El apellido y los nombres no pueden quedar vacíos.")
+    documento_str = re.sub(r"\D", "", texto(est_data.get("documento"))) or texto(est_data.get("documento"))
+    if not documento_str:
+        raise ValueError("El número de documento (DNI) es obligatorio.")
 
-    fila = int(est_data.get("fila") or 0)
-    if not fila:
-        if curso["id"] == "curso-peluquero-ep6-demo" or curso["id"] in _CURSOS_IMPORTADOS or not google_client.is_connected():
-            fila = RAC["FILA_1"] + len(_ESTUDIANTES_DEMO)
-        else:
-            apellidos_vals = google_client.get_values(
-                curso["id"], f"{RAC['HOJA']}!B{RAC['FILA_1']}:B{RAC['FILA_N']}"
-            )
-            for idx in range(RAC["FILA_N"] - RAC["FILA_1"] + 1):
-                val = apellidos_vals[idx][0] if idx < len(apellidos_vals) and len(apellidos_vals[idx]) > 0 else ""
-                if not texto(val):
-                    fila = RAC["FILA_1"] + idx
-                    break
-            if not fila:
-                max_est = RAC["FILA_N"] - RAC["FILA_1"] + 1
-                raise ValueError(f"El curso ya tiene {max_est} estudiantes, que es el máximo permitido en la planilla.")
-
-    if not (RAC["FILA_1"] <= fila <= RAC["FILA_N"]):
-        raise ValueError(f"Fila {fila} fuera de rango.")
-
-    if curso["id"] == "curso-peluquero-ep6-demo" or curso["id"] in _CURSOS_IMPORTADOS or not google_client.is_connected():
-        _ESTUDIANTES_DEMO.append({
-            "fila": fila,
-            "orden": str(len(_ESTUDIANTES_DEMO) + 1),
+    if curso["id"] in _CURSOS_IMPORTADOS:
+        paq = _CURSOS_IMPORTADOS[curso["id"]]
+        lista_est = paq["datosCurso"]["estudiantes"]
+        cant_mods = len(paq["datosCurso"].get("modulos", [])) or 6
+        nueva_fila = (max([e["fila"] for e in lista_est], default=8) + 1)
+        nuevo_orden = str(len(lista_est) + 1)
+        nuevo_est = {
+            "fila": nueva_fila,
+            "orden": nuevo_orden,
             "apellido": apellido,
             "nombres": nombres,
-            "documento": texto(est_data.get("documento")),
-            "tipoDoc": texto(est_data.get("tipoDoc")),
+            "documento": documento_str,
+            "tipoDoc": texto(est_data.get("tipoDoc")) or "DNI",
             "fechaNac": texto(est_data.get("fechaNac")),
-            "localidad": texto(est_data.get("localidad")),
-            "provincia": texto(est_data.get("provincia")),
+            "localidad": texto(est_data.get("localidad")) or paq["datosCurso"]["encabezado"].get("localidad", "Jujuy"),
+            "provincia": texto(est_data.get("provincia")) or "Jujuy",
+            "notas": [""] * cant_mods,
+            "notaFinal": "",
+            "fechaEgreso": "",
+            "folio": texto(est_data.get("folio")) or nuevo_orden,
+            "situacion": "En curso"
+        }
+        lista_est.append(nuevo_est)
+        paq["datosCurso"]["encabezado"]["matriculados"] = str(len(lista_est))
+        paq["actaCurso"]["estudiantes"].append({
+            "filaActa": 12 + len(lista_est),
+            "filaRac": nueva_fila,
+            "orden": nuevo_orden,
+            "permiso": nuevo_orden,
+            "documento": documento_str,
+            "nombre": f"{apellido}, {nombres}",
+            "teorico": "",
+            "practico": "",
+            "definitiva": "",
+            "definitivaLetras": ""
+        })
+        registrar(sesion_usr, "Alta Estudiante", f"{curso['oferta']} {curso['ciclo']}", f"{apellido}, {nombres} (DNI {documento_str})")
+        return {"fila": nueva_fila, "estudiante": nuevo_est}
+
+    if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+        nueva_fila = (max([e["fila"] for e in _ESTUDIANTES_DEMO], default=8) + 1)
+        nuevo_orden = str(len(_ESTUDIANTES_DEMO) + 1)
+        nuevo_est = {
+            "fila": nueva_fila,
+            "orden": nuevo_orden,
+            "apellido": apellido,
+            "nombres": nombres,
+            "documento": documento_str,
+            "tipoDoc": texto(est_data.get("tipoDoc")) or "DNI",
+            "fechaNac": texto(est_data.get("fechaNac")),
+            "localidad": texto(est_data.get("localidad")) or "Jujuy",
+            "provincia": texto(est_data.get("provincia")) or "Jujuy",
             "notas": [""] * 6,
             "notaFinal": "",
             "fechaEgreso": "",
-            "folio": "",
-            "situacion": ""
-        })
-        return {"fila": fila}
+            "folio": texto(est_data.get("folio")) or nuevo_orden,
+            "situacion": "En curso"
+        }
+        _ESTUDIANTES_DEMO.append(nuevo_est)
+        registrar(sesion_usr, "Alta Estudiante", f"{curso['oferta']} {curso['ciclo']}", f"{apellido}, {nombres} (DNI {documento_str})")
+        return {"fila": nueva_fila, "estudiante": nuevo_est}
+
+    fila = int(est_data.get("fila") or 0)
+    if not fila:
+        apellidos_vals = google_client.get_values(
+            curso["id"], f"{RAC['HOJA']}!B{RAC['FILA_1']}:B{RAC['FILA_N']}"
+        )
+        for idx in range(RAC["FILA_N"] - RAC["FILA_1"] + 1):
+            val = apellidos_vals[idx][0] if idx < len(apellidos_vals) and len(apellidos_vals[idx]) > 0 else ""
+            if not texto(val):
+                fila = RAC["FILA_1"] + idx
+                break
+        if not fila:
+            max_est = RAC["FILA_N"] - RAC["FILA_1"] + 1
+            raise ValueError(f"El curso ya tiene {max_est} estudiantes, que es el máximo permitido en la planilla.")
+
+    if not (RAC["FILA_1"] <= fila <= RAC["FILA_N"]):
+        raise ValueError(f"Fila {fila} fuera de rango.")
 
     mapa = {
         "apellido": apellido, "nombres": nombres,
@@ -917,3 +960,68 @@ def importar_excel_en_sistema(contenido: bytes, nombre_archivo: str, sesion_usr:
         "cantidadEstudiantes": len(paquete["datosCurso"]["estudiantes"]),
         "cantidadModulos": len(paquete["datosCurso"]["modulos"])
     }
+
+def crear_curso_manual(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
+    """Registra un nuevo curso en el sistema listo para que el Administrativo cargue alumnos."""
+    import time
+    import datetime
+    id_curso = texto(datos.get("id")) or f"curso-{int(time.time())}"
+    cue = texto(datos.get("cue")) or (sesion_usr["cues"][0] if sesion_usr.get("cues") else "3800006")
+    institucion = texto(datos.get("institucion")) or "Escuela Profesional"
+    oferta = texto(datos.get("oferta")) or "Oferta Formativa"
+    ciclo = texto(datos.get("ciclo")) or str(datetime.datetime.now().year)
+    turno_raw = texto(datos.get("turno")) or "Vespertino"
+    turno = "Vespertino" if turno_raw.lower() in ("noche", "nocturno", "vespertino") else turno_raw
+    division = texto(datos.get("division")) or '1º "U"'
+
+    resumen = {
+        "cue": cue,
+        "institucion": institucion,
+        "oferta": oferta,
+        "ciclo": ciclo,
+        "turno": turno,
+        "division": division,
+        "id": id_curso,
+        "estado": "Abierto"
+    }
+    modulos = [
+        {"i": 0, "nombre": "Relaciones Laborales y Orientación Profesional", "periodo": "1° Cuatrimestre", "periodoCorto": "1°C", "cuatrimestre": 1, "tipo": "Común"},
+        {"i": 1, "nombre": "Seguridad e Higiene", "periodo": "1° Cuatrimestre", "periodoCorto": "1°C", "cuatrimestre": 1, "tipo": "Común"},
+        {"i": 2, "nombre": "Gestión del Proceso de Trabajo", "periodo": "1° Cuatrimestre", "periodoCorto": "1°C", "cuatrimestre": 1, "tipo": "Común"},
+        {"i": 3, "nombre": "Módulo Específico I", "periodo": "1° Cuatrimestre", "periodoCorto": "1°C", "cuatrimestre": 1, "tipo": "Específico"},
+        {"i": 4, "nombre": "Módulo Específico II", "periodo": "2° Cuatrimestre", "periodoCorto": "2°C", "cuatrimestre": 2, "tipo": "Específico"},
+        {"i": 5, "nombre": "Práctica Profesionalizante", "periodo": "2° Cuatrimestre", "periodoCorto": "2°C", "cuatrimestre": 2, "tipo": "Específico"},
+    ]
+    _CURSOS_IMPORTADOS[id_curso] = {
+        "resumenCurso": resumen,
+        "datosCurso": {
+            "encabezado": {
+                "establecimiento": institucion,
+                "localidad": "San Salvador de Jujuy",
+                "cue": cue,
+                "domicilio": "S/D",
+                "oferta": oferta,
+                "ciclo": ciclo,
+                "libro": "1",
+                "folio": "1",
+                "turno": turno,
+                "matriculados": "0",
+                "division": division,
+                "disenio": "Res. Ministerial"
+            },
+            "modulos": modulos,
+            "estudiantes": []
+        },
+        "actaCurso": {
+            "mesa": {
+                "fecha": datetime.datetime.now().strftime("%d/%m/%Y"),
+                "presidente": "Presidente/a de Mesa",
+                "vocal1": "Vocal 1°",
+                "vocal2": "Vocal 2°"
+            },
+            "estudiantes": []
+        }
+    }
+    _CURSOS_DEMO.append(resumen)
+    registrar(sesion_usr, "Nuevo Curso", f"{oferta} ({cue})", f"Turno {turno}")
+    return resumen

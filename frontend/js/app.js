@@ -290,7 +290,13 @@ function _etiquetaCortaCuat(m) {
 function pintarNotas() {
   var d = estado.datos, editable = d.puedeCargar;
   if (!d.estudiantes.length) {
-    $('panel').innerHTML = '<div class="vacio">El curso todavía no tiene estudiantes cargados en la pestaña RAC.</div>';
+    $('panel').innerHTML =
+      '<div class="vacio">' +
+        '<p>El curso todavía no tiene estudiantes cargados en la pestaña RAC.</p>' +
+        (editable
+          ? '<button class="boton" style="margin-top:10px;background:#137333" onclick="mostrarModalNuevoEstudiante()">+ Agregar Alumno</button>'
+          : '') +
+      '</div>';
     return;
   }
 
@@ -415,8 +421,11 @@ function pintarNotas() {
       ? '<div class="alerta-congelado">🔒 <b>Atención:</b> Los estudiantes con certificado oficial aprobado tienen sus calificaciones <b>congeladas e inmutables</b>.</div>'
       : '') +
     (editable
-      ? '<div class="acciones"><button class="boton" id="guardar" disabled>Guardar cambios</button>' +
-        '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente. ≥7 Aprobado · <7 Desaprobado</span></div>'
+      ? '<div class="acciones">' +
+          '<button class="boton" id="guardar" disabled>Guardar cambios</button>' +
+          '<button type="button" class="boton" style="background:#137333" onclick="mostrarModalNuevoEstudiante()">+ Agregar Alumno</button>' +
+          '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente. ≥7 Aprobado · <7 Desaprobado</span>' +
+        '</div>'
       : '<div class="acciones"><span style="color:var(--suave);font-size:12px">' +
         'Tu rol es de consulta: puedes visualizar, no modificar.</span></div>') +
     '<div class="tabla-ancha"><table><thead>' +
@@ -1114,6 +1123,80 @@ async function inspeccionarAnaliticoModal(idCurso, doc) {
   }
 }
 
+// Modal para cargar un nuevo alumno en el curso actual (Rol Administrativo / Dirección)
+function mostrarModalNuevoEstudiante() {
+  var modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.id = 'modalActivo';
+  modal.innerHTML =
+    '<div class="modal-caja" style="max-width:520px">' +
+      '<h2>+ Cargar Alumno en el Curso</h2>' +
+      '<p style="font-size:12px;color:var(--suave);margin-top:2px">Completá los datos personales del estudiante para incorporarlo al Registro Anual de Calificaciones y al Acta de Examen.</p>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">' +
+        '<label style="display:block;font-size:12px;font-weight:600">Apellido(s) *' +
+          '<input id="ne_apellido" style="width:100%;margin-top:4px" placeholder="Ej: GÓMEZ">' +
+        '</label>' +
+        '<label style="display:block;font-size:12px;font-weight:600">Nombre(s) *' +
+          '<input id="ne_nombres" style="width:100%;margin-top:4px" placeholder="Ej: Juan Carlos">' +
+        '</label>' +
+        '<label style="display:block;font-size:12px;font-weight:600">Tipo Doc.' +
+          '<select id="ne_tipodoc" style="width:100%;margin-top:4px"><option value="DNI">DNI</option><option value="CI">CI</option><option value="Pasaporte">Pasaporte</option></select>' +
+        '</label>' +
+        '<label style="display:block;font-size:12px;font-weight:600">N° de Documento (DNI) *' +
+          '<input id="ne_documento" style="width:100%;margin-top:4px" placeholder="Ej: 42123456">' +
+        '</label>' +
+        '<label style="display:block;font-size:12px;font-weight:600">Fecha de Nacimiento' +
+          '<input id="ne_fechanac" style="width:100%;margin-top:4px" placeholder="dd/mm/aaaa">' +
+        '</label>' +
+        '<label style="display:block;font-size:12px;font-weight:600">Folio N° (opcional)' +
+          '<input id="ne_folio" style="width:100%;margin-top:4px" placeholder="Autocompletar">' +
+        '</label>' +
+        '<label style="display:block;font-size:12px;font-weight:600">Localidad de Nacimiento' +
+          '<input id="ne_localidad" style="width:100%;margin-top:4px" value="San Salvador de Jujuy">' +
+        '</label>' +
+        '<label style="display:block;font-size:12px;font-weight:600">Provincia' +
+          '<input id="ne_provincia" style="width:100%;margin-top:4px" value="Jujuy">' +
+        '</label>' +
+      '</div>' +
+      '<div class="acciones" style="justify-content:flex-end;margin-top:16px">' +
+        '<button type="button" class="boton suave" onclick="cerrarModal()">Cancelar</button>' +
+        '<button type="button" class="boton" style="background:#137333" id="btnGuardarEstudiante">Guardar Alumno</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(modal);
+  if ($('ne_apellido')) $('ne_apellido').focus();
+
+  $('btnGuardarEstudiante').addEventListener('click', async function () {
+    var ape = $('ne_apellido').value.trim();
+    var nom = $('ne_nombres').value.trim();
+    var doc = $('ne_documento').value.trim();
+    if (!ape || !nom || !doc) {
+      avisar('Completá Apellido, Nombres y N° de Documento (DNI).', 'error');
+      return;
+    }
+    $('btnGuardarEstudiante').disabled = true;
+    try {
+      await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/estudiante', 'POST', {
+        apellido: ape,
+        nombres: nom,
+        tipoDoc: $('ne_tipodoc').value,
+        documento: doc,
+        fechaNac: $('ne_fechanac').value.trim(),
+        localidad: $('ne_localidad').value.trim(),
+        provincia: $('ne_provincia').value.trim(),
+        folio: $('ne_folio').value.trim()
+      });
+      cerrarModal();
+      avisar('¡Alumno ' + ape.toUpperCase() + ', ' + nom + ' cargado con éxito!', 'ok');
+      abrirCurso(estado.curso.id, 'notas');
+    } catch (e) {
+      problema(e);
+      $('btnGuardarEstudiante').disabled = false;
+    }
+  });
+}
+
 // Modal para crear curso
 function mostrarModalNuevoCurso() {
   var modal = document.createElement('div');
@@ -1131,9 +1214,9 @@ function mostrarModalNuevoCurso() {
       '<label>CUE <input id="nc_cue" placeholder="Ej: 3800006" value="3800006"></label>' +
       '<label>Oferta Formativa <input id="nc_oferta" placeholder="Ej: Peluquero" value="Peluquero"></label>' +
       '<label>Ciclo <input id="nc_ciclo" placeholder="2026" value="2026"></label>' +
-      '<label>Turno <select id="nc_turno"><option>Vespertino</option><option>Mañana</option><option>Tarde</option></select></label>' +
+      '<label>Turno <select id="nc_turno"><option value="Mañana">Mañana</option><option value="Tarde">Tarde</option><option value="Vespertino" selected>Vespertino</option></select></label>' +
       '<label>Curso / División <input id="nc_division" placeholder=\'1º "U"\' value=\'1º "U"\'></label>' +
-      '<label>ID del archivo de Google Drive <input id="nc_id" placeholder="ID de la planilla de Google Drive"></label>' +
+      '<label>ID del archivo de Google Drive <input id="nc_id" placeholder="Opcional (se genera automático si queda vacío)"></label>' +
       '<div class="acciones" style="justify-content:flex-end;margin-top:14px">' +
         '<button class="boton suave" id="nc_cancelar">Cancelar</button>' +
         '<button class="boton" id="nc_guardar">Guardar curso</button>' +
@@ -1144,8 +1227,8 @@ function mostrarModalNuevoCurso() {
   $('main').appendChild(modal);
 
   $('nc_cancelar').addEventListener('click', verCursos);
-  $('nc_guardar').addEventListener('click', function () {
-    var nuevo = {
+  $('nc_guardar').addEventListener('click', async function () {
+    var payload = {
       cue: $('nc_cue').value.trim(),
       institucion: $('nc_inst').value.trim(),
       oferta: $('nc_oferta').value.trim(),
@@ -1155,9 +1238,14 @@ function mostrarModalNuevoCurso() {
       id: $('nc_id').value.trim() || ('curso-' + Date.now()),
       estado: 'Abierto'
     };
-    estado.cursos.push(nuevo);
-    avisar('Curso registrado con éxito', 'ok');
-    verCursos();
+    try {
+      var r = await llamar('/api/cursos', 'POST', payload);
+      estado.cursos.push(r.curso);
+      avisar('Curso registrado con éxito. Ahora podés cargar sus alumnos.', 'ok');
+      abrirCurso(r.curso.id);
+    } catch (e) {
+      problema(e);
+    }
   });
 }
 

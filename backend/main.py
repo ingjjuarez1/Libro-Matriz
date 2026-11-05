@@ -14,13 +14,23 @@ if str(BASE_DIR) not in sys.path:
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.routing import Route, Mount
 from starlette.staticfiles import StaticFiles
 from starlette.responses import FileResponse, JSONResponse
 
+
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
 from backend.app.routers.api import (
-    api_inicio, api_curso, api_guardar_notas, api_guardar_estudiante,
+    api_inicio, api_curso, api_crear_curso, api_guardar_notas, api_guardar_estudiante,
     api_acta, api_guardar_acta, api_analitico, api_resumen,
     api_usuarios, api_instalar_panel, api_importar_cursos, api_importar_excel,
     api_listar_solicitudes, api_crear_solicitud, api_aprobar_solicitud,
@@ -48,6 +58,7 @@ routes = [
     
     # Endpoints de la API
     Route("/api/inicio", endpoint=api_inicio, methods=["GET"]),
+    Route("/api/cursos", endpoint=api_crear_curso, methods=["POST"]),
     Route("/api/curso/{id_curso}", endpoint=api_curso, methods=["GET"]),
     Route("/api/curso/{id_curso}/notas", endpoint=api_guardar_notas, methods=["POST"]),
     Route("/api/curso/{id_curso}/estudiante", endpoint=api_guardar_estudiante, methods=["POST"]),
@@ -76,6 +87,7 @@ routes = [
 ]
 
 middleware = [
+    Middleware(NoCacheMiddleware),
     Middleware(
         CORSMiddleware,
         allow_origins=["*"],

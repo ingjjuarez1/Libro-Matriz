@@ -15,7 +15,7 @@ from backend.app.core.auth import (
 from backend.app.services.datos_service import (
     cursos_del_panel, buscar_curso, leer_curso, guardar_notas,
     guardar_estudiante, leer_acta, guardar_acta, obtener_analitico,
-    obtener_resumen, importar_excel_en_sistema
+    obtener_resumen, importar_excel_en_sistema, crear_curso_manual
 )
 from backend.app.services.instalador_service import instalar_panel, importar_cursos_de_carpeta
 from backend.app.core.config import PANEL_ID
@@ -115,7 +115,17 @@ async def api_guardar_estudiante(request: Request) -> JSONResponse:
         body = await request.json()
         
         res = guardar_estudiante(id_curso, body, s)
-        return JSONResponse({"ok": True, "fila": res["fila"]})
+        return JSONResponse({"ok": True, "fila": res["fila"], "estudiante": res.get("estudiante")})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+async def api_crear_curso(request: Request) -> JSONResponse:
+    try:
+        email = get_current_user_email(request)
+        s = sesion(email)
+        body = await request.json()
+        curso = crear_curso_manual(body, s)
+        return JSONResponse({"ok": True, "curso": curso})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
