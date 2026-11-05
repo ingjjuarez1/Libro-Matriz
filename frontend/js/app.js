@@ -377,7 +377,6 @@ function pintarNotas() {
     }).join('');
 
     var candado = es.notasCongeladas ? ' <span title="Certificado Aprobado - Notas Congeladas">🔒</span>' : '';
-    var notaFinal = es.notaFinal || '';
     var celdasPromCuat = '';
     if (tieneDosCuat && filtroCuat === 'Todos') {
       celdasPromCuat =
@@ -393,7 +392,6 @@ function pintarNotas() {
       '<td style="text-align:center">' + esc(es.pais || 'Argentina') + '</td>' +
       celdas +
       celdasPromCuat +
-      '<td style="text-align:center;font-weight:bold;background:#fafafa">' + esc(notaFinal) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -410,12 +408,13 @@ function pintarNotas() {
       '</div>';
   }
 
-  var colsExtraFinal = (tieneDosCuat && filtroCuat === 'Todos') ? 3 : 1;
+  var thGrupoProm = (tieneDosCuat && filtroCuat === 'Todos')
+    ? '<th colspan="2" style="text-align:center;background:#e9eef4">PROMEDIO</th>'
+    : '';
   var thExtraFinal = (tieneDosCuat && filtroCuat === 'Todos')
     ? '<th class="mod" style="background:#e8f1fa">Prom. 1° Cuat.</th>' +
-      '<th class="mod" style="background:#e6f4ea">Prom. 2° Cuat.</th>' +
-      '<th class="mod">Nota final</th>'
-    : '<th class="mod">Nota final</th>';
+      '<th class="mod" style="background:#e6f4ea">Prom. 2° Cuat.</th>'
+    : '';
 
   $('panel').innerHTML =
     '<h2 style="font-size:16px;margin:0 0 10px">Registro Anual de Calificaciones</h2>' +
@@ -436,7 +435,7 @@ function pintarNotas() {
         '<th colspan="4" style="text-align:center;background:#e9eef4">DATOS DEL ESTUDIANTE</th>' +
         '<th colspan="2" style="text-align:center;background:#dce6f1">LUGAR DE NACIMIENTO</th>' +
         thGrupos +
-        '<th colspan="' + colsExtraFinal + '" style="text-align:center;background:#e9eef4">PROMEDIO</th>' +
+        thGrupoProm +
       '</tr>' +
       '<tr>' +
         '<th style="width:36px">N°</th><th>Apellido y nombres</th><th style="width:92px">Documento</th>' +
@@ -818,21 +817,54 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
     'onerror="this.outerHTML=\'<div class=hoja-qr-placeholder style=border-color:#000;font-weight:bold>VERIFICAR<br>VALIDEZ<br>QR</div>\'">' +
     '</a>';
 
+  // Formatear fecha de otorgamiento ("el día X del mes de MES del año YYYY")
+  var mesesNombres = [
+    'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+    'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+  ];
+  var hoy = new Date();
+  var diaOtorgado = String(hoy.getDate()).padStart(2, '0');
+  var mesOtorgado = mesesNombres[hoy.getMonth()];
+  var anioOtorgado = String(hoy.getFullYear());
+  if (d.fechaEmision && /^\d{4}-\d{2}-\d{2}$/.test(d.fechaEmision)) {
+    var partesF = d.fechaEmision.split('-');
+    anioOtorgado = partesF[0];
+    mesOtorgado = mesesNombres[parseInt(partesF[1], 10) - 1] || mesOtorgado;
+    diaOtorgado = partesF[2];
+  }
+
+  var cohorteStr = d.cohorte || anioOtorgado;
+  var ofertaStr = d.oferta || (estado.curso && estado.curso.oferta) || 'FORMACIÓN PROFESIONAL';
+  var normaStr = d.normaJurisdiccional || 'Res. Ministerial';
+  var firmaDigitalTexto = !d.esBorrador
+    ? '<div style="font-size:10px;line-height:1.35;color:#222;margin-bottom:6px">' +
+        'Firmado digitalmente por Departamento de Títulos<br>' +
+        'Fecha: ' + esc(d.fechaAprobacion || (anioOtorgado + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + diaOtorgado)) + '<br>' +
+        'Ubicación: Jujuy' +
+      '</div>'
+    : '<div style="font-size:10px;line-height:1.35;color:#777;margin-bottom:6px">' +
+        'Pendiente de firma digital (Documento en Borrador)<br>' +
+        'Ubicación: Jujuy' +
+      '</div>';
+
   return '<div class="hoja-oficial">' +
     escudoFondo + watermark +
     '<div class="hoja-cabecera">' +
       '<div class="hoja-qr">' + qrHtml + '</div>' +
       '<div class="hoja-escudo-bloque">' +
-        '<img src="/img/escudo_nacional.png?v=20261105d" alt="Escudo Nacional" style="height:72px;display:block;margin:0 auto 6px;mix-blend-mode:multiply;filter:contrast(1.06) brightness(1.04)">' +
-        '<p class="hoja-republica">República Argentina</p>' +
+        '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:4px">' +
+          '<span class="hoja-republica" style="margin:0">República</span>' +
+          '<img src="/img/escudo_nacional.png?v=20261105f" alt="Escudo Nacional" style="height:68px;display:block;margin:0;mix-blend-mode:multiply;filter:contrast(1.06) brightness(1.04)">' +
+          '<span class="hoja-republica" style="margin:0">Argentina</span>' +
+        '</div>' +
         '<p class="hoja-ley-nac">LEY DE EDUCACIÓN NACIONAL N° 26.206</p>' +
         '<p class="hoja-provincia">PROVINCIA DE JUJUY</p>' +
-        '<p class="hoja-ley-nac" style="margin-top:4px">LEY PROVINCIAL N° 5807</p>' +
+        '<p class="hoja-ley-nac" style="margin-top:6px">LEY PROVINCIAL N° 5807</p>' +
         '<p class="hoja-ley-nac">SECRETARÍA DE GESTIÓN EDUCATIVA</p>' +
       '</div>' +
       '<div class="hoja-cert-nro">' + esc(certNroFormateado) + '</div>' +
     '</div>' +
-    '<div class="hoja-titulo-doc">Certificado</div>' +
+    '<div class="hoja-titulo-doc">CERTIFICADO</div>' +
     '<p class="hoja-parrafo">' +
       'La autoridad del establecimiento educativo, <b>' + esc(d.establecimiento) + '</b> CUE ' +
       esc(d.cue) + ', ubicado en <b>' + esc(d.domicilio) + '</b>, de <b>' + esc(d.localidad) +
@@ -845,7 +877,7 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
     '<table class="tabla-trayecto">' +
       '<thead><tr>' +
         '<th style="width:28px">N°</th>' +
-        '<th>Módulo</th>' +
+        '<th>Módulo / Espacio Curricular</th>' +
         '<th style="width:70px">Tipo</th>' +
         '<th style="width:120px">Período</th>' +
         '<th style="width:52px">Hs reloj</th>' +
@@ -863,6 +895,38 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
         '</tr>' +
       '</tbody>' +
     '</table>' +
+
+    // ── Parte inferior oficial del Certificado / Título (según modelo provincial) ──
+    '<div class="hoja-pie-legal" style="margin-top:16px;font-size:11.5px;line-height:1.5;position:relative;z-index:2">' +
+      '<p style="margin:2px 0"><b>Cohorte:</b> ' + esc(cohorteStr) + '</p>' +
+      '<p style="margin:2px 0 10px"><b>Observaciones:</b> ' + esc(d.observaciones || '—') + '</p>' +
+      '<p style="margin:8px 0;text-align:justify">' +
+        '<b>' + esc(d.estudianteNombre) + '</b>, con tipo de documento ' + esc(d.tipoDoc) + ' N° <b>' + esc(d.dniFormateado) + '</b>, ' +
+        'aprobó los espacios curriculares expresados anteriormente de los estudios conducentes al certificado de ' +
+        '<b>' + esc(ofertaStr) + '</b> que se corresponde con <b>FORMACIÓN PROFESIONAL</b>.' +
+      '</p>' +
+      '<p style="margin:3px 0"><b>NORMA JURISD. DE APROB. PLAN DE ESTUDIOS / DISEÑO CURRICULAR:</b> ' + esc(normaStr) + '</p>' +
+      '<p style="margin:3px 0"><b>Libro Matriz N°</b> ' + esc(d.libro) + ' &nbsp; <b>Folio N°</b> ' + esc(d.folio) + '</p>' +
+      '<p style="margin:6px 0 18px"><b>Otorgado en la localidad de ' + esc(d.localidad) + ', provincia de JUJUY, República Argentina, el día ' + esc(diaOtorgado) + ' del mes de ' + esc(mesOtorgado) + ' del año ' + esc(anioOtorgado) + '</b></p>' +
+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:26px;align-items:start">' +
+        '<div style="font-size:11px;line-height:1.35">' +
+          '<div style="border-top:1px solid #333;width:220px;margin-bottom:4px"></div>' +
+          '<b>Director/a</b><br>' +
+          '<span>' + esc(d.establecimiento) + '</span>' +
+        '</div>' +
+        '<div style="font-size:11px;line-height:1.35">' +
+          firmaDigitalTexto +
+          '<b>Responsable</b><br>' +
+          '<span>Depto. de Registro de Títulos, Legalizaciones, Cert. estudios y Equiv.</span>' +
+        '</div>' +
+      '</div>' +
+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:22px">' +
+        '<div>' + qrHtml + '</div>' +
+        '<div style="font-size:13px;font-weight:bold;letter-spacing:0.5px">' + esc(certNroFormateado) + '</div>' +
+      '</div>' +
+    '</div>' +
   '</div>';
 }
 

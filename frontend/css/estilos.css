@@ -813,6 +813,42 @@ td.nota input:disabled {
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .barra,
+  .migas,
+  .pestanias,
+  .acciones,
+  #bannerEstadoAnalitico,
+  .aviso,
+  main > h1,
+  main > p,
+  .ficha,
+  #panel > h2 {
+    display: none !important;
+  }
+  main {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .hoja-oficial {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 4mm 6mm !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .acta-resumen-tabla { float: none; margin: 0 auto; }
 }
 
