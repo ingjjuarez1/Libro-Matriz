@@ -222,8 +222,7 @@ function pintarCurso() {
     '<div class="pestanias" role="tablist">' +
       '<button role="tab" data-p="notas">Registro Anual de Calificaciones</button>' +
       '<button role="tab" data-p="acta">Acta de Examen</button>' +
-      '<button role="tab" data-p="analitico">Analítico</button>' +
-      '<button role="tab" data-p="certificado">Certificado</button>' +
+      '<button role="tab" data-p="analitico">Certificado</button>' +
       '<button role="tab" data-p="solicitudes">Circuito de Certificados</button>' +
     '</div><div class="panel" id="panel"></div>';
 
@@ -242,8 +241,7 @@ function pintarPestania() {
   });
   if (estado.pestania === 'notas') pintarNotas();
   else if (estado.pestania === 'acta') pintarActa();
-  else if (estado.pestania === 'analitico') pintarAnalitico(false);
-  else if (estado.pestania === 'certificado') pintarAnalitico(true);
+  else if (estado.pestania === 'analitico') pintarAnalitico();
   else if (estado.pestania === 'solicitudes') pintarSolicitudesCurso();
 }
 
@@ -575,24 +573,19 @@ function verAnaliticoEstudiante(doc) {
   }, 100);
 }
 
-// ---------- PESTAÑA: ANALÍTICO (notas) y CERTIFICADO (impresión oficial) ----------
-// modoImpresion=false → muestra notas (pestaña Analítico)
-// modoImpresion=true  → Certificado listo para imprimir (pestaña Certificado)
-function pintarAnalitico(modoImpresion) {
+// ---------- PESTAÑA: CERTIFICADO (CON CONTROL DE BORRADOR VS OFICIAL) ----------
+function pintarAnalitico() {
   var opciones = estado.datos.estudiantes.map(function (e) {
     return '<option value="' + esc(e.documento) + '">' + esc(e.apellido) + ', ' +
            esc(e.nombres) + '</option>';
   }).join('');
 
-  var tituloBoton = modoImpresion ? 'Ver el certificado' : 'Ver el analítico';
-  var tituloPestania = modoImpresion ? 'Certificado' : 'Analítico';
-
   $('panel').innerHTML =
-    '<h2 style="font-size:16px;margin:0 0 10px">' + tituloPestania + '</h2>' +
+    '<h2 style="font-size:16px;margin:0 0 10px">Certificado</h2>' +
     '<div class="acciones" style="background:#fff;padding:10px 14px;border:1px solid var(--borde);border-radius:6px;align-items:center">' +
       '<label style="display:flex;align-items:center;gap:6px">Estudiante: <select id="selEst" style="min-width:220px">' + opciones + '</select></label>' +
       '<label style="display:flex;align-items:center;gap:6px">Emisión: <input type="date" id="fecha"></label>' +
-      '<button class="boton" id="generar" style="background:#1F4E78">' + tituloBoton + '</button>' +
+      '<button class="boton" id="generar" style="background:#1F4E78">Ver el certificado</button>' +
       '<button class="boton suave" id="imprimir" disabled style="opacity:0.5;cursor:not-allowed">Imprimir</button>' +
     '</div>' +
     '<div id="bannerEstadoAnalitico"></div>' +
@@ -603,7 +596,7 @@ function pintarAnalitico(modoImpresion) {
   $('generar').addEventListener('click', async function () {
     var doc = $('selEst').value;
     if (!doc) { avisar('Ese estudiante no tiene documento registrado.', 'error'); return; }
-    $('salida').innerHTML = '<div class="cargando">Generando documento oficial…</div>';
+    $('salida').innerHTML = '<div class="cargando">Generando certificado oficial…</div>';
     var f = $('fecha').value || '';
     try {
       var url = '/api/curso/' + encodeURIComponent(estado.curso.id) + '/analitico?documento=' + encodeURIComponent(doc) +
@@ -629,7 +622,7 @@ function pintarAnalitico(modoImpresion) {
         btnImp.title = 'Imprimir certificado oficial';
       }
 
-      $('salida').innerHTML = modoImpresion ? armarCertificado(an) : armarAnalitico(an);
+      $('salida').innerHTML = armarAnalitico(an);
     } catch (e) { problema(e); $('salida').innerHTML = ''; }
   });
 
@@ -638,7 +631,6 @@ function pintarAnalitico(modoImpresion) {
 }
 
 function armarAnalitico(r) {
-  // Analítico: muestra notas y en letras, SIN columna Condición, CON marca de agua si es borrador
   var d = r.documentoOficial;
   if (!d) { return armarAnaliticoCeldas(r); }
 
@@ -660,37 +652,11 @@ function armarAnalitico(r) {
     '</tr>';
   }).join('');
 
-  return _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasModulos, false);
-}
-
-function armarCertificado(r) {
-  // Certificado: igual que analítico pero sin marca de agua y con QR de validación real
-  var d = r.documentoOficial;
-  if (!d) { return armarAnaliticoCeldas(r); }
-
-  var certNroFormateado = d.certNro || '__________________';
-  var watermark = d.esBorrador
-    ? '<div class="marca-agua-borrador-oficial">BORRADOR<br>NO VÁLIDO</div>' : '';
-  var escudoFondo = '<img src="/img/escudo_nacional.png" class="hoja-fondo-escudo" alt="" aria-hidden="true">';
-
-  var filasModulos = (d.trayecto || []).map(function (m) {
-    return '<tr>' +
-      '<td style="text-align:center">'                  + esc(m.nro)        + '</td>' +
-      '<td>'                                             + esc(m.modulo)     + '</td>' +
-      '<td style="text-align:center">'                  + esc(m.tipo)       + '</td>' +
-      '<td style="text-align:center">'                  + esc(m.periodo)    + '</td>' +
-      '<td style="text-align:center">'                  + esc(m.hsReloj)    + '</td>' +
-      '<td style="text-align:center">'                  + esc(m.hsCat)      + '</td>' +
-      '<td style="text-align:center;font-weight:bold">' + esc(m.nota || '') + '</td>' +
-      '<td style="text-align:center">'                  + esc(m.enLetras || '') + '</td>' +
-    '</tr>';
-  }).join('');
-
-  return _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasModulos, true);
+  return _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasModulos);
 }
 
 // ── Función interna compartida ──────────────────────────────────────────────
-function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasModulos, esImpresion) {
+function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasModulos) {
   var validarPath = '/validar?nro=' + encodeURIComponent(d.esBorrador ? '' : certNroFormateado) +
                     '&dni=' + encodeURIComponent(String(d.dniFormateado || '').replace(/\./g, ''));
   var validarFullUrl = window.location.origin + validarPath;
@@ -717,7 +683,7 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
       '<p>MINISTERIO DE EDUCACIÓN</p>' +
       '<p>SECRETARÍA DE GESTIÓN EDUCATIVA</p>' +
     '</div>' +
-    '<div class="hoja-titulo-doc">' + (esImpresion ? 'Certificado' : 'Analítico Parcial') + '</div>' +
+    '<div class="hoja-titulo-doc">Certificado</div>' +
     '<p class="hoja-parrafo">' +
       'La autoridad del establecimiento educativo, <b>' + esc(d.establecimiento) + '</b> CUE ' +
       esc(d.cue) + ', ubicado en <b>' + esc(d.domicilio) + '</b>, de <b>' + esc(d.localidad) +
