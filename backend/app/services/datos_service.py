@@ -307,7 +307,8 @@ def leer_curso(id_archivo: str) -> Dict[str, Any]:
             "tipoDoc": col_v(RAC["COL"]["tipoDoc"]),
             "fechaNac": col_v(RAC["COL"]["fechaNac"]),
             "localidad": col_v(RAC["COL"]["localidad"]),
-            "provincia": col_v(RAC["COL"]["provincia"]),
+            "provincia": col_v(RAC["COL"]["provincia"]) or "Jujuy",
+            "pais": col_v(RAC["COL"].get("nacionalidad", 5)) or "Argentina",
             "notas": notas,
             "notaFinal": col_v(RAC["COL"]["notaFinal"]),
             "fechaEgreso": col_v(RAC["COL"]["fechaEgreso"]),
@@ -813,6 +814,10 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
         dni_formateado = str(documento)
 
     es_demo_ep6 = (curso["id"] == "curso-peluquero-ep6-demo")
+    prov_est = (est_seleccionado.get("provincia") or "Jujuy").strip() if est_seleccionado else "Jujuy"
+    pais_est = (est_seleccionado.get("pais") or "Argentina").strip() if est_seleccionado else "Argentina"
+    lugar_nac_str = f"{prov_est} ({pais_est})".upper()
+
     documento_oficial = {
         "libro": str(enc_curso.get("libro") or "1"),
         "folio": est_seleccionado.get("folio", "_____") if est_seleccionado else "_____",
@@ -823,7 +828,7 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
         "localidad": "PERICO" if es_demo_ep6 else str(enc_curso.get("localidad") or "JUJUY").upper(),
         "provincia": "JUJUY",
         "estudianteNombre": f"{est_seleccionado.get('apellido', '')}, {est_seleccionado.get('nombres', '')}".strip() if est_seleccionado else "AMANTE, SERGIO DAVID",
-        "lugarNac": est_seleccionado.get("localidad", "S S DE JUJUY (JUJUY)") if est_seleccionado else "S S DE JUJUY (JUJUY)",
+        "lugarNac": lugar_nac_str,
         "fechaNac": est_seleccionado.get("fechaNac", "01/02/2002") if est_seleccionado else "01/02/2002",
         "tipoDoc": est_seleccionado.get("tipoDoc", "DNI") if est_seleccionado else "DNI",
         "dniFormateado": dni_formateado,
