@@ -816,16 +816,14 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
     '<div class="hoja-cabecera">' +
       '<div class="hoja-qr">' + qrHtml + '</div>' +
       '<div class="hoja-escudo-bloque">' +
-        '<img src="/img/escudo_nacional.png?v=20261105b" alt="Escudo Nacional" style="height:68px;display:block;margin:0 auto 4px">' +
+        '<img src="/img/escudo_nacional.png?v=20261105d" alt="Escudo Nacional" style="height:72px;display:block;margin:0 auto 6px;mix-blend-mode:multiply;filter:contrast(1.06) brightness(1.04)">' +
         '<p class="hoja-republica">República Argentina</p>' +
         '<p class="hoja-ley-nac">LEY DE EDUCACIÓN NACIONAL N° 26.206</p>' +
         '<p class="hoja-provincia">PROVINCIA DE JUJUY</p>' +
+        '<p class="hoja-ley-nac" style="margin-top:4px">LEY PROVINCIAL N° 5807</p>' +
+        '<p class="hoja-ley-nac">SECRETARÍA DE GESTIÓN EDUCATIVA</p>' +
       '</div>' +
       '<div class="hoja-cert-nro">' + esc(certNroFormateado) + '</div>' +
-    '</div>' +
-    '<div class="hoja-subtitulos">' +
-      '<p>LEY PROVINCIAL N°5807</p>' +
-      '<p>SECRETARÍA DE GESTIÓN EDUCATIVA</p>' +
     '</div>' +
     '<div class="hoja-titulo-doc">Certificado</div>' +
     '<p class="hoja-parrafo">' +

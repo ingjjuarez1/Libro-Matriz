@@ -419,12 +419,16 @@ td.nota input.baja {
   box-sizing: border-box;
 }
 
-/* Cabecera superior: QR | Escudo | Nro Certificado */
+/* Cabecera superior: QR | Escudo | Nro Certificado (columnas laterales simétricas de 160px para centrado exacto) */
 .hoja-cabecera {
   display: grid;
-  grid-template-columns: 90px 1fr 160px;
+  grid-template-columns: 160px 1fr 160px;
   align-items: flex-start;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
+}
+
+.hoja-qr {
+  text-align: left;
 }
 
 .hoja-qr img {
