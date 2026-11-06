@@ -812,20 +812,31 @@ td.nota input:disabled {
   margin-bottom: 4px;
 }
 
+.solo-impresion {
+  display: none;
+}
+
 @media print {
   @page {
-    size: A4 portrait;
+    size: A4;
     margin: 10mm 12mm;
   }
   body {
     background: #fff !important;
     margin: 0 !important;
     padding: 0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .solo-impresion {
+    display: block !important;
   }
   .barra,
   .migas,
   .pestanias,
   .acciones,
+  .no-imprimir,
+  .alerta-congelado,
   #bannerEstadoAnalitico,
   .aviso,
   main > h1,
@@ -834,10 +845,37 @@ td.nota input:disabled {
   #panel > h2 {
     display: none !important;
   }
-  main {
+  main,
+  .panel {
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  .tabla-ancha {
+    overflow: visible !important;
+    border: none !important;
+  }
+  .tabla-ancha table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10px !important;
+  }
+  .tabla-ancha th,
+  .tabla-ancha td {
+    border: 1px solid #333 !important;
+    padding: 3px 4px !important;
+  }
+  td.nota input {
+    border: none !important;
+    background: transparent !important;
+    width: 100% !important;
+    padding: 0 !important;
+    text-align: center !important;
+    font-weight: bold !important;
+    color: inherit !important;
   }
   .hoja-oficial {
     border: none !important;

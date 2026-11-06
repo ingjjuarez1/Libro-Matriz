@@ -398,7 +398,7 @@ function pintarNotas() {
   var barraFiltroCuat = '';
   if (cuatrimestresDisponibles.length > 1) {
     barraFiltroCuat =
-      '<div style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;flex-wrap:wrap">' +
+      '<div class="no-imprimir" style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;flex-wrap:wrap">' +
         '<span style="font-size:12px;font-weight:600;color:var(--suave)">Ver período:</span>' +
         '<button type="button" class="boton ' + (filtroCuat === 'Todos' ? '' : 'suave') + '" style="padding:4px 12px;font-size:12px" data-cuat="Todos">Todos (' + d.modulos.length + ' módulos)</button>' +
         cuatrimestresDisponibles.map(function (c) {
@@ -416,8 +416,42 @@ function pintarNotas() {
       '<th class="mod" style="background:#e6f4ea">Prom. 2° Cuat.</th>'
     : '';
 
+  var enc = d.encabezado || {};
+  var encabezadoImpresionRac =
+    '<div class="solo-impresion" style="margin-bottom:12px;border-bottom:2px solid #222;padding-bottom:8px;font-family:\'Times New Roman\',serif">' +
+      '<div style="text-align:center;margin-bottom:8px">' +
+        '<div style="font-size:11px;font-weight:bold;letter-spacing:0.5px">PROVINCIA DE JUJUY · SECRETARÍA DE GESTIÓN EDUCATIVA</div>' +
+        '<div style="font-size:11px;font-weight:bold;letter-spacing:0.5px">DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL - DIRECCIÓN DE TÍTULOS</div>' +
+        '<h2 style="margin:6px 0 2px;font-size:16px;text-transform:uppercase;letter-spacing:1px">REGISTRO ANUAL DE CALIFICACIONES</h2>' +
+      '</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:11px;border:none">' +
+        '<tr>' +
+          '<td style="border:none;padding:2px 4px"><b>Establecimiento:</b> ' + esc(enc.establecimiento || estado.curso.institucion || '—') + '</td>' +
+          '<td style="border:none;padding:2px 4px"><b>CUE:</b> ' + esc(enc.cue || estado.curso.cue || '—') + '</td>' +
+          '<td style="border:none;padding:2px 4px"><b>Libro Matriz N°:</b> ' + esc(enc.libro || '1') + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td style="border:none;padding:2px 4px"><b>Oferta Formativa:</b> ' + esc(enc.oferta || estado.curso.oferta || '—') + '</td>' +
+          '<td style="border:none;padding:2px 4px"><b>Ciclo Lectivo:</b> ' + esc(enc.ciclo || estado.curso.ciclo || '—') + '</td>' +
+          '<td style="border:none;padding:2px 4px"><b>Turno / División:</b> ' + esc(enc.turno || estado.curso.turno || '—') + ' · ' + esc(enc.division || estado.curso.division || '—') + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td colspan="3" style="border:none;padding:2px 4px"><b>Diseño Curricular / Norma Aprobatoria:</b> ' + esc(enc.disenio || '—') + '</td>' +
+        '</tr>' +
+      '</table>' +
+    '</div>';
+
+  var pieImpresionRac =
+    '<div class="solo-impresion" style="margin-top:42px;font-family:\'Times New Roman\',serif;font-size:12px">' +
+      '<div style="display:flex;justify-content:space-around;text-align:center">' +
+        '<div style="width:220px;border-top:1px solid #000;padding-top:4px"><b>Secretario/a / Administrativo/a</b><br><small>Firma y Sello</small></div>' +
+        '<div style="width:220px;border-top:1px solid #000;padding-top:4px"><b>Director/a del Establecimiento</b><br><small>Firma y Sello</small></div>' +
+      '</div>' +
+    '</div>';
+
   $('panel').innerHTML =
     '<h2 style="font-size:16px;margin:0 0 10px">Registro Anual de Calificaciones</h2>' +
+    encabezadoImpresionRac +
     barraFiltroCuat +
     (hayCongelados
       ? '<div class="alerta-congelado">🔒 <b>Atención:</b> Los estudiantes con certificado oficial aprobado tienen sus calificaciones <b>congeladas e inmutables</b>.</div>'
@@ -426,10 +460,13 @@ function pintarNotas() {
       ? '<div class="acciones">' +
           '<button class="boton" id="guardar" disabled>Guardar cambios</button>' +
           '<button type="button" class="boton" style="background:#137333" onclick="mostrarModalNuevoEstudiante()">+ Agregar Alumno</button>' +
+          '<button type="button" class="boton" style="background:#1F4E78" id="imprimirRac">🖨️ Imprimir Registro Anual</button>' +
           '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente. ≥7 Aprobado · <7 Desaprobado</span>' +
         '</div>'
-      : '<div class="acciones"><span style="color:var(--suave);font-size:12px">' +
-        'Tu rol es de consulta: puedes visualizar, no modificar.</span></div>') +
+      : '<div class="acciones">' +
+          '<button type="button" class="boton" style="background:#1F4E78" id="imprimirRac">🖨️ Imprimir Registro Anual</button>' +
+          '<span style="color:var(--suave);font-size:12px">Tu rol es de consulta: puedes visualizar e imprimir, no modificar.</span>' +
+        '</div>') +
     '<div class="tabla-ancha"><table><thead>' +
       '<tr>' +
         '<th colspan="4" style="text-align:center;background:#e9eef4">DATOS DEL ESTUDIANTE</th>' +
@@ -444,7 +481,12 @@ function pintarNotas() {
         '<th style="width:88px;text-align:center">País</th>' +
         th + thExtraFinal +
       '</tr>' +
-    '</thead><tbody>' + filas + '</tbody></table></div>';
+    '</thead><tbody>' + filas + '</tbody></table></div>' +
+    pieImpresionRac;
+
+  if ($('imprimirRac')) {
+    $('imprimirRac').addEventListener('click', function () { window.print(); });
+  }
 
   Array.prototype.forEach.call(document.querySelectorAll('[data-cuat]'), function (btn) {
     btn.addEventListener('click', function () {
@@ -555,6 +597,10 @@ async function pintarActa() {
     $('panel').innerHTML =
       // ── Encabezado con Libro y Folio ──
       '<div class="acta-encabezado">' +
+        '<div style="text-align:center;font-family:\'Times New Roman\',serif;font-size:11px;font-weight:bold;letter-spacing:0.5px;margin-bottom:4px">' +
+          'PROVINCIA DE JUJUY · SECRETARÍA DE GESTIÓN EDUCATIVA<br>' +
+          'DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL - DIRECCIÓN DE TÍTULOS' +
+        '</div>' +
         '<div class="acta-libro-folio">' +
           '<span>Libro de Actas N°: <b>' + esc(libroNro) + '</b></span>' +
           '<span style="margin-left:32px">Folio N°: <b>' + esc(folioNro) + '</b></span>' +
@@ -575,9 +621,12 @@ async function pintarActa() {
         '<p style="font-size:11px;font-style:italic;margin:4px 0 10px">NOTA: Será considerada como fraudulenta toda enmienda o raspadura que no haya sido salvada expresamente con la firma de todos los miembros de la mesa. El número de alumnos examinados se anotará con letras y números.</p>' +
       '</div>' +
 
-      // ── Acciones guardar ──
-      (ed ? '<div class="acciones"><button class="boton" id="guardarActa" disabled>Guardar cambios</button>' +
-            '<span style="color:var(--suave);font-size:12px">La nota definitiva y en letras se calculan automáticamente. ≥7 Aprobado · <7 Desaprobado</span></div>' : '') +
+      // ── Acciones guardar e imprimir ──
+      '<div class="acciones">' +
+        (ed ? '<button class="boton" id="guardarActa" disabled>Guardar cambios</button>' : '') +
+        '<button type="button" class="boton" style="background:#1F4E78" id="imprimirActa">🖨️ Imprimir Acta de Examen</button>' +
+        '<span style="color:var(--suave);font-size:12px">La nota definitiva y en letras se calculan automáticamente. ≥7 Aprobado · <7 Desaprobado</span>' +
+      '</div>' +
 
       // ── Tabla de alumnos ──
       '<div class="tabla-ancha"><table><thead><tr>' +
@@ -611,6 +660,10 @@ async function pintarActa() {
         '<div class="acta-firma"><div class="acta-firma-linea"></div><b>Presidente/a de mesa</b><br><small>Firma y aclaración</small></div>' +
         '<div class="acta-firma"><div class="acta-firma-linea"></div><b>Vocal 1°</b><br><small>Firma y aclaración</small></div>' +
       '</div>';
+
+    if ($('imprimirActa')) {
+      $('imprimirActa').addEventListener('click', function () { window.print(); });
+    }
 
     if (!ed) return;
     var pend = {};
