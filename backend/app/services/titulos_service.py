@@ -264,6 +264,7 @@ def validar_certificado_por_numero(nro_certificado: str, dni: Optional[str] = No
             return {
                 "valido": es_valido,
                 "estado": sol.get("estado"),
+                "idCurso": sol.get("idCurso", ""),
                 "numeroCertificado": sol.get("numeroCertificado", ""),
                 "estudiante": sol.get("estudiante", ""),
                 "documento": sol.get("documento", ""),

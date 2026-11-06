@@ -808,8 +808,10 @@ function armarAnalitico(r) {
 
 // ── Función interna compartida ──────────────────────────────────────────────
 function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasModulos) {
+  var idCursoQr = (estado.curso && estado.curso.id) ? estado.curso.id : '';
   var validarPath = '/validar?nro=' + encodeURIComponent(d.esBorrador ? '' : certNroFormateado) +
-                    '&dni=' + encodeURIComponent(String(d.dniFormateado || '').replace(/\./g, ''));
+                    '&dni=' + encodeURIComponent(String(d.dniFormateado || '').replace(/\./g, '')) +
+                    '&curso=' + encodeURIComponent(idCursoQr);
   var validarFullUrl = window.location.origin + validarPath;
   var qrImgSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(validarFullUrl);
   var qrHtml = '<a href="' + esc(validarPath) + '" target="_blank" title="Verificar validez del título">' +

@@ -354,47 +354,86 @@ async def api_validar_certificado(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "validacion": res})
 
 async def pagina_validar_certificado(request: Request) -> HTMLResponse:
-    """Página web pública devuelta al escanear el código QR del certificado."""
-    nro = request.query_params.get("nro", "")
-    dni = request.query_params.get("dni", "")
+    """Página web pública devuelta al escanear el código QR del certificado (solo ficha de veracidad de datos del alumno, no genera el diploma)."""
+    nro = request.query_params.get("nro", "").strip()
+    dni = request.query_params.get("dni", "").strip()
+    id_curso = request.query_params.get("curso", "").strip()
     res = validar_certificado_por_numero(nro, dni)
+
+    # Enriquecer con los datos del alumno del curso si están disponibles
+    est_extra = {}
+    enc_extra = {}
+    if id_curso or res.get("idCurso"):
+        cid = id_curso or res.get("idCurso", "")
+        try:
+            datos_c = leer_curso(cid)
+            enc_extra = datos_c.get("encabezado", {})
+            for e in datos_c.get("estudiantes", []):
+                if str(e.get("documento", "")).strip() == dni:
+                    est_extra = e
+                    break
+        except Exception:
+            pass
+
     es_valido = res.get("valido", False)
+    nombre_est = res.get("estudiante") or (f"{est_extra.get('apellido', '')}, {est_extra.get('nombres', '')}".strip(", ") if est_extra else "—")
+    doc_est = res.get("documento") or est_extra.get("documento") or dni or "—"
+    fecha_nac = est_extra.get("fechaNac") or "—"
+    prov_nac = est_extra.get("provincia") or "Jujuy"
+    pais_nac = est_extra.get("pais") or "Argentina"
+    lugar_nac = f"{prov_nac} ({pais_nac})" if est_extra else "—"
+    oferta_est = res.get("oferta") or enc_extra.get("oferta") or "—"
+    inst_est = res.get("institucion") or enc_extra.get("establecimiento") or "—"
+    cue_est = res.get("cue") or enc_extra.get("cue") or "—"
+    ciclo_est = res.get("ciclo") or enc_extra.get("ciclo") or "—"
+    libro_est = enc_extra.get("libro") or "1"
+    folio_est = est_extra.get("folio") or "—"
+    situacion_est = est_extra.get("situacion") or ("Aprobó todo" if es_valido else "En curso / Sin aprobar")
 
     if es_valido:
-        badge = '<div style="background:#e6f4ea;border:2px solid #34a853;color:#137333;padding:16px;border-radius:8px;font-size:18px;font-weight:bold;text-align:center;margin:16px 0">✅ TÍTULO / CERTIFICADO OFICIAL VÁLIDO</div>'
-        detalle = f"""
-        <table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:14px">
-          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>N° de Certificado:</b></td><td style="padding:8px"><b>{res.get('numeroCertificado')}</b></td></tr>
-          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>Estudiante:</b></td><td style="padding:8px">{res.get('estudiante')}</td></tr>
-          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>DNI:</b></td><td style="padding:8px">{res.get('documento')}</td></tr>
-          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>Oferta Formativa:</b></td><td style="padding:8px">{res.get('oferta')}</td></tr>
-          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>Institución:</b></td><td style="padding:8px">{res.get('institucion')} (CUE {res.get('cue')})</td></tr>
-          <tr style="border-bottom:1px solid #ddd"><td style="padding:8px;color:#555"><b>Ciclo Lectivo:</b></td><td style="padding:8px">{res.get('ciclo')}</td></tr>
-          <tr><td style="padding:8px;color:#555"><b>Fecha de Aprobación:</b></td><td style="padding:8px">{res.get('fechaAprobacion')}</td></tr>
-        </table>
-        """
+        badge = '<div style="background:#e6f4ea;border:2px solid #34a853;color:#137333;padding:14px;border-radius:8px;font-size:16px;font-weight:bold;text-align:center;margin:16px 0">✅ DATOS VERIFICADOS · CERTIFICADO OFICIAL VÁLIDO</div>'
+        estado_fila = f'<span style="color:#137333;font-weight:bold">APROBADO Y REGISTRADO ({res.get("fechaAprobacion")})</span>'
+        nro_mostrar = res.get("numeroCertificado") or nro
     else:
-        badge = '<div style="background:#fce8e6;border:2px solid #ea4335;color:#c5221f;padding:16px;border-radius:8px;font-size:18px;font-weight:bold;text-align:center;margin:16px 0">❌ DOCUMENTO NO VÁLIDO / BORRADOR</div>'
-        detalle = f'<p style="text-align:center;color:#555;font-size:14px">{res.get("mensaje", "Este documento aún no fue aprobado por la Dirección de Títulos.")}</p>'
+        badge = '<div style="background:#fff8e1;border:2px solid #fbbc04;color:#b06000;padding:14px;border-radius:8px;font-size:15px;font-weight:bold;text-align:center;margin:16px 0">ℹ️ CONSULTA DE DATOS DEL ALUMNO (SIN FIRMA DE TÍTULOS AÚN)</div>'
+        estado_fila = '<span style="color:#b06000;font-weight:bold">Pendiente de aprobación por Dirección de Títulos (Borrador)</span>'
+        nro_mostrar = "Sin asignar (Borrador)"
+
+    detalle = f"""
+    <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:13.5px">
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555;width:44%"><b>Apellido y Nombres:</b></td><td style="padding:8px 6px"><b>{nombre_est}</b></td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Documento (DNI):</b></td><td style="padding:8px 6px">{doc_est}</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Fecha de Nacimiento:</b></td><td style="padding:8px 6px">{fecha_nac}</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Lugar de Nacimiento:</b></td><td style="padding:8px 6px">{lugar_nac}</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Establecimiento:</b></td><td style="padding:8px 6px">{inst_est} (CUE {cue_est})</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Oferta Formativa:</b></td><td style="padding:8px 6px"><b>{oferta_est}</b></td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Cohorte / Ciclo Lectivo:</b></td><td style="padding:8px 6px">{ciclo_est}</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Libro Matriz / Folio:</b></td><td style="padding:8px 6px">Libro N° {libro_est} · Folio N° {folio_est}</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Situación Académica:</b></td><td style="padding:8px 6px">{situacion_est}</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>N° de Serie de Título:</b></td><td style="padding:8px 6px"><b>{nro_mostrar}</b></td></tr>
+      <tr><td style="padding:8px 6px;color:#555"><b>Estado de Veracidad:</b></td><td style="padding:8px 6px">{estado_fila}</td></tr>
+    </table>
+    """
 
     html = f"""<!DOCTYPE html>
     <html lang="es-AR">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>Validación Oficial de Certificados · DETP Jujuy</title>
+      <title>Verificación de Datos del Alumno · Dirección de Títulos Jujuy</title>
     </head>
-    <body style="font-family:Segoe UI,Arial,sans-serif;background:#f6f8fa;margin:0;padding:24px">
-      <div style="max-width:520px;margin:20px auto;background:#fff;border:1px solid #c9d3dd;border-radius:10px;padding:28px;box-shadow:0 4px 14px rgba(0,0,0,0.08)">
+    <body style="font-family:Segoe UI,Arial,sans-serif;background:#f6f8fa;margin:0;padding:20px">
+      <div style="max-width:540px;margin:16px auto;background:#fff;border:1px solid #c9d3dd;border-radius:10px;padding:24px;box-shadow:0 4px 14px rgba(0,0,0,0.08)">
         <div style="text-align:center;border-bottom:1px solid #eee;padding-bottom:14px">
           <img src="/img/escudo_nacional.png" alt="Escudo" style="height:56px">
-          <h2 style="margin:8px 0 2px;color:#1F4E78;font-size:18px">Ministerio de Educación · Provincia de Jujuy</h2>
+          <h2 style="margin:8px 0 2px;color:#1F4E78;font-size:17px">Provincia de Jujuy · Secretaría de Gestión Educativa</h2>
           <div style="font-size:12px;color:#5b6b7c">Dirección de Educación Técnico Profesional · Dirección de Títulos</div>
         </div>
         {badge}
         {detalle}
-        <div style="margin-top:22px;text-align:center;font-size:11px;color:#888">
-          Sistema Integrado de Libro Matriz de Formación Profesional
+        <div style="margin-top:20px;padding-top:12px;border-top:1px solid #eee;text-align:center;font-size:11px;color:#777">
+          Ficha oficial de consulta pública para constatar la veracidad de los datos del estudiante.<br>
+          Esta pantalla es únicamente de verificación y no emite ni descarga el diploma.
         </div>
       </div>
     </body>
