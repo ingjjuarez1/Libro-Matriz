@@ -381,39 +381,37 @@ async def pagina_validar_certificado(request: Request) -> HTMLResponse:
     fecha_nac = est_extra.get("fechaNac") or "—"
     prov_nac = est_extra.get("provincia") or "Jujuy"
     pais_nac = est_extra.get("pais") or "Argentina"
-    lugar_nac = f"{prov_nac} ({pais_nac})" if est_extra else "—"
+    lugar_nac = f"{prov_nac} ({pais_nac})" if est_extra else "Jujuy (Argentina)"
     oferta_est = res.get("oferta") or enc_extra.get("oferta") or "—"
     inst_est = res.get("institucion") or enc_extra.get("establecimiento") or "—"
     cue_est = res.get("cue") or enc_extra.get("cue") or "—"
     ciclo_est = res.get("ciclo") or enc_extra.get("ciclo") or "—"
     libro_est = enc_extra.get("libro") or "1"
     folio_est = est_extra.get("folio") or "—"
-    situacion_est = est_extra.get("situacion") or ("Aprobó todo" if es_valido else "En curso / Sin aprobar")
+    situacion_est = est_extra.get("situacion") or "Aprobó todo"
 
     if es_valido:
-        badge = '<div style="background:#e6f4ea;border:2px solid #34a853;color:#137333;padding:14px;border-radius:8px;font-size:16px;font-weight:bold;text-align:center;margin:16px 0">✅ DATOS VERIFICADOS · CERTIFICADO OFICIAL VÁLIDO</div>'
-        estado_fila = f'<span style="color:#137333;font-weight:bold">APROBADO Y REGISTRADO ({res.get("fechaAprobacion")})</span>'
         nro_mostrar = res.get("numeroCertificado") or nro
+        estado_fila = f'<span style="color:#137333;font-weight:bold">CERTIFICADO VÁLIDO · Aprobado el {res.get("fechaAprobacion")}</span>'
+        badge = '<div style="background:#e6f4ea;border:2px solid #34a853;color:#137333;padding:14px;border-radius:8px;font-size:16px;font-weight:bold;text-align:center;margin:16px 0">✅ CERTIFICADO OFICIAL VÁLIDO · DATOS DEL ALUMNO</div>'
+        detalle = f"""
+        <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:13.5px">
+          <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555;width:44%"><b>Apellido y Nombres:</b></td><td style="padding:8px 6px"><b>{nombre_est}</b></td></tr>
+          <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Documento (DNI):</b></td><td style="padding:8px 6px">{doc_est}</td></tr>
+          <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Fecha de Nacimiento:</b></td><td style="padding:8px 6px">{fecha_nac}</td></tr>
+          <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Lugar de Nacimiento:</b></td><td style="padding:8px 6px">{lugar_nac}</td></tr>
+          <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Establecimiento:</b></td><td style="padding:8px 6px">{inst_est} (CUE {cue_est})</td></tr>
+          <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Oferta Formativa:</b></td><td style="padding:8px 6px"><b>{oferta_est}</b></td></tr>
+          <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Cohorte / Ciclo Lectivo:</b></td><td style="padding:8px 6px">{ciclo_est}</td></tr>
+          <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Libro Matriz / Folio:</b></td><td style="padding:8px 6px">Libro N° {libro_est} · Folio N° {folio_est}</td></tr>
+          <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Situación Académica:</b></td><td style="padding:8px 6px">{situacion_est}</td></tr>
+          <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>N° de Serie de Título:</b></td><td style="padding:8px 6px"><b>{nro_mostrar}</b></td></tr>
+          <tr><td style="padding:8px 6px;color:#555"><b>Estado de Veracidad:</b></td><td style="padding:8px 6px">{estado_fila}</td></tr>
+        </table>
+        """
     else:
-        badge = '<div style="background:#fff8e1;border:2px solid #fbbc04;color:#b06000;padding:14px;border-radius:8px;font-size:15px;font-weight:bold;text-align:center;margin:16px 0">ℹ️ CONSULTA DE DATOS DEL ALUMNO (SIN FIRMA DE TÍTULOS AÚN)</div>'
-        estado_fila = '<span style="color:#b06000;font-weight:bold">Pendiente de aprobación por Dirección de Títulos (Borrador)</span>'
-        nro_mostrar = "Sin asignar (Borrador)"
-
-    detalle = f"""
-    <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:13.5px">
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555;width:44%"><b>Apellido y Nombres:</b></td><td style="padding:8px 6px"><b>{nombre_est}</b></td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Documento (DNI):</b></td><td style="padding:8px 6px">{doc_est}</td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Fecha de Nacimiento:</b></td><td style="padding:8px 6px">{fecha_nac}</td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Lugar de Nacimiento:</b></td><td style="padding:8px 6px">{lugar_nac}</td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Establecimiento:</b></td><td style="padding:8px 6px">{inst_est} (CUE {cue_est})</td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Oferta Formativa:</b></td><td style="padding:8px 6px"><b>{oferta_est}</b></td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Cohorte / Ciclo Lectivo:</b></td><td style="padding:8px 6px">{ciclo_est}</td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Libro Matriz / Folio:</b></td><td style="padding:8px 6px">Libro N° {libro_est} · Folio N° {folio_est}</td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>Situación Académica:</b></td><td style="padding:8px 6px">{situacion_est}</td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:8px 6px;color:#555"><b>N° de Serie de Título:</b></td><td style="padding:8px 6px"><b>{nro_mostrar}</b></td></tr>
-      <tr><td style="padding:8px 6px;color:#555"><b>Estado de Veracidad:</b></td><td style="padding:8px 6px">{estado_fila}</td></tr>
-    </table>
-    """
+        badge = '<div style="background:#fce8e6;border:2px solid #ea4335;color:#c5221f;padding:16px;border-radius:8px;font-size:16px;font-weight:bold;text-align:center;margin:16px 0">❌ CERTIFICADO NO VÁLIDO / SIN APROBACIÓN OFICIAL</div>'
+        detalle = '<p style="text-align:center;color:#555;font-size:14px;line-height:1.5;margin:12px 0">Este código QR corresponde a un documento en estado <b>BORRADOR</b> o no registrado por la <b>Dirección de Títulos</b>.<br>Los datos del alumno solo se exhiben cuando el certificado cuenta con aprobación oficial.</p>'
 
     html = f"""<!DOCTYPE html>
     <html lang="es-AR">
