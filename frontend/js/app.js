@@ -863,6 +863,7 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
         '<p class="hoja-provincia">PROVINCIA DE JUJUY</p>' +
         '<p class="hoja-ley-nac" style="margin-top:6px">LEY PROVINCIAL N° 5807</p>' +
         '<p class="hoja-ley-nac">SECRETARÍA DE GESTIÓN EDUCATIVA</p>' +
+        '<p class="hoja-ley-nac">DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL - DIRECCIÓN DE TÍTULOS</p>' +
       '</div>' +
       '<div class="hoja-cert-nro">' + esc(certNroFormateado) + '</div>' +
     '</div>' +

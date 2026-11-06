@@ -427,7 +427,7 @@ async def pagina_validar_certificado(request: Request) -> HTMLResponse:
         <div style="text-align:center;border-bottom:1px solid #eee;padding-bottom:14px">
           <img src="/img/escudo_nacional.png" alt="Escudo" style="height:56px">
           <h2 style="margin:8px 0 2px;color:#1F4E78;font-size:17px">Provincia de Jujuy · Secretaría de Gestión Educativa</h2>
-          <div style="font-size:12px;color:#5b6b7c">Dirección de Educación Técnico Profesional · Dirección de Títulos</div>
+          <div style="font-size:13px;font-weight:600;color:#1F4E78">Dirección de Educación Técnico Profesional - Dirección de Títulos</div>
         </div>
         {badge}
         {detalle}
