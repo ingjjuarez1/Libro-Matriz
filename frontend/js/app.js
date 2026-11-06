@@ -1164,8 +1164,8 @@ function abrirModalAprobar(idSol, nombre) {
       '<p>Estudiante: <b>' + esc(nombre) + '</b></p>' +
       '<p style="font-size:12px;color:var(--suave)">Al aprobar, se genera el número oficial y las notas del estudiante quedan bloqueadas permanentemente.</p>' +
       '<label style="display:block;margin:12px 0">' +
-        'Número de Certificado (dejar vacío para correlativo automático AÑO-00000001-CUE):' +
-        '<input id="m_numCert" style="width:100%;margin-top:6px" placeholder="Ej: 2026-00000001-3800006">' +
+        'Número de Certificado (dejar vacío para correlativo automático AÑO-CUE-00000001):' +
+        '<input id="m_numCert" style="width:100%;margin-top:6px" placeholder="Ej: 2026-3800006-00000001">' +
       '</label>' +
       '<div class="acciones" style="justify-content:flex-end">' +
         '<button class="boton suave" onclick="cerrarModal()">Cancelar</button>' +

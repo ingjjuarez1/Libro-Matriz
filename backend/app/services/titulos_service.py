@@ -59,8 +59,8 @@ def _siguiente_numero_certificado(cue: str = "") -> str:
     _CORRELATIVO_ACTUAL += 1
     anio = datetime.datetime.now().year
     cue_limpio = "".join(ch for ch in str(cue or "") if ch.isdigit()) or "3800006"
-    # Formato oficial: AÑO-00000001-CUE  (ej: 2026-00000001-3800006)
-    return f"{anio}-{_CORRELATIVO_ACTUAL:08d}-{cue_limpio}"
+    # Formato oficial: AÑO-CUE-00000001  (ej: 2026-3800006-00000001)
+    return f"{anio}-{cue_limpio}-{_CORRELATIVO_ACTUAL:08d}"
 
 def listar_solicitudes(sesion_usr: Dict[str, Any], estado_filtro: Optional[str] = None, id_curso: Optional[str] = None) -> List[Dict[str, Any]]:
     """
