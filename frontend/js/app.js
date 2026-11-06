@@ -923,11 +923,6 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
           '<span>Dirección de Títulos, Legalizaciones, Cert. estudios y Equiv.</span>' +
         '</div>' +
       '</div>' +
-
-      '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:22px">' +
-        '<div>' + qrHtml + '</div>' +
-        '<div style="font-size:13px;font-weight:bold;letter-spacing:0.5px">' + esc(certNroFormateado) + '</div>' +
-      '</div>' +
     '</div>' +
   '</div>';
 }
