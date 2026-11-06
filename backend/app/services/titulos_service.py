@@ -103,14 +103,20 @@ def obtener_estado_estudiante(id_curso: str, documento: str) -> Dict[str, Any]:
                 "estado": sol["estado"],
                 "numeroCertificado": sol.get("numeroCertificado", ""),
                 "fechaAprobacion": sol.get("fechaAprobacion", ""),
-                "motivoObservacion": sol.get("motivoObservacion", "")
+                "motivoObservacion": sol.get("motivoObservacion", ""),
+                "impreso": bool(sol.get("impreso", False)),
+                "fechaImpresion": sol.get("fechaImpresion", ""),
+                "impresoPor": sol.get("impresoPor", "")
             }
     return {
         "idSolicitud": None,
         "estado": EstadoCertificado.NO_SOLICITADO,
         "numeroCertificado": "",
         "fechaAprobacion": "",
-        "motivoObservacion": ""
+        "motivoObservacion": "",
+        "impreso": False,
+        "fechaImpresion": "",
+        "impresoPor": ""
     }
 
 def esta_estudiante_congelado(id_curso: str, documento: str) -> bool:
@@ -199,6 +205,9 @@ def aprobar_solicitud(id_solicitud: str, sesion_usr: Dict[str, Any], numero_cert
     sol["numeroCertificado"] = num_cert
     sol["fechaAprobacion"] = ahora_fecha
     sol["motivoObservacion"] = ""
+    sol["impreso"] = False
+    sol["fechaImpresion"] = ""
+    sol["impresoPor"] = ""
 
     registrar(
         sesion_usr,
@@ -249,6 +258,44 @@ def aprobar_en_lote(ids_solicitudes: List[str], sesion_usr: Dict[str, Any]) -> L
         except Exception:
             pass
     return aprobados
+
+
+def registrar_impresion_certificado(id_curso: str, documento: str, sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Registra la impresión única del certificado oficial por parte del Administrativo (o Directivo)
+    y bloquea el certificado para que no pueda volver a imprimirse.
+    """
+    rol_usr = str(sesion_usr.get("rol", "")).strip().lower()
+    if rol_usr not in ("administrativo", "directivo"):
+        raise PermissionDeniedException("Solo el Administrativo o el Directivo de la institución puede imprimir el certificado.")
+
+    doc_norm = str(documento).strip()
+    sol_encontrada = None
+    for sol in _SOLICITUDES_CACHE.values():
+        if sol.get("idCurso") == id_curso and str(sol.get("documento")).strip() == doc_norm:
+            sol_encontrada = sol
+            break
+
+    if not sol_encontrada or sol_encontrada.get("estado") != EstadoCertificado.APROBADO:
+        raise PermissionDeniedException("El certificado aún no fue aprobado por la Dirección de Títulos.")
+
+    if sol_encontrada.get("impreso"):
+        raise PermissionDeniedException(
+            f"Este certificado ya fue impreso el {sol_encontrada.get('fechaImpresion')} y se encuentra bloqueado."
+        )
+
+    ahora_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    sol_encontrada["impreso"] = True
+    sol_encontrada["fechaImpresion"] = ahora_str
+    sol_encontrada["impresoPor"] = sesion_usr.get("email", "")
+
+    registrar(
+        sesion_usr,
+        "Impresión Única Certificado",
+        f"{sol_encontrada.get('oferta', '')} ({sol_encontrada.get('cue', '')})",
+        f"Certificado Nº {sol_encontrada.get('numeroCertificado')} impreso y bloqueado (DNI {doc_norm})"
+    )
+    return sol_encontrada
 
 def validar_certificado_por_numero(nro_certificado: str, dni: Optional[str] = None) -> Dict[str, Any]:
     """

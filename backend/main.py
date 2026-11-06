@@ -31,7 +31,7 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
 
 from backend.app.routers.api import (
     api_inicio, api_curso, api_crear_curso, api_guardar_notas, api_guardar_estudiante,
-    api_acta, api_guardar_acta, api_analitico, api_resumen,
+    api_acta, api_guardar_acta, api_analitico, api_imprimir_analitico, api_resumen,
     api_usuarios, api_instalar_panel, api_importar_cursos, api_importar_excel,
     api_listar_solicitudes, api_crear_solicitud, api_aprobar_solicitud,
     api_observar_solicitud, api_aprobar_lote_solicitudes,
@@ -65,6 +65,7 @@ routes = [
     Route("/api/curso/{id_curso}/acta", endpoint=api_acta, methods=["GET"]),
     Route("/api/curso/{id_curso}/acta", endpoint=api_guardar_acta, methods=["POST"]),
     Route("/api/curso/{id_curso}/analitico", endpoint=api_analitico, methods=["GET"]),
+    Route("/api/curso/{id_curso}/analitico/imprimir", endpoint=api_imprimir_analitico, methods=["POST"]),
     Route("/api/resumen", endpoint=api_resumen, methods=["GET"]),
     Route("/api/usuarios", endpoint=api_usuarios, methods=["GET", "POST", "DELETE"]),
     Route("/api/instalar-panel", endpoint=api_instalar_panel, methods=["POST"]),

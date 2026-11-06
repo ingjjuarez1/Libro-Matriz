@@ -813,12 +813,28 @@ function pintarAnalitico() {
 
       var rolActual = (estado.sesion && estado.sesion.rol) ? String(estado.sesion.rol).toLowerCase() : '';
       var puedeImprimirRol = (rolActual === 'administrativo' || rolActual === 'directivo');
+      var solCert = an.solicitudCertificado || {};
+      var yaImpreso = Boolean(solCert.impreso);
 
       if (an.esBorrador) {
         var msg = docOf.mensajeEstado || 'Documento en estado BORRADOR – no válido: requiere aprobación de la Dirección de Títulos para que el Administrativo o Directivo pueda imprimirlo.';
         bannerBox.innerHTML = '<div class="banner-aviso-analitico">' + esc(msg) + '</div>';
         btnImp.disabled = true; btnImp.style.opacity = '0.5'; btnImp.style.cursor = 'not-allowed';
+        btnImp.textContent = 'Imprimir';
         btnImp.title = 'Impresión bloqueada: requiere aprobación de la Dirección de Títulos';
+        $('salida').className = 'impresion-bloqueada';
+      } else if (yaImpreso) {
+        bannerBox.innerHTML =
+          '<div class="banner-aviso-analitico" style="background:#fce8e6;border-color:#d93025;color:#b3261e">' +
+            '🔒 <b>CERTIFICADO IMPRESO Y BLOQUEADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
+            'Impreso por única vez el <b>' + esc(solCert.fechaImpresion || '—') + '</b> (' + esc(solCert.impresoPor || '') + '). ' +
+            'No se permite volver a imprimir.' +
+          '</div>';
+        btnImp.disabled = true; btnImp.style.opacity = '0.5'; btnImp.style.cursor = 'not-allowed';
+        btnImp.style.background = '#b3261e'; btnImp.style.color = '#fff';
+        btnImp.textContent = '🔒 Ya impreso (Bloqueado)';
+        btnImp.title = 'El certificado solo puede imprimirse una única vez y ya fue impreso.';
+        $('salida').className = 'impresion-bloqueada';
       } else if (!puedeImprimirRol) {
         bannerBox.innerHTML =
           '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333">' +
@@ -826,22 +842,43 @@ function pintarAnalitico() {
             '(Solo el rol <b>Administrativo</b> o <b>Directivo</b> de la institución tiene habilitado el botón de impresión).' +
           '</div>';
         btnImp.disabled = true; btnImp.style.opacity = '0.5'; btnImp.style.cursor = 'not-allowed';
+        btnImp.textContent = 'Imprimir';
         btnImp.title = 'Solo el Administrativo o el Directivo de la escuela puede imprimir el certificado';
+        $('salida').className = 'impresion-bloqueada';
       } else {
         bannerBox.innerHTML =
           '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333">' +
-            '✅ <b>Certificado Oficial APROBADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. Calificaciones congeladas – habilitado para impresión por Administrativo / Directivo.' +
+            '✅ <b>Certificado Oficial APROBADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
+            'Habilitado para <b>una única impresión</b> por parte del Administrativo / Directivo.' +
           '</div>';
         btnImp.disabled = false; btnImp.style.opacity = '1'; btnImp.style.cursor = 'pointer';
         btnImp.style.background = 'var(--azul)'; btnImp.style.color = '#fff';
-        btnImp.title = 'Imprimir certificado oficial';
+        btnImp.textContent = '🖨️ Imprimir (Única vez)';
+        btnImp.title = 'Imprimir certificado oficial por única vez';
+        $('salida').className = '';
       }
 
       $('salida').innerHTML = armarAnalitico(an);
     } catch (e) { problema(e); $('salida').innerHTML = ''; }
   });
 
-  $('imprimir').addEventListener('click', function () { if (!$('imprimir').disabled) window.print(); });
+  $('imprimir').addEventListener('click', async function () {
+    if ($('imprimir').disabled) return;
+    var doc = $('selEst').value;
+    if (!confirm('¿Confirmás la impresión del Certificado Oficial?\n\nATENCIÓN: Solo se puede imprimir UNA SOLA VEZ y luego el certificado quedará bloqueado.')) {
+      return;
+    }
+    try {
+      $('imprimir').disabled = true;
+      await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/analitico/imprimir', 'POST', { documento: doc });
+      window.print();
+      avisar('Certificado impreso y bloqueado.', 'ok');
+      $('generar').click();
+    } catch (e) {
+      problema(e);
+      $('generar').click();
+    }
+  });
   setTimeout(function () { if ($('generar')) $('generar').click(); }, 50);
 }
 

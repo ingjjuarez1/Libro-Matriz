@@ -22,7 +22,8 @@ from backend.app.core.config import PANEL_ID
 
 from backend.app.services.titulos_service import (
     listar_solicitudes, crear_o_reingresar_solicitud, aprobar_solicitud,
-    observar_solicitud, aprobar_en_lote, validar_certificado_por_numero
+    observar_solicitud, aprobar_en_lote, validar_certificado_por_numero,
+    registrar_impresion_certificado
 )
 
 def get_current_user_email(request: Request) -> str:
@@ -341,6 +342,23 @@ async def api_aprobar_lote_solicitudes(request: Request) -> JSONResponse:
 
         aprobados = aprobar_en_lote(ids, s)
         return JSONResponse({"ok": True, "aprobados": aprobados, "cantidad": len(aprobados)})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
+async def api_imprimir_analitico(request: Request) -> JSONResponse:
+    """Registra la impresión única del certificado y lo bloquea para futuras impresiones."""
+    try:
+        id_curso = request.path_params.get("id_curso", "")
+        email = get_current_user_email(request)
+        s = sesion(email)
+        body = await request.json()
+        documento = body.get("documento", "")
+
+        sol = registrar_impresion_certificado(id_curso, documento, s)
+        return JSONResponse({"ok": True, "solicitud": sol})
     except (AuthException, PermissionDeniedException) as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:

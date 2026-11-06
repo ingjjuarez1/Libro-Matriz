@@ -887,6 +887,9 @@ td.nota input:disabled {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  .impresion-bloqueada {
+    display: none !important;
+  }
   .acta-resumen-tabla { float: none; margin: 0 auto; }
 }
 
