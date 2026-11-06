@@ -52,14 +52,15 @@ _SOLICITUDES_CACHE: Dict[str, Dict[str, Any]] = {
     }
 }
 
-_CORRELATIVO_ACTUAL = 41285
+_CORRELATIVO_ACTUAL = 0
 
-def _siguiente_numero_certificado() -> str:
+def _siguiente_numero_certificado(cue: str = "") -> str:
     global _CORRELATIVO_ACTUAL
     _CORRELATIVO_ACTUAL += 1
     anio = datetime.datetime.now().year
-    # Formato oficial: AÑO-CORRELATIVO-38  (ej: 2026-00000086-38)
-    return f"{anio}-{_CORRELATIVO_ACTUAL:08d}-38"
+    cue_limpio = "".join(ch for ch in str(cue or "") if ch.isdigit()) or "3800006"
+    # Formato oficial: AÑO-00000001-CUE  (ej: 2026-00000001-3800006)
+    return f"{anio}-{_CORRELATIVO_ACTUAL:08d}-{cue_limpio}"
 
 def listar_solicitudes(sesion_usr: Dict[str, Any], estado_filtro: Optional[str] = None, id_curso: Optional[str] = None) -> List[Dict[str, Any]]:
     """
@@ -191,7 +192,7 @@ def aprobar_solicitud(id_solicitud: str, sesion_usr: Dict[str, Any], numero_cert
 
     num_cert = str(numero_certificado or "").strip()
     if not num_cert:
-        num_cert = _siguiente_numero_certificado()
+        num_cert = _siguiente_numero_certificado(sol.get("cue", ""))
 
     ahora_fecha = datetime.datetime.now().strftime("%d/%m/%Y")
     sol["estado"] = EstadoCertificado.APROBADO

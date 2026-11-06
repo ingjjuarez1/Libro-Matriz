@@ -811,15 +811,26 @@ function pintarAnalitico() {
       var bannerBox = $('bannerEstadoAnalitico');
       var btnImp = $('imprimir');
 
+      var rolActual = (estado.sesion && estado.sesion.rol) ? String(estado.sesion.rol).toLowerCase() : '';
+      var puedeImprimirRol = (rolActual === 'administrativo' || rolActual === 'directivo');
+
       if (an.esBorrador) {
-        var msg = docOf.mensajeEstado || 'Documento en estado BORRADOR – no válido: requiere aprobación de la Dirección de Títulos para imprimir.';
+        var msg = docOf.mensajeEstado || 'Documento en estado BORRADOR – no válido: requiere aprobación de la Dirección de Títulos para que el Administrativo o Directivo pueda imprimirlo.';
         bannerBox.innerHTML = '<div class="banner-aviso-analitico">' + esc(msg) + '</div>';
         btnImp.disabled = true; btnImp.style.opacity = '0.5'; btnImp.style.cursor = 'not-allowed';
         btnImp.title = 'Impresión bloqueada: requiere aprobación de la Dirección de Títulos';
+      } else if (!puedeImprimirRol) {
+        bannerBox.innerHTML =
+          '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333">' +
+            '✅ <b>Certificado Oficial APROBADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
+            '(Solo el rol <b>Administrativo</b> o <b>Directivo</b> de la institución tiene habilitado el botón de impresión).' +
+          '</div>';
+        btnImp.disabled = true; btnImp.style.opacity = '0.5'; btnImp.style.cursor = 'not-allowed';
+        btnImp.title = 'Solo el Administrativo o el Directivo de la escuela puede imprimir el certificado';
       } else {
         bannerBox.innerHTML =
           '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333">' +
-            '✅ <b>Certificado Oficial APROBADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. Calificaciones congeladas – habilitado para impresión oficial.' +
+            '✅ <b>Certificado Oficial APROBADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. Calificaciones congeladas – habilitado para impresión por Administrativo / Directivo.' +
           '</div>';
         btnImp.disabled = false; btnImp.style.opacity = '1'; btnImp.style.cursor = 'pointer';
         btnImp.style.background = 'var(--azul)'; btnImp.style.color = '#fff';
@@ -1153,8 +1164,8 @@ function abrirModalAprobar(idSol, nombre) {
       '<p>Estudiante: <b>' + esc(nombre) + '</b></p>' +
       '<p style="font-size:12px;color:var(--suave)">Al aprobar, se genera el número oficial y las notas del estudiante quedan bloqueadas permanentemente.</p>' +
       '<label style="display:block;margin:12px 0">' +
-        'Número de Certificado (dejar vacío para correlativo automático):' +
-        '<input id="m_numCert" style="width:100%;margin-top:6px" placeholder="Ej: 38-00041285-2026">' +
+        'Número de Certificado (dejar vacío para correlativo automático AÑO-00000001-CUE):' +
+        '<input id="m_numCert" style="width:100%;margin-top:6px" placeholder="Ej: 2026-00000001-3800006">' +
       '</label>' +
       '<div class="acciones" style="justify-content:flex-end">' +
         '<button class="boton suave" onclick="cerrarModal()">Cancelar</button>' +
