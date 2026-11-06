@@ -703,7 +703,7 @@ function pintarSolicitudesCurso() {
 }
 
 async function solicitarCertificadoEstudiante(doc) {
-  avisar('Enviando pedido al Departamento de Títulos…');
+  avisar('Enviando pedido a la Dirección de Títulos…');
   try {
     var r = await llamar('/api/solicitudes', 'POST', {
       idCurso: estado.curso.id,
@@ -759,10 +759,10 @@ function pintarAnalitico() {
       var btnImp = $('imprimir');
 
       if (an.esBorrador) {
-        var msg = docOf.mensajeEstado || 'Documento en estado BORRADOR – no válido: requiere aprobación del Departamento de Títulos para imprimir.';
+        var msg = docOf.mensajeEstado || 'Documento en estado BORRADOR – no válido: requiere aprobación de la Dirección de Títulos para imprimir.';
         bannerBox.innerHTML = '<div class="banner-aviso-analitico">' + esc(msg) + '</div>';
         btnImp.disabled = true; btnImp.style.opacity = '0.5'; btnImp.style.cursor = 'not-allowed';
-        btnImp.title = 'Impresión bloqueada: requiere aprobación del Departamento de Títulos';
+        btnImp.title = 'Impresión bloqueada: requiere aprobación de la Dirección de Títulos';
       } else {
         bannerBox.innerHTML =
           '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333">' +
@@ -838,7 +838,7 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
   var normaStr = d.normaJurisdiccional || 'Res. Ministerial';
   var firmaDigitalTexto = !d.esBorrador
     ? '<div style="font-size:10px;line-height:1.35;color:#222;margin-bottom:6px">' +
-        'Firmado digitalmente por Departamento de Títulos<br>' +
+        'Firmado digitalmente por Dirección de Títulos<br>' +
         'Fecha: ' + esc(d.fechaAprobacion || (anioOtorgado + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + diaOtorgado)) + '<br>' +
         'Ubicación: Jujuy' +
       '</div>'
@@ -918,7 +918,7 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
         '<div style="font-size:11px;line-height:1.35">' +
           firmaDigitalTexto +
           '<b>Responsable</b><br>' +
-          '<span>Depto. de Registro de Títulos, Legalizaciones, Cert. estudios y Equiv.</span>' +
+          '<span>Dirección de Títulos, Legalizaciones, Cert. estudios y Equiv.</span>' +
         '</div>' +
       '</div>' +
 
@@ -962,7 +962,7 @@ function armarAnaliticoCeldas(r) {
 }
 
 // =========================================================================
-// BANDEJA DE ENTRADA CENTRALIZADA · DEPARTAMENTO DE TÍTULOS (ROL 'titulos')
+// BANDEJA DE ENTRADA CENTRALIZADA · DIRECCIÓN DE TÍTULOS (ROL 'titulos')
 // =========================================================================
 
 async function verBandejaTitulos() {
@@ -1022,7 +1022,7 @@ async function verBandejaTitulos() {
     }).join('');
 
     $('main').innerHTML =
-      '<h1>Bandeja de Entrada · Departamento de Títulos</h1>' +
+      '<h1>Bandeja de Entrada · Dirección de Títulos</h1>' +
       '<p style="color:var(--suave)">Gestión, revisión centralizada y emisión de certificados de Formación Profesional.</p>' +
 
       '<div style="display:flex;gap:12px;margin:16px 0;flex-wrap:wrap">' +
@@ -1457,7 +1457,7 @@ async function verAdminUsuarios() {
             '<select id="usr_rol" class="buscar" style="margin:0;width:100%">' +
               '<option value="Administrativo">Administrativo (Carga escuela)</option>' +
               '<option value="Directivo">Directivo (Consulta escuela)</option>' +
-              '<option value="titulos">titulos (Departamento de Títulos)</option>' +
+              '<option value="titulos">titulos (Dirección de Títulos)</option>' +
               '<option value="Dirección DETP">Dirección DETP (Crea/Borra usuarios)</option>' +
             '</select></div>' +
           '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">CUE (solo para escuelas)</label>' +

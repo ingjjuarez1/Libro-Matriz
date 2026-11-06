@@ -183,7 +183,7 @@ def aprobar_solicitud(id_solicitud: str, sesion_usr: Dict[str, Any], numero_cert
     REGLA: Requiere rol 'titulos'. En ese instante, las notas quedan congeladas.
     """
     if not sesion_usr.get("esTitulos") and sesion_usr.get("rol") != Roles.DIRECCION:
-        raise PermissionDeniedException("Solo el Departamento de Títulos tiene permisos para aprobar certificados.")
+        raise PermissionDeniedException("Solo la Dirección de Títulos tiene permisos para aprobar certificados.")
 
     sol = _SOLICITUDES_CACHE.get(id_solicitud)
     if not sol:
@@ -214,7 +214,7 @@ def observar_solicitud(id_solicitud: str, motivo: str, sesion_usr: Dict[str, Any
     REGLA: Requiere rol 'titulos'. Vuelve al panel de la escuela con el motivo.
     """
     if not sesion_usr.get("esTitulos") and sesion_usr.get("rol") != Roles.DIRECCION:
-        raise PermissionDeniedException("Solo el Departamento de Títulos tiene permisos para observar solicitudes.")
+        raise PermissionDeniedException("Solo la Dirección de Títulos tiene permisos para observar solicitudes.")
 
     motivo_limpio = str(motivo or "").strip()
     if not motivo_limpio:
@@ -278,5 +278,5 @@ def validar_certificado_por_numero(nro_certificado: str, dni: Optional[str] = No
         "valido": False,
         "estado": "No registrado / Borrador",
         "numeroCertificado": nro_limpio,
-        "mensaje": "El certificado consultado no figura como aprobado en el Registro Oficial del Departamento de Títulos."
+        "mensaje": "El certificado consultado no figura como aprobado en el Registro Oficial de la Dirección de Títulos."
     }

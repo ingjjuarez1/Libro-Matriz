@@ -33,7 +33,7 @@ _USUARIOS_INICIALES: List[Dict[str, Any]] = [
     },
     {
         "Email": "titulos@jujuy.edu.ar",
-        "Nombre": "Departamento de Títulos",
+        "Nombre": "Dirección de Títulos",
         "Rol": Roles.TITULOS,
         "CUE": "",
         "Activo": "Sí",
@@ -57,7 +57,7 @@ _USUARIOS_INICIALES: List[Dict[str, Any]] = [
     },
     {
         "Email": "titulos@educacion.jujuy.gob.ar",
-        "Nombre": "Departamento de Títulos (Secundario)",
+        "Nombre": "Dirección de Títulos (Secundario)",
         "Rol": Roles.TITULOS,
         "CUE": "",
         "Activo": "Sí",
@@ -71,6 +71,9 @@ def _cargar_usuarios_locales() -> List[Dict[str, Any]]:
             with open(USUARIOS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list) and len(data) > 0:
+                    for u in data:
+                        if "Departamento de Títulos" in str(u.get("Nombre", "")):
+                            u["Nombre"] = str(u["Nombre"]).replace("Departamento de Títulos", "Dirección de Títulos")
                     return data
         except Exception:
             pass

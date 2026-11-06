@@ -375,7 +375,7 @@ async def pagina_validar_certificado(request: Request) -> HTMLResponse:
         """
     else:
         badge = '<div style="background:#fce8e6;border:2px solid #ea4335;color:#c5221f;padding:16px;border-radius:8px;font-size:18px;font-weight:bold;text-align:center;margin:16px 0">❌ DOCUMENTO NO VÁLIDO / BORRADOR</div>'
-        detalle = f'<p style="text-align:center;color:#555;font-size:14px">{res.get("mensaje", "Este documento aún no fue aprobado por el Departamento de Títulos.")}</p>'
+        detalle = f'<p style="text-align:center;color:#555;font-size:14px">{res.get("mensaje", "Este documento aún no fue aprobado por la Dirección de Títulos.")}</p>'
 
     html = f"""<!DOCTYPE html>
     <html lang="es-AR">
@@ -389,7 +389,7 @@ async def pagina_validar_certificado(request: Request) -> HTMLResponse:
         <div style="text-align:center;border-bottom:1px solid #eee;padding-bottom:14px">
           <img src="/img/escudo_nacional.png" alt="Escudo" style="height:56px">
           <h2 style="margin:8px 0 2px;color:#1F4E78;font-size:18px">Ministerio de Educación · Provincia de Jujuy</h2>
-          <div style="font-size:12px;color:#5b6b7c">Dirección de Educación Técnico Profesional · Departamento de Títulos</div>
+          <div style="font-size:12px;color:#5b6b7c">Dirección de Educación Técnico Profesional · Dirección de Títulos</div>
         </div>
         {badge}
         {detalle}
