@@ -920,7 +920,7 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
         '<div style="font-size:11px;line-height:1.35">' +
           firmaDigitalTexto +
           '<b>Responsable</b><br>' +
-          '<span>Dirección de Títulos, Legalizaciones, Cert. estudios y Equiv.</span>' +
+          '<span>Dirección de Títulos</span>' +
         '</div>' +
       '</div>' +
     '</div>' +
