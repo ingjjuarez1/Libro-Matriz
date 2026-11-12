@@ -227,12 +227,15 @@ async function abrirCurso(id, pestaniaInicial) {
 
 function pintarCurso() {
   var d = estado.datos, e = d.encabezado;
+  var hsCatTotal = e.hsCatTotal || 510;
+  var refIng = e.referencialIngreso || 'Primaria Completa';
   $('main').innerHTML =
     '<h1>' + esc(e.oferta || estado.curso.oferta) + '</h1>' +
     '<dl class="ficha">' +
       '<dt>Establecimiento</dt><dd>' + esc(e.establecimiento) + (e.cue ? ' · CUE ' + esc(e.cue) : '') + '</dd>' +
-      '<dt>Curso</dt><dd>' + esc(e.ciclo) + ' · ' + esc(e.turno) + ' · ' + esc(e.division) +
+      '<dt>Turno / División</dt><dd>' + esc(e.turno) + ' · ' + esc(e.division) + ' · Ciclo ' + esc(e.ciclo) +
         ' · ' + d.estudiantes.length + ' estudiantes</dd>' +
+      '<dt>Referencial de ingreso</dt><dd><span id="ficha_ref_ingreso">' + esc(refIng) + '</span> &nbsp;·&nbsp; <b>Hs. cát.:</b> <span id="ficha_hs_cat">' + esc(hsCatTotal) + '</span></dd>' +
       '<dt>Diseño curricular</dt><dd>' + esc(e.disenio) + '</dd>' +
     '</dl>' +
     '<div class="pestanias" role="tablist">' +
@@ -345,10 +348,8 @@ function pintarNotas() {
   });
 
   var th = modulosVisibles.map(function (m) {
-    var hc = m.hsCat || (m.hsReloj ? Math.round(m.hsReloj * 1.5) : '');
-    var txtHs = hc ? '<div style="font-size:10px;font-weight:normal;color:#444;margin-top:2px">(' + esc(hc) + ' hs. cát.)</div>' : '';
     return '<th class="mod" title="' + esc(m.nombre) + ' (' + esc(_etiquetaCuatrimestre(m)) + ')">' +
-           esc(m.nombre) + txtHs + '</th>';
+           esc(m.nombre) + '</th>';
   }).join('');
 
   var tieneDosCuat = cuatrimestresDisponibles.indexOf('1° Cuatrimestre') !== -1 &&
@@ -433,6 +434,7 @@ function pintarNotas() {
 
   var enc = d.encabezado || {};
   var refIngresoActual = enc.referencialIngreso || 'Primaria Completa';
+  var hsCatActual = enc.hsCatTotal || totalHsCatCurso || 510;
   var opcionesRefIngreso = ['Primaria Completa', 'Secundario Completo', 'Ciclo Básico Completo (CB Completo)'].map(function (op) {
     return '<option value="' + esc(op) + '"' + (op === refIngresoActual ? ' selected' : '') + '>' + esc(op) + '</option>';
   }).join('');
@@ -448,7 +450,7 @@ function pintarNotas() {
         '<tr>' +
           '<td style="border:none;padding:2px 4px"><b>Establecimiento:</b> ' + esc(enc.establecimiento || estado.curso.institucion || '—') + '</td>' +
           '<td style="border:none;padding:2px 4px"><b>CUE:</b> ' + esc(enc.cue || estado.curso.cue || '—') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>Localidad:</b> ' + esc(enc.localidad || 'Jujuy') + '</td>' +
+          '<td style="border:none;padding:2px 4px"></td>' +
         '</tr>' +
         '<tr>' +
           '<td style="border:none;padding:2px 4px"><b>Oferta Formativa:</b> ' + esc(enc.oferta || estado.curso.oferta || '—') + '</td>' +
@@ -456,9 +458,9 @@ function pintarNotas() {
           '<td style="border:none;padding:2px 4px"><b>Turno / División:</b> ' + esc(enc.turno || estado.curso.turno || '—') + ' · ' + esc(enc.division || estado.curso.division || '—') + '</td>' +
         '</tr>' +
         '<tr>' +
-          '<td style="border:none;padding:2px 4px"><b>Diseño Curricular:</b> ' + esc(enc.disenio || '—') + '</td>' +
+          '<td style="border:none;padding:2px 4px"><b>Diseño Curricular / Norma Aprobatoria:</b> ' + esc(enc.disenio || '—') + '</td>' +
           '<td style="border:none;padding:2px 4px"><b>Referencial de ingreso:</b> <span id="imp_ref_ingreso">' + esc(refIngresoActual) + '</span></td>' +
-          '<td style="border:none;padding:2px 4px"><b>Hs. cát.:</b> ' + esc(totalHsCatCurso || 510) + ' hs. cát.</td>' +
+          '<td style="border:none;padding:2px 4px"><b>Hs. cát.:</b> <span id="imp_hs_cat">' + esc(hsCatActual) + '</span></td>' +
         '</tr>' +
       '</table>' +
     '</div>';
@@ -485,11 +487,14 @@ function pintarNotas() {
           '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600">Referencial de ingreso: ' +
             '<select id="selRefIngresoRac" style="font-size:12px;padding:4px 8px">' + opcionesRefIngreso + '</select>' +
           '</label>' +
+          '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600">Hs. cát.: ' +
+            '<input id="inpHsCatRac" value="' + esc(hsCatActual) + '" style="width:65px;font-size:12px;padding:4px 6px">' +
+          '</label>' +
           '<button type="button" class="boton" style="background:#1F4E78" id="imprimirRac">🖨️ Imprimir Registro Anual</button>' +
           '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente. ≥7 Aprobado · <7 Desaprobado</span>' +
         '</div>'
       : '<div class="acciones">' +
-          '<span style="font-size:12px"><b>Referencial de ingreso:</b> ' + esc(refIngresoActual) + '</span>' +
+          '<span style="font-size:12px"><b>Referencial de ingreso:</b> ' + esc(refIngresoActual) + ' &nbsp;·&nbsp; <b>Hs. cát.:</b> ' + esc(hsCatActual) + '</span>' +
           '<button type="button" class="boton" style="background:#1F4E78" id="imprimirRac">🖨️ Imprimir Registro Anual</button>' +
           '<span style="color:var(--suave);font-size:12px">Tu rol es de consulta: puedes visualizar e imprimir, no modificar.</span>' +
         '</div>') +
@@ -519,9 +524,18 @@ function pintarNotas() {
       if (estado.datos && estado.datos.encabezado) {
         estado.datos.encabezado.referencialIngreso = val;
       }
-      if ($('imp_ref_ingreso')) {
-        $('imp_ref_ingreso').textContent = val;
+      if ($('imp_ref_ingreso')) $('imp_ref_ingreso').textContent = val;
+      if ($('ficha_ref_ingreso')) $('ficha_ref_ingreso').textContent = val;
+    });
+  }
+  if ($('inpHsCatRac')) {
+    $('inpHsCatRac').addEventListener('input', function () {
+      var val = $('inpHsCatRac').value;
+      if (estado.datos && estado.datos.encabezado) {
+        estado.datos.encabezado.hsCatTotal = val;
       }
+      if ($('imp_hs_cat')) $('imp_hs_cat').textContent = val;
+      if ($('ficha_hs_cat')) $('ficha_hs_cat').textContent = val;
     });
   }
 
