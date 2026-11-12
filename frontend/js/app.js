@@ -428,7 +428,7 @@ function pintarNotas() {
         '<tr>' +
           '<td style="border:none;padding:2px 4px"><b>Establecimiento:</b> ' + esc(enc.establecimiento || estado.curso.institucion || '—') + '</td>' +
           '<td style="border:none;padding:2px 4px"><b>CUE:</b> ' + esc(enc.cue || estado.curso.cue || '—') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>Libro Matriz N°:</b> ' + esc(enc.libro || '1') + '</td>' +
+          '<td style="border:none;padding:2px 4px"><b>Localidad:</b> ' + esc(enc.localidad || 'Jujuy') + '</td>' +
         '</tr>' +
         '<tr>' +
           '<td style="border:none;padding:2px 4px"><b>Oferta Formativa:</b> ' + esc(enc.oferta || estado.curso.oferta || '—') + '</td>' +
@@ -572,7 +572,6 @@ async function pintarActa() {
 
       return '<tr>' +
         '<td style="text-align:center">' + esc(es.orden) + '</td>' +
-        '<td style="text-align:center">' + esc(es.permiso || '') + '</td>' +
         '<td style="text-align:center">' + esc(es.documento) + '</td>' +
         '<td>' + esc(es.nombre) + '</td>' +
         campo('teorico', es.teorico) +
@@ -638,7 +637,6 @@ async function pintarActa() {
       // ── Tabla de alumnos ──
       '<div class="tabla-ancha"><table><thead><tr>' +
         '<th style="width:36px">N° de orden</th>' +
-        '<th style="width:70px">Permiso de examen N°</th>' +
         '<th style="width:92px">N° doc. de identidad</th>' +
         '<th>Apellido y nombre</th>' +
         '<th style="width:60px">Teórico N°</th><th style="width:70px">Teórico Letras</th>' +
