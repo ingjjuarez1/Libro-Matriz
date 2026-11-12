@@ -656,14 +656,63 @@ def leer_acta(id_curso: str, sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Dict[str, Any]], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
-    """Guarda mesa examinadora y notas del examen (teórico / práctico)."""
+    """Guarda mesa examinadora (docentes y fecha) y notas del examen (teórico / práctico)."""
     curso = buscar_curso(id_curso)
     if not curso:
         raise ValueError("Curso no encontrado en el Panel.")
     exigir_carga(sesion_usr, curso)
 
-    if curso["id"] == "curso-peluquero-ep6-demo" or curso["id"] in _CURSOS_IMPORTADOS or not google_client.is_connected():
-        return {"guardados": len(cambios or [])}
+    letras_acta = {
+        1: "UNO", 2: "DOS", 3: "TRES", 4: "CUATRO", 5: "CINCO",
+        6: "SEIS", 7: "SIETE", 8: "OCHO", 9: "NUEVE", 10: "DIEZ"
+    }
+
+    if curso["id"] in _CURSOS_IMPORTADOS or curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
+        if curso["id"] in _CURSOS_IMPORTADOS:
+            acta_obj = _CURSOS_IMPORTADOS[curso["id"]]["actaCurso"]
+            mesa_dest = acta_obj["mesa"]
+            est_list = acta_obj["estudiantes"]
+            enc_dest = _CURSOS_IMPORTADOS[curso["id"]]["datosCurso"]["encabezado"]
+        else:
+            mesa_dest = _ACTA_DEMO_MESA
+            est_list = _ACTA_DEMO_ESTUDIANTES
+            enc_dest = None
+
+        if mesa:
+            for k in ("fecha", "presidente", "vocal1", "vocal2"):
+                if k in mesa:
+                    mesa_dest[k] = texto(mesa[k])
+            if enc_dest is not None:
+                if "libro" in mesa:
+                    enc_dest["libro"] = texto(mesa["libro"])
+                if "folio" in mesa:
+                    enc_dest["folio"] = texto(mesa["folio"])
+
+        for c in (cambios or []):
+            fila_a = int(c.get("filaActa", 0))
+            campo = c.get("campo")
+            val_norm = str(normalizar_nota(c.get("valor")))
+            for es in est_list:
+                if int(es.get("filaActa", 0)) == fila_a:
+                    if campo in ("teorico", "practico"):
+                        es[campo] = val_norm
+                        vt = es.get("teorico", "")
+                        vp = es.get("practico", "")
+                        if vt == "AUS" or vp == "AUS":
+                            es["definitiva"] = "AUS"
+                            es["definitivaLetras"] = "AUSENTE"
+                        else:
+                            try:
+                                nt = float(vt)
+                                np = float(vp)
+                                prom = int(round((nt + np) / 2.0))
+                                es["definitiva"] = str(prom)
+                                es["definitivaLetras"] = letras_acta.get(prom, str(prom))
+                            except Exception:
+                                pass
+                    break
+
+        return {"guardados": len(cambios or []) + (1 if mesa else 0)}
 
     updates = []
     if mesa:

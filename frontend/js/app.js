@@ -591,8 +591,14 @@ async function pintarActa() {
       11:'once',12:'doce',13:'trece',14:'catorce',15:'quince',16:'dieciséis',17:'diecisiete',18:'dieciocho',19:'diecinueve',20:'veinte'};
     function enLetras(n) { return letrasMap[n] || String(n); }
 
-    var libroNro = enc.libro || '____';
-    var folioNro = enc.folio || '____';
+    var libroNro = enc.libro || '1';
+    var folioNro = enc.folio || '1';
+
+    var inputMesa = function (idCampo, valorActual, placeholder, ancho) {
+      if (!ed) return '<b>' + esc(valorActual || '—') + '</b>';
+      return '<input id="' + idCampo + '" class="inp-mesa" value="' + esc(valorActual || '') + '" ' +
+             'placeholder="' + esc(placeholder) + '" style="width:' + (ancho || '220px') + '">';
+    };
 
     $('panel').innerHTML =
       // ── Encabezado con Libro y Folio ──
@@ -602,20 +608,21 @@ async function pintarActa() {
           'DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL - DIRECCIÓN DE TÍTULOS' +
         '</div>' +
         '<div class="acta-libro-folio">' +
-          '<span>Libro de Actas N°: <b>' + esc(libroNro) + '</b></span>' +
-          '<span style="margin-left:32px">Folio N°: <b>' + esc(folioNro) + '</b></span>' +
+          '<span>Libro de Actas N°: ' + inputMesa('m_libro', libroNro, 'N° Libro', '60px') + '</span>' +
+          '<span style="margin-left:32px">Folio N°: ' + inputMesa('m_folio', folioNro, 'N° Folio', '60px') + '</span>' +
         '</div>' +
         '<h2 class="acta-titulo">ACTA DE EXAMEN DE ALUMNOS REGULARES</h2>' +
         '<table class="acta-ficha">' +
           '<tr><td><b>Establecimiento:</b></td><td>' + esc(enc.establecimiento || '—') + ' · CUE ' + esc(enc.cue || '') + '</td></tr>' +
           '<tr><td><b>De:</b></td><td>' + esc(enc.oferta || '—') + '</td></tr>' +
           '<tr><td><b>Correspondiente al:</b></td><td>' + esc(enc.turno || '') + ' · ' + esc(enc.division || '') + ' · Ciclo lectivo: ' + esc(enc.ciclo || '') + '</td></tr>' +
-          '<tr><td><b>Fecha del examen:</b></td><td>' + esc(a.mesa.fecha || '—') + '</td></tr>' +
+          '<tr><td><b>Fecha del examen:</b></td><td>' + inputMesa('m_fecha', a.mesa.fecha, 'dd/mm/aaaa', '140px') + '</td></tr>' +
         '</table>' +
-        '<p class="acta-texto-intro">A los ' + esc(a.mesa.fecha || '___') + ', reunida la comisión examinadora del Trayecto Formativo con asistencia de sus tres miembros señores:</p>' +
+        '<p class="acta-texto-intro">En la fecha consignada, reunida la comisión examinadora del Trayecto Formativo con asistencia de sus tres miembros docentes:</p>' +
         '<table class="acta-ficha">' +
-          '<tr><td><b>Presidente/a:</b></td><td>' + esc(a.mesa.presidente || '—') + '</td><td><b>Vocal 1°:</b></td><td>' + esc(a.mesa.vocal1 || '—') + '</td></tr>' +
-          '<tr><td><b>Vocal 2°:</b></td><td>' + esc(a.mesa.vocal2 || '—') + '</td><td></td><td></td></tr>' +
+          '<tr><td><b>Presidente/a:</b></td><td>' + inputMesa('m_presidente', a.mesa.presidente, 'Apellido y Nombre del Presidente/a', '240px') + '</td>' +
+              '<td><b>Vocal 1°:</b></td><td>' + inputMesa('m_vocal1', a.mesa.vocal1, 'Apellido y Nombre del Vocal 1°', '240px') + '</td></tr>' +
+          '<tr><td><b>Vocal 2°:</b></td><td>' + inputMesa('m_vocal2', a.mesa.vocal2, 'Apellido y Nombre del Vocal 2°', '240px') + '</td><td></td><td></td></tr>' +
         '</table>' +
         '<p class="acta-texto-intro">procedió a cumplir su cometido con el resultado que se consigna a continuación:</p>' +
         '<p style="font-size:11px;font-style:italic;margin:4px 0 10px">NOTA: Será considerada como fraudulenta toda enmienda o raspadura que no haya sido salvada expresamente con la firma de todos los miembros de la mesa. El número de alumnos examinados se anotará con letras y números.</p>' +
@@ -623,9 +630,9 @@ async function pintarActa() {
 
       // ── Acciones guardar e imprimir ──
       '<div class="acciones">' +
-        (ed ? '<button class="boton" id="guardarActa" disabled>Guardar cambios</button>' : '') +
+        (ed ? '<button class="boton" id="guardarActa" disabled>Guardar cambios (Docentes y Notas)</button>' : '') +
         '<button type="button" class="boton" style="background:#1F4E78" id="imprimirActa">🖨️ Imprimir Acta de Examen</button>' +
-        '<span style="color:var(--suave);font-size:12px">La nota definitiva y en letras se calculan automáticamente. ≥7 Aprobado · <7 Desaprobado</span>' +
+        '<span style="color:var(--suave);font-size:12px">Podés editar los docentes del tribunal (Presidente/a, Vocal 1°, Vocal 2°), la fecha y las calificaciones aquí mismo.</span>' +
       '</div>' +
 
       // ── Tabla de alumnos ──
@@ -656,9 +663,9 @@ async function pintarActa() {
 
       // ── Firmas ──
       '<div class="acta-firmas">' +
-        '<div class="acta-firma"><div class="acta-firma-linea"></div><b>Vocal 2°</b><br><small>Firma y aclaración</small></div>' +
-        '<div class="acta-firma"><div class="acta-firma-linea"></div><b>Presidente/a de mesa</b><br><small>Firma y aclaración</small></div>' +
-        '<div class="acta-firma"><div class="acta-firma-linea"></div><b>Vocal 1°</b><br><small>Firma y aclaración</small></div>' +
+        '<div class="acta-firma"><div class="acta-firma-linea"></div><div id="f_txt_vocal2" style="font-weight:bold">' + esc(a.mesa.vocal2 || '') + '</div><b>Vocal 2°</b><br><small>Firma y aclaración</small></div>' +
+        '<div class="acta-firma"><div class="acta-firma-linea"></div><div id="f_txt_presidente" style="font-weight:bold">' + esc(a.mesa.presidente || '') + '</div><b>Presidente/a de mesa</b><br><small>Firma y aclaración</small></div>' +
+        '<div class="acta-firma"><div class="acta-firma-linea"></div><div id="f_txt_vocal1" style="font-weight:bold">' + esc(a.mesa.vocal1 || '') + '</div><b>Vocal 1°</b><br><small>Firma y aclaración</small></div>' +
       '</div>';
 
     if ($('imprimirActa')) {
@@ -667,24 +674,53 @@ async function pintarActa() {
 
     if (!ed) return;
     var pend = {};
-    Array.prototype.forEach.call(document.querySelectorAll('#panel input'), function (inp) {
+    var mesaModificada = false;
+
+    ['m_libro', 'm_folio', 'm_fecha', 'm_presidente', 'm_vocal1', 'm_vocal2'].forEach(function (idM) {
+      var el = $(idM);
+      if (!el) return;
+      el.addEventListener('input', function () {
+        mesaModificada = true;
+        $('guardarActa').disabled = false;
+        if ($('f_txt_presidente') && $('m_presidente')) $('f_txt_presidente').textContent = $('m_presidente').value;
+        if ($('f_txt_vocal1') && $('m_vocal1')) $('f_txt_vocal1').textContent = $('m_vocal1').value;
+        if ($('f_txt_vocal2') && $('m_vocal2')) $('f_txt_vocal2').textContent = $('m_vocal2').value;
+      });
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll('#panel td.nota input'), function (inp) {
       var orig = inp.value;
       inp.addEventListener('input', function () {
         inp.value = inp.value.toUpperCase();
         var k = inp.dataset.fila + '-' + inp.dataset.campo;
         if (inp.value === orig) delete pend[k];
         else pend[k] = { filaActa: +inp.dataset.fila, campo: inp.dataset.campo, valor: inp.value };
-        $('guardarActa').disabled = !Object.keys(pend).length;
+        $('guardarActa').disabled = !(Object.keys(pend).length || mesaModificada);
       });
     });
 
     $('guardarActa').addEventListener('click', async function () {
       var cambios = Object.keys(pend).map(function (k) { return pend[k]; });
+      var mesaPayload = {
+        libro: $('m_libro') ? $('m_libro').value.trim() : libroNro,
+        folio: $('m_folio') ? $('m_folio').value.trim() : folioNro,
+        fecha: $('m_fecha') ? $('m_fecha').value.trim() : (a.mesa.fecha || ''),
+        presidente: $('m_presidente') ? $('m_presidente').value.trim() : (a.mesa.presidente || ''),
+        vocal1: $('m_vocal1') ? $('m_vocal1').value.trim() : (a.mesa.vocal1 || ''),
+        vocal2: $('m_vocal2') ? $('m_vocal2').value.trim() : (a.mesa.vocal2 || '')
+      };
+      if (estado.datos && estado.datos.encabezado) {
+        estado.datos.encabezado.libro = mesaPayload.libro;
+        estado.datos.encabezado.folio = mesaPayload.folio;
+      }
       $('guardarActa').disabled = true;
-      avisar('Guardando acta…');
+      avisar('Guardando acta y tribunal examinador…');
       try {
-        var res = await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/acta', 'POST', { cambios: cambios });
-        avisar(res.guardados + ' nota(s) guardadas en el acta', 'ok');
+        await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/acta', 'POST', {
+          mesa: mesaPayload,
+          cambios: cambios
+        });
+        avisar('¡Datos de los docentes y notas del acta guardados con éxito!', 'ok');
         pintarActa();
       } catch (e) {
         problema(e);
@@ -784,11 +820,14 @@ function pintarAnalitico() {
            esc(e.nombres) + '</option>';
   }).join('');
 
+  var dirDefault = (estado.datos && estado.datos.encabezado && estado.datos.encabezado.director) || 'REINOSO TORRES Tatiana Marisel';
+
   $('panel').innerHTML =
     '<h2 style="font-size:16px;margin:0 0 10px">Certificado</h2>' +
     '<div class="acciones" style="background:#fff;padding:10px 14px;border:1px solid var(--borde);border-radius:6px;align-items:center">' +
       '<label style="display:flex;align-items:center;gap:6px">Estudiante: <select id="selEst" style="min-width:220px">' + opciones + '</select></label>' +
       '<label style="display:flex;align-items:center;gap:6px">Emisión: <input type="date" id="fecha"></label>' +
+      '<label style="display:flex;align-items:center;gap:6px">Directora / Director: <input id="dirEstablecimiento" value="' + esc(dirDefault) + '" style="min-width:210px"></label>' +
       '<button class="boton" id="generar" style="background:#1F4E78">Ver el certificado</button>' +
       '<button class="boton suave" id="imprimir" disabled style="opacity:0.5;cursor:not-allowed">Imprimir</button>' +
     '</div>' +
@@ -796,6 +835,16 @@ function pintarAnalitico() {
     '<div id="salida"></div>';
 
   $('fecha').valueAsDate = new Date();
+  if ($('dirEstablecimiento')) {
+    $('dirEstablecimiento').addEventListener('input', function () {
+      if (estado.datos && estado.datos.encabezado) {
+        estado.datos.encabezado.director = $('dirEstablecimiento').value;
+      }
+      if ($('txtDirEstablecimiento')) {
+        $('txtDirEstablecimiento').textContent = $('dirEstablecimiento').value;
+      }
+    });
+  }
 
   $('generar').addEventListener('click', async function () {
     var doc = $('selEst').value;
@@ -941,7 +990,7 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
   var normaStr = d.normaJurisdiccional || 'Res. Ministerial';
   var firmaDigitalTexto = !d.esBorrador
     ? '<div style="font-size:10px;line-height:1.35;color:#222;margin-bottom:6px">' +
-        'Firmado digitalmente por Dirección de Títulos<br>' +
+        'Firmado digitalmente por REINOSO TORRES Tatiana Marisel<br>' +
         'Fecha: ' + esc(d.fechaAprobacion || (anioOtorgado + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + diaOtorgado)) + '<br>' +
         'Ubicación: Jujuy' +
       '</div>'
@@ -1016,13 +1065,16 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:26px;align-items:start">' +
         '<div style="font-size:11px;line-height:1.35">' +
           '<div style="border-top:1px solid #333;width:220px;margin-bottom:4px"></div>' +
-          '<b>Director/a</b><br>' +
+          '<div id="txtDirEstablecimiento" style="font-size:12px;font-weight:bold;margin-bottom:1px">' + esc(($('dirEstablecimiento') && $('dirEstablecimiento').value) || d.director || 'REINOSO TORRES Tatiana Marisel') + '</div>' +
+          '<b>Directora / Director</b><br>' +
           '<span>' + esc(d.establecimiento) + '</span>' +
         '</div>' +
         '<div style="font-size:11px;line-height:1.35">' +
           firmaDigitalTexto +
-          '<b>Responsable</b><br>' +
-          '<span>Dirección de Títulos</span>' +
+          '<div style="font-size:12px;font-weight:bold;margin-bottom:1px">REINOSO TORRES Tatiana Marisel</div>' +
+          '<b>Directora</b><br>' +
+          '<span>Dirección de Títulos</span><br>' +
+          '<span>Ministerio de Educación</span>' +
         '</div>' +
       '</div>' +
     '</div>' +

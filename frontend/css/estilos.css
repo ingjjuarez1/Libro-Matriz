@@ -812,6 +812,16 @@ td.nota input:disabled {
   margin-bottom: 4px;
 }
 
+.inp-mesa {
+  border: 1px solid #b5c4d4;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1F4E78;
+  background: #f8fbff;
+}
+
 .solo-impresion {
   display: none;
 }
@@ -830,6 +840,13 @@ td.nota input:disabled {
   }
   .solo-impresion {
     display: block !important;
+  }
+  .inp-mesa {
+    border: none !important;
+    background: transparent !important;
+    color: #000 !important;
+    padding: 0 !important;
+    font-family: "Times New Roman", serif !important;
   }
   .barra,
   .migas,
