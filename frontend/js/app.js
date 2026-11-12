@@ -908,14 +908,11 @@ function pintarAnalitico() {
            esc(e.nombres) + '</option>';
   }).join('');
 
-  var dirDefault = (estado.datos && estado.datos.encabezado && estado.datos.encabezado.director) || 'REINOSO TORRES Tatiana Marisel';
-
   $('panel').innerHTML =
     '<h2 style="font-size:16px;margin:0 0 10px">Certificado</h2>' +
     '<div class="acciones" style="background:#fff;padding:10px 14px;border:1px solid var(--borde);border-radius:6px;align-items:center">' +
       '<label style="display:flex;align-items:center;gap:6px">Estudiante: <select id="selEst" style="min-width:220px">' + opciones + '</select></label>' +
       '<label style="display:flex;align-items:center;gap:6px">Emisión: <input type="date" id="fecha"></label>' +
-      '<label style="display:flex;align-items:center;gap:6px">Directora / Director: <input id="dirEstablecimiento" value="' + esc(dirDefault) + '" style="min-width:210px"></label>' +
       '<button class="boton" id="generar" style="background:#1F4E78">Ver el certificado</button>' +
       '<button class="boton suave" id="imprimir" disabled style="opacity:0.5;cursor:not-allowed">Imprimir</button>' +
     '</div>' +
@@ -923,16 +920,6 @@ function pintarAnalitico() {
     '<div id="salida"></div>';
 
   $('fecha').valueAsDate = new Date();
-  if ($('dirEstablecimiento')) {
-    $('dirEstablecimiento').addEventListener('input', function () {
-      if (estado.datos && estado.datos.encabezado) {
-        estado.datos.encabezado.director = $('dirEstablecimiento').value;
-      }
-      if ($('txtDirEstablecimiento')) {
-        $('txtDirEstablecimiento').textContent = $('dirEstablecimiento').value;
-      }
-    });
-  }
 
   $('generar').addEventListener('click', async function () {
     var doc = $('selEst').value;
@@ -1151,7 +1138,6 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:26px;align-items:start">' +
         '<div style="font-size:11px;line-height:1.35">' +
           '<div style="border-top:1px solid #333;width:220px;margin-bottom:4px"></div>' +
-          '<div id="txtDirEstablecimiento" style="font-size:12px;font-weight:bold;margin-bottom:1px">' + esc(($('dirEstablecimiento') && $('dirEstablecimiento').value) || d.director || 'REINOSO TORRES Tatiana Marisel') + '</div>' +
           '<b>Directora / Director</b><br>' +
           '<span>' + esc(d.establecimiento) + '</span>' +
         '</div>' +
