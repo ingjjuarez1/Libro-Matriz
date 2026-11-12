@@ -752,7 +752,7 @@ async function pintarActa() {
       // ── Firmas ──
       '<div class="acta-firmas">' +
         '<div class="acta-firma"><div class="acta-firma-linea"></div><div id="f_txt_vocal2" style="font-weight:bold">' + esc(a.mesa.vocal2 || '') + '</div><b>Vocal 2°</b><br><small>Firma y aclaración</small></div>' +
-        '<div class="acta-firma"><div class="acta-firma-linea"></div><div id="f_txt_presidente" style="font-weight:bold">' + esc(a.mesa.presidente || '') + '</div><b>Presidente/a de mesa</b><br><small>Firma y aclaración</small></div>' +
+        '<div class="acta-firma"><div class="acta-firma-linea"></div><div id="f_txt_presidente" style="font-weight:bold">' + esc(a.mesa.presidente || '') + '</div><b>Presidente/a</b><br><small>Firma y aclaración</small></div>' +
         '<div class="acta-firma"><div class="acta-firma-linea"></div><div id="f_txt_vocal1" style="font-weight:bold">' + esc(a.mesa.vocal1 || '') + '</div><b>Vocal 1°</b><br><small>Firma y aclaración</small></div>' +
       '</div>';
 
