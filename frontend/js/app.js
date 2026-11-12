@@ -229,13 +229,14 @@ function pintarCurso() {
   var d = estado.datos, e = d.encabezado;
   var hsCatTotal = e.hsCatTotal || 510;
   var refIng = e.referencialIngreso || 'Primaria Completa';
+  var acreditaCon = e.acreditaCon || 'Primario completo';
   $('main').innerHTML =
     '<h1>' + esc(e.oferta || estado.curso.oferta) + '</h1>' +
     '<dl class="ficha">' +
       '<dt>Establecimiento</dt><dd>' + esc(e.establecimiento) + (e.cue ? ' · CUE ' + esc(e.cue) : '') + '</dd>' +
       '<dt>Turno / División</dt><dd>' + esc(e.turno) + ' · ' + esc(e.division) + ' · Ciclo ' + esc(e.ciclo) +
         ' · ' + d.estudiantes.length + ' estudiantes</dd>' +
-      '<dt>Referencial de ingreso</dt><dd><span id="ficha_ref_ingreso">' + esc(refIng) + '</span> &nbsp;·&nbsp; <b>Hs. cát.:</b> <span id="ficha_hs_cat">' + esc(hsCatTotal) + '</span></dd>' +
+      '<dt>Referencial de ingreso</dt><dd><span id="ficha_ref_ingreso">' + esc(refIng) + '</span> &nbsp;·&nbsp; <b>Acredita con:</b> <span id="ficha_acredita_con">' + esc(acreditaCon) + '</span> &nbsp;·&nbsp; <b>Hs. cát.:</b> <span id="ficha_hs_cat">' + esc(hsCatTotal) + '</span></dd>' +
       '<dt>Diseño curricular</dt><dd>' + esc(e.disenio) + '</dd>' +
     '</dl>' +
     '<div class="pestanias" role="tablist">' +
@@ -352,6 +353,11 @@ function pintarNotas() {
            esc(m.nombre) + '</th>';
   }).join('');
 
+  var enc = d.encabezado || {};
+  var refIngresoActual = enc.referencialIngreso || 'Primaria Completa';
+  var acreditaConActual = enc.acreditaCon || 'Primario completo';
+  var hsCatActual = enc.hsCatTotal || totalHsCatCurso || 510;
+
   var tieneDosCuat = cuatrimestresDisponibles.indexOf('1° Cuatrimestre') !== -1 &&
                      cuatrimestresDisponibles.indexOf('2° Cuatrimestre') !== -1;
 
@@ -399,15 +405,24 @@ function pintarNotas() {
         '<td style="text-align:center;background:#f3faf5;font-weight:600;color:#135c2d">' + esc(prom2C) + '</td>';
     }
 
+    var acreditaEst = es.nivel || es.acreditaCon || acreditaConActual;
+    var libroActaEst = es.libroActa || (notaFinal ? (enc.libro || '1') : '—');
+    var folioEst = es.folio || '—';
+    var fechaEst = es.fechaEgreso || (notaFinal ? (enc.fechaActa || '10/12/2026') : '—');
+
     return '<tr><td style="text-align:center">' + esc(es.orden) + '</td>' +
       '<td>' + esc(es.apellido) + ', ' + esc(es.nombres) + candado + '</td>' +
       '<td style="text-align:center">' + esc(es.documento) + '</td>' +
       '<td style="text-align:center">' + esc(es.fechaNac || '—') + '</td>' +
       '<td style="text-align:center">' + esc(es.provincia || 'Jujuy') + '</td>' +
       '<td style="text-align:center">' + esc(es.pais || 'Argentina') + '</td>' +
+      '<td class="celda-acredita-rac" style="text-align:center">' + esc(acreditaEst) + '</td>' +
       celdas +
       celdasPromCuat +
       '<td style="text-align:center;font-weight:bold;background:#fafafa">' + esc(notaFinal) + '</td>' +
+      '<td style="text-align:center">' + esc(libroActaEst) + '</td>' +
+      '<td style="text-align:center">' + esc(folioEst) + '</td>' +
+      '<td style="text-align:center">' + esc(fechaEst) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -424,19 +439,25 @@ function pintarNotas() {
       '</div>';
   }
 
-  var colsExtraFinal = (tieneDosCuat && filtroCuat === 'Todos') ? 3 : 1;
-  var thGrupoProm = '<th colspan="' + colsExtraFinal + '" style="text-align:center;background:#e9eef4">CALIFICACIÓN</th>';
+  var colsExtraFinal = (tieneDosCuat && filtroCuat === 'Todos') ? 6 : 4;
+  var thGrupoProm = '<th colspan="' + colsExtraFinal + '" style="text-align:center;background:#e9eef4">CALIFICACIÓN Y CERTIFICACIÓN</th>';
   var thExtraFinal = (tieneDosCuat && filtroCuat === 'Todos')
     ? '<th class="mod" style="background:#e8f1fa">Prom. 1° Cuat.</th>' +
       '<th class="mod" style="background:#e6f4ea">Prom. 2° Cuat.</th>' +
-      '<th class="mod">Nota final</th>'
-    : '<th class="mod">Nota final</th>';
+      '<th class="mod">Nota final</th>' +
+      '<th class="mod">Libro Act. N°</th>' +
+      '<th class="mod">Folio N°</th>' +
+      '<th class="mod">Fecha</th>'
+    : '<th class="mod">Nota final</th>' +
+      '<th class="mod">Libro Act. N°</th>' +
+      '<th class="mod">Folio N°</th>' +
+      '<th class="mod">Fecha</th>';
 
-  var enc = d.encabezado || {};
-  var refIngresoActual = enc.referencialIngreso || 'Primaria Completa';
-  var hsCatActual = enc.hsCatTotal || totalHsCatCurso || 510;
   var opcionesRefIngreso = ['Primaria Completa', 'Secundario Completo', 'Ciclo Básico Completo (CB Completo)'].map(function (op) {
     return '<option value="' + esc(op) + '"' + (op === refIngresoActual ? ' selected' : '') + '>' + esc(op) + '</option>';
+  }).join('');
+  var opcionesAcreditaCon = ['Primario completo', 'Secundario completo', 'Ciclo Básico Completo (CB Completo)'].map(function (op) {
+    return '<option value="' + esc(op) + '"' + (op === acreditaConActual ? ' selected' : '') + '>' + esc(op) + '</option>';
   }).join('');
 
   var encabezadoImpresionRac =
@@ -459,7 +480,7 @@ function pintarNotas() {
         '</tr>' +
         '<tr>' +
           '<td style="border:none;padding:2px 4px"><b>Diseño Curricular / Norma Aprobatoria:</b> ' + esc(enc.disenio || '—') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>Referencial de ingreso:</b> <span id="imp_ref_ingreso">' + esc(refIngresoActual) + '</span></td>' +
+          '<td style="border:none;padding:2px 4px"><b>Referencial de ingreso:</b> <span id="imp_ref_ingreso">' + esc(refIngresoActual) + '</span> &nbsp;·&nbsp; <b>Acredita con:</b> <span id="imp_acredita_con">' + esc(acreditaConActual) + '</span></td>' +
           '<td style="border:none;padding:2px 4px"><b>Hs. cát.:</b> <span id="imp_hs_cat">' + esc(hsCatActual) + '</span></td>' +
         '</tr>' +
       '</table>' +
@@ -487,6 +508,9 @@ function pintarNotas() {
           '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600">Referencial de ingreso: ' +
             '<select id="selRefIngresoRac" style="font-size:12px;padding:4px 8px">' + opcionesRefIngreso + '</select>' +
           '</label>' +
+          '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600">Acredita con: ' +
+            '<select id="selAcreditaConRac" style="font-size:12px;padding:4px 8px">' + opcionesAcreditaCon + '</select>' +
+          '</label>' +
           '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600">Hs. cát.: ' +
             '<input id="inpHsCatRac" value="' + esc(hsCatActual) + '" style="width:65px;font-size:12px;padding:4px 6px">' +
           '</label>' +
@@ -494,7 +518,7 @@ function pintarNotas() {
           '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente. ≥7 Aprobado · <7 Desaprobado</span>' +
         '</div>'
       : '<div class="acciones">' +
-          '<span style="font-size:12px"><b>Referencial de ingreso:</b> ' + esc(refIngresoActual) + ' &nbsp;·&nbsp; <b>Hs. cát.:</b> ' + esc(hsCatActual) + '</span>' +
+          '<span style="font-size:12px"><b>Referencial de ingreso:</b> ' + esc(refIngresoActual) + ' &nbsp;·&nbsp; <b>Acredita con:</b> ' + esc(acreditaConActual) + ' &nbsp;·&nbsp; <b>Hs. cát.:</b> ' + esc(hsCatActual) + '</span>' +
           '<button type="button" class="boton" style="background:#1F4E78" id="imprimirRac">🖨️ Imprimir Registro Anual</button>' +
           '<span style="color:var(--suave);font-size:12px">Tu rol es de consulta: puedes visualizar e imprimir, no modificar.</span>' +
         '</div>') +
@@ -502,6 +526,7 @@ function pintarNotas() {
       '<tr>' +
         '<th colspan="4" style="text-align:center;background:#e9eef4">DATOS DEL ESTUDIANTE</th>' +
         '<th colspan="2" style="text-align:center;background:#dce6f1">LUGAR DE NACIMIENTO</th>' +
+        '<th style="text-align:center;background:#e9eef4">ESTUDIOS</th>' +
         thGrupos +
         thGrupoProm +
       '</tr>' +
@@ -510,6 +535,7 @@ function pintarNotas() {
         '<th style="width:96px;text-align:center">Fecha de nacimiento</th>' +
         '<th style="width:92px;text-align:center">Provincia</th>' +
         '<th style="width:88px;text-align:center">País</th>' +
+        '<th style="width:110px;text-align:center">Acredita con</th>' +
         th + thExtraFinal +
       '</tr>' +
     '</thead><tbody>' + filas + '</tbody></table></div>' +
@@ -526,6 +552,19 @@ function pintarNotas() {
       }
       if ($('imp_ref_ingreso')) $('imp_ref_ingreso').textContent = val;
       if ($('ficha_ref_ingreso')) $('ficha_ref_ingreso').textContent = val;
+    });
+  }
+  if ($('selAcreditaConRac')) {
+    $('selAcreditaConRac').addEventListener('change', function () {
+      var val = $('selAcreditaConRac').value;
+      if (estado.datos && estado.datos.encabezado) {
+        estado.datos.encabezado.acreditaCon = val;
+      }
+      if ($('imp_acredita_con')) $('imp_acredita_con').textContent = val;
+      if ($('ficha_acredita_con')) $('ficha_acredita_con').textContent = val;
+      Array.prototype.forEach.call(document.querySelectorAll('.celda-acredita-rac'), function (td) {
+        td.textContent = val;
+      });
     });
   }
   if ($('inpHsCatRac')) {
@@ -670,9 +709,9 @@ async function pintarActa() {
         '</table>' +
         '<p class="acta-texto-intro">En la fecha consignada, reunida la comisión examinadora del Trayecto Formativo con asistencia de sus tres miembros docentes:</p>' +
         '<table class="acta-ficha">' +
-          '<tr><td><b>Presidente/a:</b></td><td>' + inputMesa('m_presidente', a.mesa.presidente, 'Apellido y Nombre del Presidente/a', '240px') + '</td>' +
-              '<td><b>Vocal 1°:</b></td><td>' + inputMesa('m_vocal1', a.mesa.vocal1, 'Apellido y Nombre del Vocal 1°', '240px') + '</td></tr>' +
-          '<tr><td><b>Vocal 2°:</b></td><td>' + inputMesa('m_vocal2', a.mesa.vocal2, 'Apellido y Nombre del Vocal 2°', '240px') + '</td><td></td><td></td></tr>' +
+          '<tr><td><b>Presidente/a:</b></td><td colspan="3">' + inputMesa('m_presidente', a.mesa.presidente, 'Apellido y Nombre del Presidente/a', '260px') + '</td></tr>' +
+          '<tr><td><b>Vocal 1°:</b></td><td>' + inputMesa('m_vocal1', a.mesa.vocal1, 'Apellido y Nombre del Vocal 1°', '240px') + '</td>' +
+              '<td><b>Vocal 2°:</b></td><td>' + inputMesa('m_vocal2', a.mesa.vocal2, 'Apellido y Nombre del Vocal 2°', '240px') + '</td></tr>' +
         '</table>' +
         '<p class="acta-texto-intro">procedió a cumplir su cometido con el resultado que se consigna a continuación:</p>' +
         '<p style="font-size:11px;font-style:italic;margin:4px 0 10px">NOTA: Será considerada como fraudulenta toda enmienda o raspadura que no haya sido salvada expresamente con la firma de todos los miembros de la mesa. El número de alumnos examinados se anotará con letras y números.</p>' +
@@ -984,7 +1023,10 @@ function armarAnalitico(r) {
   var d = r.documentoOficial;
   if (!d) { return armarAnaliticoCeldas(r); }
 
-  var certNroFormateado = d.certNro || '__________________';
+  var anioDef = (d.fechaEmision && /^\d{4}/.test(d.fechaEmision)) ? d.fechaEmision.slice(0, 4) : String(new Date().getFullYear());
+  var cueDef = String(d.cue || (estado.curso && estado.curso.cue) || '380000600').replace(/\D/g, '');
+  if (cueDef.length === 7) cueDef = cueDef + '00';
+  var certNroFormateado = d.certNro || (anioDef + '-' + cueDef + '-00001');
   var watermark = d.esBorrador
     ? '<div class="marca-agua-borrador-oficial">BORRADOR<br>NO VÁLIDO</div>' : '';
   var escudoFondo = '<img src="/img/escudo_nacional.png?v=20261105b" class="hoja-fondo-escudo" alt="" aria-hidden="true">';
@@ -995,8 +1037,6 @@ function armarAnalitico(r) {
       '<td>'                                             + esc(m.modulo)     + '</td>' +
       '<td style="text-align:center">'                  + esc(m.tipo)       + '</td>' +
       '<td style="text-align:center">'                  + esc(m.periodo)    + '</td>' +
-      '<td style="text-align:center">'                  + esc(m.hsReloj)    + '</td>' +
-      '<td style="text-align:center">'                  + esc(m.hsCat)      + '</td>' +
       '<td style="text-align:center;font-weight:bold">' + esc(m.nota || '') + '</td>' +
       '<td style="text-align:center">'                  + esc(m.enLetras || '') + '</td>' +
     '</tr>';
@@ -1080,20 +1120,17 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
       '<thead><tr>' +
         '<th style="width:28px">N°</th>' +
         '<th>Módulo / Espacio Curricular</th>' +
-        '<th style="width:70px">Tipo</th>' +
-        '<th style="width:120px">Período</th>' +
-        '<th style="width:52px">Hs reloj</th>' +
-        '<th style="width:52px">Hs cát.</th>' +
-        '<th style="width:38px">Nota</th>' +
-        '<th style="width:80px">En letras</th>' +
+        '<th style="width:80px">Tipo</th>' +
+        '<th style="width:130px">Período</th>' +
+        '<th style="width:48px">Nota</th>' +
+        '<th style="width:90px">En letras</th>' +
       '</tr></thead>' +
       '<tbody>' +
         filasModulos +
         '<tr style="font-weight:bold">' +
-          '<td colspan="4" style="text-align:left">Carga horaria total</td>' +
+          '<td colspan="4" style="text-align:left">Carga horaria / Horas cátedra</td>' +
           '<td style="text-align:center">' + esc(d.cargaHorariaTotal.reloj) + '</td>' +
           '<td style="text-align:center">' + esc(d.cargaHorariaTotal.cat)  + '</td>' +
-          '<td colspan="2"></td>' +
         '</tr>' +
       '</tbody>' +
     '</table>' +

@@ -58,7 +58,9 @@ def _siguiente_numero_certificado(cue: str = "") -> str:
     anio = datetime.datetime.now().year
     actual = _CORRELATIVO_POR_ANIO.get(anio, 0) + 1
     _CORRELATIVO_POR_ANIO[anio] = actual
-    cue_limpio = "".join(ch for ch in str(cue or "") if ch.isdigit()) or "3800006"
+    cue_limpio = "".join(ch for ch in str(cue or "") if ch.isdigit()) or "380000600"
+    if len(cue_limpio) == 7:
+        cue_limpio = cue_limpio + "00"
     # Formato oficial: AÑO-CUE-00001 (se reinicia a 00001 automáticamente al comenzar cada nuevo año)
     return f"{anio}-{cue_limpio}-{actual:05d}"
 
