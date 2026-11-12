@@ -432,6 +432,11 @@ function pintarNotas() {
     : '<th class="mod">Nota final</th>';
 
   var enc = d.encabezado || {};
+  var refIngresoActual = enc.referencialIngreso || 'Primaria Completa';
+  var opcionesRefIngreso = ['Primaria Completa', 'Secundario Completo', 'Ciclo Básico Completo (CB Completo)'].map(function (op) {
+    return '<option value="' + esc(op) + '"' + (op === refIngresoActual ? ' selected' : '') + '>' + esc(op) + '</option>';
+  }).join('');
+
   var encabezadoImpresionRac =
     '<div class="solo-impresion" style="margin-bottom:12px;border-bottom:2px solid #222;padding-bottom:8px;font-family:\'Times New Roman\',serif">' +
       '<div style="text-align:center;margin-bottom:8px">' +
@@ -451,7 +456,8 @@ function pintarNotas() {
           '<td style="border:none;padding:2px 4px"><b>Turno / División:</b> ' + esc(enc.turno || estado.curso.turno || '—') + ' · ' + esc(enc.division || estado.curso.division || '—') + '</td>' +
         '</tr>' +
         '<tr>' +
-          '<td colspan="2" style="border:none;padding:2px 4px"><b>Diseño Curricular / Norma Aprobatoria:</b> ' + esc(enc.disenio || '—') + '</td>' +
+          '<td style="border:none;padding:2px 4px"><b>Diseño Curricular:</b> ' + esc(enc.disenio || '—') + '</td>' +
+          '<td style="border:none;padding:2px 4px"><b>Referencial de ingreso:</b> <span id="imp_ref_ingreso">' + esc(refIngresoActual) + '</span></td>' +
           '<td style="border:none;padding:2px 4px"><b>Hs. cát.:</b> ' + esc(totalHsCatCurso || 510) + ' hs. cát.</td>' +
         '</tr>' +
       '</table>' +
@@ -476,10 +482,14 @@ function pintarNotas() {
       ? '<div class="acciones">' +
           '<button class="boton" id="guardar" disabled>Guardar cambios</button>' +
           '<button type="button" class="boton" style="background:#137333" onclick="mostrarModalNuevoEstudiante()">+ Agregar Alumno</button>' +
+          '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600">Referencial de ingreso: ' +
+            '<select id="selRefIngresoRac" style="font-size:12px;padding:4px 8px">' + opcionesRefIngreso + '</select>' +
+          '</label>' +
           '<button type="button" class="boton" style="background:#1F4E78" id="imprimirRac">🖨️ Imprimir Registro Anual</button>' +
           '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente. ≥7 Aprobado · <7 Desaprobado</span>' +
         '</div>'
       : '<div class="acciones">' +
+          '<span style="font-size:12px"><b>Referencial de ingreso:</b> ' + esc(refIngresoActual) + '</span>' +
           '<button type="button" class="boton" style="background:#1F4E78" id="imprimirRac">🖨️ Imprimir Registro Anual</button>' +
           '<span style="color:var(--suave);font-size:12px">Tu rol es de consulta: puedes visualizar e imprimir, no modificar.</span>' +
         '</div>') +
@@ -502,6 +512,17 @@ function pintarNotas() {
 
   if ($('imprimirRac')) {
     $('imprimirRac').addEventListener('click', function () { window.print(); });
+  }
+  if ($('selRefIngresoRac')) {
+    $('selRefIngresoRac').addEventListener('change', function () {
+      var val = $('selRefIngresoRac').value;
+      if (estado.datos && estado.datos.encabezado) {
+        estado.datos.encabezado.referencialIngreso = val;
+      }
+      if ($('imp_ref_ingreso')) {
+        $('imp_ref_ingreso').textContent = val;
+      }
+    });
   }
 
   Array.prototype.forEach.call(document.querySelectorAll('[data-cuat]'), function (btn) {
