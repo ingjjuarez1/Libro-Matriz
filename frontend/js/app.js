@@ -330,14 +330,25 @@ function pintarNotas() {
   var thGrupos = gruposCuat.map(function (g) {
     var bg = g.nombre.indexOf('2°') === 0 ? '#d9ead3' : (g.nombre.indexOf('3°') === 0 ? '#fce5cd' : '#cfe2f3');
     var colorTxt = g.nombre.indexOf('2°') === 0 ? '#135c2d' : '#1F4E78';
-    return '<th colspan="' + g.cantidad + '" style="text-align:center;background:' + bg + ';color:' + colorTxt + ';font-size:12px;letter-spacing:0.4px;text-transform:uppercase;border-bottom:2px solid ' + colorTxt + '">' +
-           '📌 ' + esc(g.nombre) + ' (' + g.cantidad + ' mód.)</th>';
+    return '<th colspan="' + g.cantidad + '" style="text-align:center;background:' + bg + ';color:' + colorTxt + ';font-size:12px;letter-spacing:0.4px;border-bottom:2px solid ' + colorTxt + '">' +
+           esc(g.nombre) + '</th>';
   }).join('');
 
+  var totalHsCatCurso = 0;
+  d.modulos.forEach(function (m) {
+    var hc = parseInt(m.hsCat, 10);
+    if (isNaN(hc)) {
+      var hr = parseInt(m.hsReloj, 10) || (m.tipo === 'Común' ? 32 : 96);
+      hc = Math.round(hr * 1.5);
+    }
+    totalHsCatCurso += hc;
+  });
+
   var th = modulosVisibles.map(function (m) {
-    var corto = _etiquetaCortaCuat(m);
+    var hc = m.hsCat || (m.hsReloj ? Math.round(m.hsReloj * 1.5) : '');
+    var txtHs = hc ? '<div style="font-size:10px;font-weight:normal;color:#444;margin-top:2px">(' + esc(hc) + ' hs. cát.)</div>' : '';
     return '<th class="mod" title="' + esc(m.nombre) + ' (' + esc(_etiquetaCuatrimestre(m)) + ')">' +
-           '<b style="color:var(--azul)">[' + esc(corto) + ']</b> ' + esc(m.nombre) + '</th>';
+           esc(m.nombre) + txtHs + '</th>';
   }).join('');
 
   var tieneDosCuat = cuatrimestresDisponibles.indexOf('1° Cuatrimestre') !== -1 &&
@@ -348,12 +359,14 @@ function pintarNotas() {
     if (es.notasCongeladas) hayCongelados = true;
     var bloqueado = !editable || es.notasCongeladas;
 
-    // Calcular promedios de 1°C y 2°C si corresponde
-    var suma1 = 0, cnt1 = 0, suma2 = 0, cnt2 = 0;
+    // Calcular promedios de 1°C, 2°C y Nota final si corresponde
+    var suma1 = 0, cnt1 = 0, suma2 = 0, cnt2 = 0, sumaTot = 0, cntTot = 0;
     d.modulos.forEach(function (m, idxAll) {
       var valStr = es.notas[idxAll];
       var num = parseFloat(valStr);
       if (!isNaN(num)) {
+        sumaTot += num;
+        cntTot++;
         var et = _etiquetaCuatrimestre(m);
         if (et.indexOf('2°') === 0) { suma2 += num; cnt2++; }
         else { suma1 += num; cnt1++; }
@@ -361,6 +374,7 @@ function pintarNotas() {
     });
     var prom1C = cnt1 ? Math.round(suma1 / cnt1) : '—';
     var prom2C = cnt2 ? Math.round(suma2 / cnt2) : '—';
+    var notaFinal = es.notaFinal || (cntTot === d.modulos.length && cntTot > 0 ? String(Math.round(sumaTot / cntTot)) : '');
 
     var celdas = modulosVisibles.map(function (m) {
       var idxReal = m.i;
@@ -392,6 +406,7 @@ function pintarNotas() {
       '<td style="text-align:center">' + esc(es.pais || 'Argentina') + '</td>' +
       celdas +
       celdasPromCuat +
+      '<td style="text-align:center;font-weight:bold;background:#fafafa">' + esc(notaFinal) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -408,13 +423,13 @@ function pintarNotas() {
       '</div>';
   }
 
-  var thGrupoProm = (tieneDosCuat && filtroCuat === 'Todos')
-    ? '<th colspan="2" style="text-align:center;background:#e9eef4">PROMEDIO</th>'
-    : '';
+  var colsExtraFinal = (tieneDosCuat && filtroCuat === 'Todos') ? 3 : 1;
+  var thGrupoProm = '<th colspan="' + colsExtraFinal + '" style="text-align:center;background:#e9eef4">CALIFICACIÓN</th>';
   var thExtraFinal = (tieneDosCuat && filtroCuat === 'Todos')
     ? '<th class="mod" style="background:#e8f1fa">Prom. 1° Cuat.</th>' +
-      '<th class="mod" style="background:#e6f4ea">Prom. 2° Cuat.</th>'
-    : '';
+      '<th class="mod" style="background:#e6f4ea">Prom. 2° Cuat.</th>' +
+      '<th class="mod">Nota final</th>'
+    : '<th class="mod">Nota final</th>';
 
   var enc = d.encabezado || {};
   var encabezadoImpresionRac =
@@ -436,7 +451,8 @@ function pintarNotas() {
           '<td style="border:none;padding:2px 4px"><b>Turno / División:</b> ' + esc(enc.turno || estado.curso.turno || '—') + ' · ' + esc(enc.division || estado.curso.division || '—') + '</td>' +
         '</tr>' +
         '<tr>' +
-          '<td colspan="3" style="border:none;padding:2px 4px"><b>Diseño Curricular / Norma Aprobatoria:</b> ' + esc(enc.disenio || '—') + '</td>' +
+          '<td colspan="2" style="border:none;padding:2px 4px"><b>Diseño Curricular / Norma Aprobatoria:</b> ' + esc(enc.disenio || '—') + '</td>' +
+          '<td style="border:none;padding:2px 4px"><b>Hs. cát.:</b> ' + esc(totalHsCatCurso || 510) + ' hs. cát.</td>' +
         '</tr>' +
       '</table>' +
     '</div>';

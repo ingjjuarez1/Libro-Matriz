@@ -228,12 +228,12 @@ def leer_curso(id_archivo: str) -> Dict[str, Any]:
                 "disenio": "Resolución Nº 2114-E-2026"
             },
             "modulos": [
-                {"i": 0, "nombre": "Relaciones Laborales", "periodo": "1C"},
-                {"i": 1, "nombre": "Piel y Anexos", "periodo": "1C"},
-                {"i": 2, "nombre": "Gestión del Trabajo", "periodo": "1C"},
-                {"i": 3, "nombre": "Peinado", "periodo": "1C"},
-                {"i": 4, "nombre": "Corte", "periodo": "1C"},
-                {"i": 5, "nombre": "Coloración", "periodo": "1C"}
+                {"i": 0, "nombre": "Relaciones Laborales", "periodo": "1C", "hsReloj": 24, "hsCat": 36},
+                {"i": 1, "nombre": "Piel y Anexos", "periodo": "1C", "hsReloj": 24, "hsCat": 36},
+                {"i": 2, "nombre": "Gestión del Trabajo", "periodo": "1C", "hsReloj": 20, "hsCat": 30},
+                {"i": 3, "nombre": "Peinado", "periodo": "1C", "hsReloj": 80, "hsCat": 120},
+                {"i": 4, "nombre": "Corte", "periodo": "1C", "hsReloj": 85, "hsCat": 128},
+                {"i": 5, "nombre": "Coloración", "periodo": "1C", "hsReloj": 107, "hsCat": 160}
             ],
             "estudiantes": est_copia
         }
