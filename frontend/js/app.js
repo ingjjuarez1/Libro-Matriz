@@ -267,14 +267,28 @@ function pintarCurso() {
   pintarPestania();
 }
 
+function _configurarPaginaImpresion(modo) {
+  var st = document.getElementById('estiloPaginaImpresion');
+  if (!st) {
+    st = document.createElement('style');
+    st.id = 'estiloPaginaImpresion';
+    document.head.appendChild(st);
+  }
+  if (modo === 'oficio-horizontal') {
+    st.textContent = '@media print { @page { size: 355.6mm 215.9mm; margin: 8mm 10mm; } }';
+  } else {
+    st.textContent = '@media print { @page { size: A4 portrait; margin: 10mm 12mm; } }';
+  }
+}
+
 function pintarPestania() {
   Array.prototype.forEach.call(document.querySelectorAll('[role=tab]'), function (b) {
     b.setAttribute('aria-selected', b.dataset.p === estado.pestania);
   });
-  if (estado.pestania === 'notas') pintarNotas();
-  else if (estado.pestania === 'acta') pintarActa();
-  else if (estado.pestania === 'analitico') pintarAnalitico();
-  else if (estado.pestania === 'solicitudes') pintarSolicitudesCurso();
+  if (estado.pestania === 'notas') { _configurarPaginaImpresion('oficio-horizontal'); pintarNotas(); }
+  else if (estado.pestania === 'acta') { _configurarPaginaImpresion('a4-vertical'); pintarActa(); }
+  else if (estado.pestania === 'analitico') { _configurarPaginaImpresion('a4-vertical'); pintarAnalitico(); }
+  else if (estado.pestania === 'solicitudes') { _configurarPaginaImpresion('a4-vertical'); pintarSolicitudesCurso(); }
 }
 
 // ---------- PESTAÑA: REGISTRO ANUAL DE CALIFICACIONES (CON CONGELAMIENTO) ----------
@@ -361,8 +375,8 @@ function pintarNotas() {
   });
 
   var th = modulosVisibles.map(function (m) {
-    return '<th class="mod" title="' + esc(m.nombre) + ' (' + esc(_etiquetaCuatrimestre(m)) + ')">' +
-           esc(m.nombre) + '</th>';
+    return '<th class="mod" title="' + esc(m.nombre) + ' (' + esc(_etiquetaCuatrimestre(m)) + ')"><div class="mod-txt">' +
+           esc(m.nombre) + '</div></th>';
   }).join('');
 
   var enc = d.encabezado || {};
@@ -470,16 +484,16 @@ function pintarNotas() {
   var colsExtraFinal = (tieneDosCuat && filtroCuat === 'Todos') ? 6 : 4;
   var thGrupoProm = '<th colspan="' + colsExtraFinal + '" style="text-align:center;background:#e9eef4">CALIFICACIÓN Y CERTIFICACIÓN</th>';
   var thExtraFinal = (tieneDosCuat && filtroCuat === 'Todos')
-    ? '<th class="mod" style="background:#e8f1fa">Prom. 1° Cuat.</th>' +
-      '<th class="mod" style="background:#e6f4ea">Prom. 2° Cuat.</th>' +
-      '<th class="mod">Calificación Final</th>' +
-      '<th class="mod">Libro Actas N°</th>' +
-      '<th class="mod">Folio N°</th>' +
-      '<th class="mod">Fecha</th>'
-    : '<th class="mod">Calificación Final</th>' +
-      '<th class="mod">Libro Actas N°</th>' +
-      '<th class="mod">Folio N°</th>' +
-      '<th class="mod">Fecha</th>';
+    ? '<th class="mod" style="background:#e8f1fa"><div class="mod-txt">Prom. 1° Cuat.</div></th>' +
+      '<th class="mod" style="background:#e6f4ea"><div class="mod-txt">Prom. 2° Cuat.</div></th>' +
+      '<th class="mod"><div class="mod-txt">Calificación Final</div></th>' +
+      '<th class="mod"><div class="mod-txt">Libro Actas N°</div></th>' +
+      '<th class="mod"><div class="mod-txt">Folio N°</div></th>' +
+      '<th class="mod"><div class="mod-txt">Fecha</div></th>'
+    : '<th class="mod"><div class="mod-txt">Calificación Final</div></th>' +
+      '<th class="mod"><div class="mod-txt">Libro Actas N°</div></th>' +
+      '<th class="mod"><div class="mod-txt">Folio N°</div></th>' +
+      '<th class="mod"><div class="mod-txt">Fecha</div></th>';
 
   var checksRefIngreso = listaOpcionesRef.map(function (op) {
     var marcado = String(refIngresoActual).toLowerCase().indexOf(op.toLowerCase()) !== -1;

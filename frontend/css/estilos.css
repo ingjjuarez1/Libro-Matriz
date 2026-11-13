@@ -243,16 +243,34 @@ th {
   font-weight: bold;
   position: sticky;
   top: 0;
+  z-index: 3;
+}
+
+thead tr:nth-child(2) th {
+  top: 29px;
   z-index: 2;
 }
 
 thead th.mod {
+  height: 185px;
+  min-width: 44px;
+  padding: 6px 4px;
+  vertical-align: bottom;
+  text-align: center;
+  overflow: hidden;
+}
+
+thead th.mod .mod-txt {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  height: 175px;
+  max-height: 172px;
   font-size: 11px;
-  white-space: nowrap;
+  line-height: 1.22;
+  white-space: normal;
+  word-break: break-word;
   text-align: left;
+  display: inline-block;
+  overflow: hidden;
 }
 
 td.nota input {
@@ -828,8 +846,8 @@ td.nota input:disabled {
 
 @media print {
   @page {
-    size: A4;
-    margin: 10mm 12mm;
+    size: legal landscape;
+    margin: 8mm 10mm;
   }
   body {
     background: #fff !important;
@@ -841,12 +859,16 @@ td.nota input:disabled {
   .solo-impresion {
     display: block !important;
   }
-  .inp-mesa {
+  .inp-mesa,
+  .sel-acredita-est {
     border: none !important;
     background: transparent !important;
     color: #000 !important;
     padding: 0 !important;
-    font-family: "Times New Roman", serif !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    font-size: 9.5px !important;
   }
   .barra,
   .migas,
@@ -872,18 +894,34 @@ td.nota input:disabled {
     background: #fff !important;
   }
   .tabla-ancha {
+    max-height: none !important;
+    height: auto !important;
     overflow: visible !important;
     border: none !important;
   }
   .tabla-ancha table {
     width: 100% !important;
     border-collapse: collapse !important;
-    font-size: 10px !important;
+    font-size: 9.5px !important;
   }
   .tabla-ancha th,
-  .tabla-ancha td {
+  .tabla-ancha td,
+  thead tr:nth-child(2) th {
+    position: static !important;
     border: 1px solid #333 !important;
-    padding: 3px 4px !important;
+    padding: 2px 3px !important;
+  }
+  thead th.mod {
+    height: 135px !important;
+    min-width: 30px !important;
+    padding: 4px 2px !important;
+    vertical-align: bottom !important;
+  }
+  thead th.mod .mod-txt {
+    max-height: 126px !important;
+    font-size: 9.5px !important;
+    line-height: 1.15 !important;
+    white-space: normal !important;
   }
   td.nota input {
     border: none !important;
