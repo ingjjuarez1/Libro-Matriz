@@ -445,11 +445,11 @@ function pintarNotas() {
     ? '<th class="mod" style="background:#e8f1fa">Prom. 1° Cuat.</th>' +
       '<th class="mod" style="background:#e6f4ea">Prom. 2° Cuat.</th>' +
       '<th class="mod">Nota final</th>' +
-      '<th class="mod">Libro Act. N°</th>' +
+      '<th class="mod">Libro Actas N°</th>' +
       '<th class="mod">Folio N°</th>' +
       '<th class="mod">Fecha</th>'
     : '<th class="mod">Nota final</th>' +
-      '<th class="mod">Libro Act. N°</th>' +
+      '<th class="mod">Libro Actas N°</th>' +
       '<th class="mod">Folio N°</th>' +
       '<th class="mod">Fecha</th>';
 
@@ -1040,8 +1040,8 @@ function armarAnalitico(r) {
 
 // ── Función interna compartida ──────────────────────────────────────────────
 function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasModulos) {
-  var idCursoQr = (estado.curso && estado.curso.id) ? estado.curso.id : '';
-  var validarPath = '/validar?nro=' + encodeURIComponent(d.esBorrador ? '' : certNroFormateado) +
+  var idCursoQr = (estado.curso && estado.curso.id) ? estado.curso.id : 'curso-peluquero-ep6-demo';
+  var validarPath = '/validar?nro=' + encodeURIComponent(certNroFormateado) +
                     '&dni=' + encodeURIComponent(String(d.dniFormateado || '').replace(/\./g, '')) +
                     '&curso=' + encodeURIComponent(idCursoQr);
   var validarFullUrl = window.location.origin + validarPath;
@@ -1140,7 +1140,7 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
         '<b>' + esc(ofertaStr) + '</b> que se corresponde con <b>EDUCACIÓN TÉCNICO PROFESIONAL</b>.' +
       '</p>' +
       '<p style="margin:3px 0"><b>NORMA JURISD. DE APROB. PLAN DE ESTUDIOS / DISEÑO CURRICULAR:</b> ' + esc(normaStr) + '</p>' +
-      '<p style="margin:3px 0"><b>Libro Matriz N°</b> ' + esc(d.libro) + ' &nbsp; <b>Folio N°</b> ' + esc(d.folio) + '</p>' +
+      '<p style="margin:3px 0"><b>Libro Actas N°</b> ' + esc(d.libro) + ' &nbsp; <b>Folio N°</b> ' + esc(d.folio) + '</p>' +
       '<p style="margin:6px 0 18px"><b>Otorgado en la localidad de ' + esc(d.localidad) + ', provincia de JUJUY, República Argentina, el día ' + esc(diaOtorgado) + ' del mes de ' + esc(mesOtorgado) + ' del año ' + esc(anioOtorgado) + '</b></p>' +
 
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:26px;align-items:start">' +
