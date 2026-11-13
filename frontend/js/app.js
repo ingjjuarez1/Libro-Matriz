@@ -463,7 +463,7 @@ function pintarNotas() {
   var encabezadoImpresionRac =
     '<div class="solo-impresion" style="margin-bottom:12px;border-bottom:2px solid #222;padding-bottom:8px;font-family:\'Times New Roman\',serif">' +
       '<div style="text-align:center;margin-bottom:8px">' +
-        '<div style="font-size:11px;font-weight:bold;letter-spacing:0.5px">PROVINCIA DE JUJUY · SECRETARÍA DE GESTIÓN EDUCATIVA</div>' +
+        '<div style="font-size:11px;font-weight:bold;letter-spacing:0.5px">MINISTERIO DE EDUCACIÓN DE JUJUY · SECRETARÍA DE GESTIÓN EDUCATIVA</div>' +
         '<div style="font-size:11px;font-weight:bold;letter-spacing:0.5px">DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL - DIRECCIÓN DE TÍTULOS</div>' +
         '<h2 style="margin:6px 0 2px;font-size:16px;text-transform:uppercase;letter-spacing:1px">REGISTRO ANUAL DE CALIFICACIONES</h2>' +
       '</div>' +
@@ -693,7 +693,7 @@ async function pintarActa() {
       // ── Encabezado con Libro y Folio ──
       '<div class="acta-encabezado">' +
         '<div style="text-align:center;font-family:\'Times New Roman\',serif;font-size:11px;font-weight:bold;letter-spacing:0.5px;margin-bottom:4px">' +
-          'PROVINCIA DE JUJUY · SECRETARÍA DE GESTIÓN EDUCATIVA<br>' +
+          'MINISTERIO DE EDUCACIÓN DE JUJUY · SECRETARÍA DE GESTIÓN EDUCATIVA<br>' +
           'DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL - DIRECCIÓN DE TÍTULOS' +
         '</div>' +
         '<div class="acta-libro-folio">' +
