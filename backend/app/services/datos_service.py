@@ -848,11 +848,19 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
                 cond = "Pendiente"
                 en_letra = ""
 
+        cohorte_mod = str(enc_curso.get("ciclo") or curso.get("ciclo") or "2026")
+        mes_anio_mod = f"12/{cohorte_mod}" if val_nota and val_nota != "AUS" else ""
+        if est_seleccionado and est_seleccionado.get("fechaEgreso") and val_nota and val_nota != "AUS":
+            partes_fe = str(est_seleccionado.get("fechaEgreso")).split("/")
+            if len(partes_fe) == 3:
+                mes_anio_mod = f"{partes_fe[1]}/{partes_fe[2]}"
+
         trayecto_final.append({
             **mod,
             "nota": val_nota,
             "enLetras": en_letra,
-            "condicion": cond
+            "condicion": cond,
+            "mesAnio": mes_anio_mod
         })
 
     # Formatear DNI con puntos (ej: 44.645.553)
@@ -870,7 +878,7 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
     documento_oficial = {
         "libro": str(enc_curso.get("libro") or "1"),
         "folio": est_seleccionado.get("folio", "1") if est_seleccionado else "1",
-        "certNro": num_cert_final if not es_borrador else "_____",
+        "certNro": num_cert_final if not es_borrador else "",
         "establecimiento": "ESCUELA PROFESIONAL Nº 6" if es_demo_ep6 else str(enc_curso.get("establecimiento") or curso.get("institucion") or "ESCUELA PROFESIONAL").upper(),
         "cue": "3800612-00" if es_demo_ep6 else str(enc_curso.get("cue") or curso.get("cue") or "3800006"),
         "domicilio": "PTO ARGENTINO Nº 705- Bº MALVINAS ARG." if es_demo_ep6 else str(enc_curso.get("domicilio") or "S/D").upper(),

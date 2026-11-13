@@ -1013,12 +1013,16 @@ function armarAnalitico(r) {
   var anioDef = (d.fechaEmision && /^\d{4}/.test(d.fechaEmision)) ? d.fechaEmision.slice(0, 4) : String(new Date().getFullYear());
   var cueDef = String(d.cue || (estado.curso && estado.curso.cue) || '380000600').replace(/\D/g, '');
   if (cueDef.length === 7) cueDef = cueDef + '00';
-  var certNroFormateado = d.certNro || (anioDef + '-' + cueDef + '-00001');
+  var nroLimpio = (d.certNro && d.certNro.indexOf('_') === -1) ? d.certNro : '';
+  var certNroFormateado = nroLimpio || (anioDef + '-' + cueDef + '-00001');
   var watermark = d.esBorrador
     ? '<div class="marca-agua-borrador-oficial">BORRADOR<br>NO VÁLIDO</div>' : '';
   var escudoFondo = '<img src="/img/escudo_nacional.png?v=20261105b" class="hoja-fondo-escudo" alt="" aria-hidden="true">';
 
   var filasModulos = (d.trayecto || []).map(function (m) {
+    var tieneNota = Boolean(m.nota && m.nota !== 'AUS');
+    var mesAnioVal = m.mesAnio || (tieneNota ? ('12/' + (d.cohorte || anioDef)) : '');
+    var estabVal = m.establecimiento || (tieneNota ? (d.establecimiento || '') : '');
     return '<tr>' +
       '<td style="text-align:center">'                  + esc(m.nro)        + '</td>' +
       '<td>'                                             + esc(m.modulo)     + '</td>' +
@@ -1026,6 +1030,8 @@ function armarAnalitico(r) {
       '<td style="text-align:center">'                  + esc(m.periodo)    + '</td>' +
       '<td style="text-align:center;font-weight:bold">' + esc(m.nota || '') + '</td>' +
       '<td style="text-align:center">'                  + esc(m.enLetras || '') + '</td>' +
+      '<td style="text-align:center">'                  + esc(mesAnioVal)   + '</td>' +
+      '<td style="text-align:center">'                  + esc(estabVal)     + '</td>' +
     '</tr>';
   }).join('');
 
@@ -1105,17 +1111,19 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
     '<div class="hoja-seccion">TRAYECTO CURRICULAR</div>' +
     '<table class="tabla-trayecto">' +
       '<thead><tr>' +
-        '<th style="width:28px">N°</th>' +
+        '<th style="width:26px">N°</th>' +
         '<th>Módulo / Espacio Curricular</th>' +
-        '<th style="width:80px">Tipo</th>' +
-        '<th style="width:130px">Período</th>' +
-        '<th style="width:48px">Nota</th>' +
-        '<th style="width:90px">En letras</th>' +
+        '<th style="width:68px">Tipo</th>' +
+        '<th style="width:110px">Período</th>' +
+        '<th style="width:38px">Nota</th>' +
+        '<th style="width:68px">En letras</th>' +
+        '<th style="width:62px">Mes / Año</th>' +
+        '<th style="width:135px">Establecimiento</th>' +
       '</tr></thead>' +
       '<tbody>' +
         filasModulos +
         '<tr style="font-weight:bold">' +
-          '<td colspan="4" style="text-align:left">Carga horaria / Horas cátedra</td>' +
+          '<td colspan="6" style="text-align:left">Carga horaria / Horas cátedra</td>' +
           '<td style="text-align:center">' + esc(d.cargaHorariaTotal.reloj) + '</td>' +
           '<td style="text-align:center">' + esc(d.cargaHorariaTotal.cat)  + '</td>' +
         '</tr>' +
@@ -1129,7 +1137,7 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
       '<p style="margin:8px 0;text-align:justify">' +
         '<b>' + esc(d.estudianteNombre) + '</b>, con tipo de documento ' + esc(d.tipoDoc) + ' N° <b>' + esc(d.dniFormateado) + '</b>, ' +
         'aprobó los espacios curriculares expresados anteriormente de los estudios conducentes al certificado de ' +
-        '<b>' + esc(ofertaStr) + '</b> que se corresponde con <b>FORMACIÓN PROFESIONAL</b>.' +
+        '<b>' + esc(ofertaStr) + '</b> que se corresponde con <b>EDUCACIÓN TÉCNICO PROFESIONAL</b>.' +
       '</p>' +
       '<p style="margin:3px 0"><b>NORMA JURISD. DE APROB. PLAN DE ESTUDIOS / DISEÑO CURRICULAR:</b> ' + esc(normaStr) + '</p>' +
       '<p style="margin:3px 0"><b>Libro Matriz N°</b> ' + esc(d.libro) + ' &nbsp; <b>Folio N°</b> ' + esc(d.folio) + '</p>' +
