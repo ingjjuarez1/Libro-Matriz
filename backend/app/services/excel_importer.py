@@ -446,7 +446,7 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
             val_m = mapa_n.get(idx, "") or mapa_nom.get(idx, "")
             notas_est.append(val_m)
 
-        nota_final, situacion = _calcular_situacion_y_promedio(notas_est)
+        nota_final_mod, situacion = _calcular_situacion_y_promedio(notas_est)
         estudiantes.append({
             "fila": fila_rac,
             "orden": str(len(estudiantes) + 1),
@@ -461,18 +461,84 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
             "acreditaCon": acredita_est,
             "nivel": acredita_est,
             "notas": notas_est,
-            "notaFinal": nota_final,
+            "promedioModulos": nota_final_mod,
+            "notaFinal": "",
+            "libroActa": "",
             "fechaEgreso": "",
-            "folio": str(len(estudiantes) + 1),
+            "folio": "",
             "situacion": situacion
         })
         fila_rac += 1
 
-    # Leer Acta de Examen si existe
+    # Leer Acta de Examen real desde la pestaña 'Acta Examen' y alimentar el RAC
+    meses_nombres = {
+        "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
+        "julio": 7, "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10,
+        "noviembre": 11, "diciembre": 12
+    }
+    fecha_acta_str = ""
+    presidente_acta = "Presidente/a de Mesa"
+    vocal1_acta = "Vocal 1°"
+    vocal2_acta = "Vocal 2°"
+    folio_acta_str = str(_celda(ac, "W2") or _celda(lm, "R1") or "1").strip()
+    notas_acta_por_dni: Dict[str, Tuple[str, str, str]] = {}
+
+    if ac:
+        dia_ac = str(_celda(ac, "C8") or "").strip()
+        mes_ac = _norm(_celda(ac, "H8"))
+        anio_ac = str(_celda(ac, "P8") or "").strip()
+        if dia_ac.isdigit() and mes_ac in meses_nombres and anio_ac.isdigit():
+            fecha_acta_str = f"{int(dia_ac):02d}/{meses_nombres[mes_ac]:02d}/{int(anio_ac)}"
+        mesa_txt = str(_celda(ac, "A10") or "").strip()
+        m_mesa = re.search(r"Presidente:\s*(.*?)\s*-\s*Vocal\s*1[°º]?\s*(.*?)\s*-\s*Vocal\s*2[°º]?\s*(.*)", mesa_txt, re.IGNORECASE)
+        if m_mesa:
+            presidente_acta = m_mesa.group(1).strip() or presidente_acta
+            vocal1_acta = m_mesa.group(2).strip() or vocal1_acta
+            vocal2_acta = m_mesa.group(3).strip() or vocal2_acta
+
+        for r_ac in range(15, 150):
+            dni_ac = re.sub(r"\D", "", str(_celda(ac, f"E{r_ac}") or ""))
+            if not dni_ac:
+                continue
+            vt_raw = _celda(ac, f"P{r_ac}")
+            vp_raw = _celda(ac, f"S{r_ac}")
+            vd_raw = _celda(ac, f"V{r_ac}")
+
+            def _fmt_nota_acta(v_in: Any) -> str:
+                if v_in is None or v_in == "":
+                    return ""
+                s_in = str(v_in).strip().upper()
+                if s_in in ("A", "AUS", "AUSENTE"):
+                    return "AUS"
+                try:
+                    n_f = float(s_in)
+                    if 1 <= n_f <= 10:
+                        return str(int(round(n_f)))
+                except Exception:
+                    pass
+                return ""
+
+            teo_s = _fmt_nota_acta(vt_raw)
+            prac_s = _fmt_nota_acta(vp_raw)
+            def_s = _fmt_nota_acta(vd_raw)
+            if not def_s and teo_s and prac_s:
+                if teo_s == "AUS" or prac_s == "AUS":
+                    def_s = "AUS"
+                elif teo_s.isdigit() and prac_s.isdigit():
+                    def_s = str(int(round((int(teo_s) + int(prac_s)) / 2.0)))
+            if teo_s or prac_s or def_s:
+                notas_acta_por_dni[dni_ac] = (teo_s, prac_s, def_s)
+
     acta_estudiantes = []
     for idx_e, est in enumerate(estudiantes):
-        nf = est["notaFinal"] or "8"
-        letras_nf = MAPA_LETRAS.get(int(nf), "").upper() if nf.isdigit() else ""
+        teo_s, prac_s, def_s = notas_acta_por_dni.get(est["documento"], ("", "", ""))
+        letras_nf = "AUSENTE" if def_s == "AUS" else (MAPA_LETRAS.get(int(def_s), "").upper() if def_s.isdigit() else "")
+        # El Acta alimenta la información de Calificación Final, Libro, Folio y Fecha en el RAC
+        if def_s:
+            est["notaFinal"] = def_s
+            est["libroActa"] = libro_nro
+            est["folio"] = folio_acta_str
+            est["fechaEgreso"] = fecha_acta_str
         acta_estudiantes.append({
             "filaActa": 13 + idx_e,
             "filaRac": est["fila"],
@@ -480,9 +546,9 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
             "permiso": str(idx_e + 1),
             "documento": est["documento"],
             "nombre": f"{est['apellido']}, {est['nombres']}",
-            "teorico": nf,
-            "practico": nf,
-            "definitiva": nf,
+            "teorico": teo_s,
+            "practico": prac_s,
+            "definitiva": def_s,
             "definitivaLetras": letras_nf
         })
 
@@ -502,6 +568,11 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
         estudiantes=estudiantes,
         acta_estudiantes=acta_estudiantes,
         libro=libro_nro,
+        folio=folio_acta_str,
+        fecha_acta=fecha_acta_str,
+        presidente_acta=presidente_acta,
+        vocal1_acta=vocal1_acta,
+        vocal2_acta=vocal2_acta,
         hs_cat_total=hs_cat_total,
         nivel_curso=nivel_curso,
         certificacion=certificacion,
@@ -714,6 +785,11 @@ def _armar_paquete_curso(
     estudiantes: List[Dict[str, Any]],
     acta_estudiantes: List[Dict[str, Any]],
     libro: str = "1",
+    folio: str = "1",
+    fecha_acta: str = "",
+    presidente_acta: str = "Presidente/a de Mesa",
+    vocal1_acta: str = "Vocal 1°",
+    vocal2_acta: str = "Vocal 2°",
     hs_cat_total: str = "510",
     nivel_curso: str = "II",
     certificacion: str = "Diseño Curricular Jurisdiccional",
@@ -726,6 +802,7 @@ def _armar_paquete_curso(
     curso_anio: str = "1°",
     division_letra: str = '"U"'
 ) -> Dict[str, Any]:
+    fecha_mesa_final = fecha_acta or datetime.datetime.now().strftime("%d/%m/%Y")
     return {
         "resumenCurso": {
             "cue": cue,
@@ -748,7 +825,8 @@ def _armar_paquete_curso(
                 "familiaProfesional": familia_profesional,
                 "ciclo": ciclo,
                 "libro": libro,
-                "folio": "1",
+                "folio": folio,
+                "fechaActa": fecha_mesa_final,
                 "turno": turno,
                 "cursoAnio": curso_anio,
                 "divisionLetra": division_letra,
@@ -769,10 +847,10 @@ def _armar_paquete_curso(
         },
         "actaCurso": {
             "mesa": {
-                "fecha": datetime.datetime.now().strftime("%d/%m/%Y"),
-                "presidente": "Presidente/a de Mesa",
-                "vocal1": "Vocal 1°",
-                "vocal2": "Vocal 2°"
+                "fecha": fecha_mesa_final,
+                "presidente": presidente_acta,
+                "vocal1": vocal1_acta,
+                "vocal2": vocal2_acta
             },
             "estudiantes": acta_estudiantes
         }

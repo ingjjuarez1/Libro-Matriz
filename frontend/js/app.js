@@ -396,7 +396,8 @@ function pintarNotas() {
     });
     var prom1C = cnt1 ? Math.round(suma1 / cnt1) : '—';
     var prom2C = cnt2 ? Math.round(suma2 / cnt2) : '—';
-    var notaFinal = es.notaFinal || (cntTot === d.modulos.length && cntTot > 0 ? String(Math.round(sumaTot / cntTot)) : '');
+    // La Calificación Final, Libro Actas N°, Folio N° y Fecha del RAC se alimentan desde el Acta de Examen
+    var notaFinal = es.notaFinal || '';
 
     var celdas = modulosVisibles.map(function (m) {
       var idxReal = m.i;
@@ -433,9 +434,9 @@ function pintarNotas() {
           }).join('') +
         '</select>';
     }
-    var libroActaEst = es.libroActa || (notaFinal ? (enc.libro || '1') : '—');
-    var folioEst = es.folio || '—';
-    var fechaEst = es.fechaEgreso || (notaFinal ? (enc.fechaActa || '10/12/2026') : '—');
+    var libroActaEst = notaFinal ? (es.libroActa || enc.libro || '1') : '—';
+    var folioEst = notaFinal ? (es.folio || enc.folio || '1') : '—';
+    var fechaEst = notaFinal ? (es.fechaEgreso || enc.fechaActa || '—') : '—';
 
     return '<tr><td style="text-align:center">' + esc(es.orden) + '</td>' +
       '<td>' + esc(es.apellido) + ', ' + esc(es.nombres) + candado + '</td>' +
@@ -487,11 +488,15 @@ function pintarNotas() {
     '</label>';
   }).join('');
 
+  var nombreEscuelaEnc = (enc.establecimiento || (estado.curso && estado.curso.institucion) || 'Establecimiento Educativo').toUpperCase();
+  var localidadEscuelaEnc = (enc.localidad || 'San Salvador de Jujuy').toUpperCase();
+  var provinciaEscuelaEnc = 'JUJUY';
+
   var encabezadoImpresionRac =
     '<div class="solo-impresion" style="margin-bottom:12px;border-bottom:2px solid #222;padding-bottom:8px;font-family:\'Times New Roman\',serif">' +
       '<div style="text-align:center;margin-bottom:8px">' +
-        '<div style="font-size:11px;font-weight:bold;letter-spacing:0.5px">MINISTERIO DE EDUCACIÓN DE JUJUY · SECRETARÍA DE GESTIÓN EDUCATIVA</div>' +
-        '<div style="font-size:11px;font-weight:bold;letter-spacing:0.5px">DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL - DIRECCIÓN DE TÍTULOS</div>' +
+        '<div style="font-size:12px;font-weight:bold;letter-spacing:0.5px">' + esc(nombreEscuelaEnc) + '</div>' +
+        '<div style="font-size:11px;font-weight:bold;letter-spacing:0.5px">' + esc(localidadEscuelaEnc) + ' · PROVINCIA DE ' + esc(provinciaEscuelaEnc) + '</div>' +
         '<h2 style="margin:6px 0 2px;font-size:16px;text-transform:uppercase;letter-spacing:1px">REGISTRO ANUAL DE CALIFICACIONES</h2>' +
       '</div>' +
       '<table style="width:100%;border-collapse:collapse;font-size:11px;border:none">' +
@@ -729,12 +734,16 @@ async function pintarActa() {
              'placeholder="' + esc(placeholder) + '" style="width:' + (ancho || '220px') + '">';
     };
 
+    var nombreEscActa = (enc.establecimiento || (estado.curso && estado.curso.institucion) || 'Establecimiento Educativo').toUpperCase();
+    var locEscActa = (enc.localidad || 'San Salvador de Jujuy').toUpperCase();
+    var provEscActa = 'JUJUY';
+
     $('panel').innerHTML =
-      // ── Encabezado con Libro y Folio ──
+      // ── Encabezado con Datos de la Escuela, Libro y Folio ──
       '<div class="acta-encabezado">' +
-        '<div style="text-align:center;font-family:\'Times New Roman\',serif;font-size:11px;font-weight:bold;letter-spacing:0.5px;margin-bottom:4px">' +
-          'MINISTERIO DE EDUCACIÓN DE JUJUY · SECRETARÍA DE GESTIÓN EDUCATIVA<br>' +
-          'DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL - DIRECCIÓN DE TÍTULOS' +
+        '<div style="text-align:center;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:bold;letter-spacing:0.5px;margin-bottom:6px">' +
+          esc(nombreEscActa) + '<br>' +
+          '<span style="font-size:11px">' + esc(locEscActa) + ' · PROVINCIA DE ' + esc(provEscActa) + '</span>' +
         '</div>' +
         '<div class="acta-libro-folio">' +
           '<span>Libro de Actas N°: ' + inputMesa('m_libro', libroNro, 'N° Libro', '60px') + '</span>' +
@@ -1167,17 +1176,25 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
       '</tr></thead>' +
       '<tbody>' +
         filasModulos +
-        '<tr style="font-weight:bold">' +
-          '<td colspan="6" style="text-align:left">Carga horaria / Horas cátedra</td>' +
-          '<td style="text-align:center">' + esc(d.cargaHorariaTotal.reloj) + '</td>' +
-          '<td style="text-align:center">' + esc(d.cargaHorariaTotal.cat)  + '</td>' +
+        '<tr style="font-weight:bold;background:#f8fafc">' +
+          '<td colspan="4" style="text-align:left">Nota de la Trayectoria (Promedio de Módulos)</td>' +
+          '<td style="text-align:center">' + esc(d.promedioTrayectoria || '—') + '</td>' +
+          '<td style="text-align:center">' + esc(d.promedioTrayectoriaLetras || '—') + '</td>' +
+          '<td colspan="2" style="text-align:center">Carga horaria: ' + esc(d.cargaHorariaTotal.reloj) + ' hs reloj / ' + esc(d.cargaHorariaTotal.cat) + ' hs cát.</td>' +
+        '</tr>' +
+        '<tr style="font-weight:bold;background:#eef4fa">' +
+          '<td colspan="4" style="text-align:left">Calificación Final (Examen Final)</td>' +
+          '<td style="text-align:center">' + esc(d.notaFinal || '—') + '</td>' +
+          '<td style="text-align:center">' + esc(d.notaFinalLetras || '—') + '</td>' +
+          '<td style="text-align:center">' + esc(d.fechaEgreso || '—') + '</td>' +
+          '<td style="text-align:center">' + esc(d.establecimiento || '') + '</td>' +
         '</tr>' +
       '</tbody>' +
     '</table>' +
 
     // ── Parte inferior oficial del Certificado / Título (según modelo provincial) ──
     '<div class="hoja-pie-legal" style="margin-top:16px;font-size:11.5px;line-height:1.5;position:relative;z-index:2">' +
-      '<p style="margin:2px 0"><b>Cohorte:</b> ' + esc(cohorteStr) + '</p>' +
+      '<p style="margin:2px 0"><b>Cohorte:</b> ' + esc(cohorteStr) + ' &nbsp;·&nbsp; <b>Fecha de Egreso (Examen Final):</b> ' + esc(d.fechaEgreso || '—') + ' &nbsp;·&nbsp; <b>Acredita con:</b> ' + esc(d.acreditaCon || 'Primaria Completa') + '</p>' +
       '<p style="margin:2px 0 10px"><b>Observaciones:</b> ' + esc(d.observaciones || '—') + '</p>' +
       '<p style="margin:8px 0;text-align:justify">' +
         '<b>' + esc(d.estudianteNombre) + '</b>, con tipo de documento ' + esc(d.tipoDoc) + ' N° <b>' + esc(d.dniFormateado) + '</b>, ' +

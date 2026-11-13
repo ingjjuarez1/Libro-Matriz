@@ -441,7 +441,7 @@ def guardar_notas(id_curso: str, cambios: List[Dict[str, Any]], sesion_usr: Dict
                 if est["fila"] == f and m < len(est["notas"]):
                     est["notas"][m] = str(v_norm)
                     nf, sit = _calcular_situacion_y_promedio(est["notas"])
-                    est["notaFinal"] = nf
+                    est["promedioModulos"] = nf
                     est["situacion"] = sit
         return {"guardados": len(cambios)}
 
@@ -461,7 +461,7 @@ def guardar_notas(id_curso: str, cambios: List[Dict[str, Any]], sesion_usr: Dict
                 if est["fila"] == f and m < len(est["notas"]):
                     est["notas"][m] = str(v_norm)
                     nf, sit = _calcular_situacion_y_promedio(est["notas"])
-                    est["notaFinal"] = nf
+                    est["promedioModulos"] = nf
                     est["situacion"] = sit
         return {"guardados": len(cambios)}
 
@@ -780,7 +780,7 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
 
         # Sincronizar todo lo cargado en el Acta de Examen con el Registro Anual de Calificaciones (RAC)
         libro_acta_actual = enc_dest.get("libro", "1") if enc_dest else "1"
-        folio_acta_actual = enc_dest.get("folio", "") if enc_dest else ""
+        folio_acta_actual = enc_dest.get("folio", "1") if enc_dest else "1"
         fecha_acta_actual = mesa_dest.get("fecha", "")
         for es_acta in est_list:
             doc_a = str(es_acta.get("documento", "")).strip()
@@ -788,16 +788,16 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
             def_val = str(es_acta.get("definitiva", "")).strip()
             for est_rac in rac_est_list:
                 if (doc_a and str(est_rac.get("documento", "")).strip() == doc_a) or (fila_r and int(est_rac.get("fila", 0)) == fila_r):
+                    est_rac["notaFinal"] = def_val
                     if def_val:
-                        est_rac["notaFinal"] = def_val
+                        est_rac["libroActa"] = libro_acta_actual
+                        est_rac["folio"] = folio_acta_actual or est_rac.get("folio", "1")
+                        est_rac["fechaEgreso"] = fecha_acta_actual
                         if def_val.isdigit() and int(def_val) >= 7:
                             est_rac["situacion"] = "Aprobó todo"
-                    if est_rac.get("notaFinal") or def_val:
-                        est_rac["libroActa"] = libro_acta_actual
-                        if folio_acta_actual:
-                            est_rac["folio"] = folio_acta_actual
-                        if fecha_acta_actual:
-                            est_rac["fechaEgreso"] = fecha_acta_actual
+                    else:
+                        est_rac["libroActa"] = ""
+                        est_rac["fechaEgreso"] = ""
                     break
 
         return {"guardados": len(cambios or []) + (1 if mesa else 0)}
@@ -963,9 +963,18 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
     pais_est = (est_seleccionado.get("pais") or "Argentina").strip() if est_seleccionado else "Argentina"
     lugar_nac_str = f"{prov_est} ({pais_est})".upper()
 
+    prom_trayectoria, _ = _calcular_situacion_y_promedio(notas_est)
+    prom_trayectoria_letras = letras_map.get(str(prom_trayectoria), "")
+    nota_final_rac = str((est_seleccionado.get("notaFinal") if est_seleccionado else "") or "").strip()
+    nota_final_letras = letras_map.get(nota_final_rac, nota_final_rac)
+    fecha_egreso_rac = str((est_seleccionado.get("fechaEgreso") if est_seleccionado else "") or enc_curso.get("fechaActa") or "").strip()
+    libro_rac = str((est_seleccionado.get("libroActa") if est_seleccionado else "") or enc_curso.get("libro") or "1").strip()
+    folio_rac = str((est_seleccionado.get("folio") if est_seleccionado else "") or enc_curso.get("folio") or "1").strip()
+    acredita_rac = str(((est_seleccionado.get("acreditaCon") or est_seleccionado.get("nivel")) if est_seleccionado else "") or "Primaria Completa").strip()
+
     documento_oficial = {
-        "libro": str(enc_curso.get("libro") or "1"),
-        "folio": est_seleccionado.get("folio", "1") if est_seleccionado else "1",
+        "libro": libro_rac,
+        "folio": folio_rac,
         "certNro": num_cert_final if not es_borrador else "",
         "establecimiento": "ESCUELA PROFESIONAL Nº 6" if es_demo_ep6 else str(enc_curso.get("establecimiento") or curso.get("institucion") or "ESCUELA PROFESIONAL").upper(),
         "cue": "3800612-00" if es_demo_ep6 else str(enc_curso.get("cue") or curso.get("cue") or "3800006"),
@@ -973,15 +982,24 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
         "localidad": "PERICO" if es_demo_ep6 else str(enc_curso.get("localidad") or "JUJUY").upper(),
         "provincia": "JUJUY",
         "oferta": str(enc_curso.get("oferta") or curso.get("oferta") or "Peluquero").upper(),
+        "familiaProfesional": str(enc_curso.get("familiaProfesional") or "—"),
         "cohorte": str(enc_curso.get("ciclo") or curso.get("ciclo") or "2026"),
-        "normaJurisdiccional": str(enc_curso.get("disenio") or "Res. N° 2114-E-2026"),
+        "normaJurisdiccional": str(enc_curso.get("normaAprobacion") or enc_curso.get("disenio") or "Res. N° 2114-E-2026"),
+        "resolucionDisenio": str(enc_curso.get("resolucionDisenio") or enc_curso.get("disenio") or "—"),
+        "validezNacional": str(enc_curso.get("validezNacional") or "—"),
         "fechaEmision": fecha_emision or "",
+        "fechaEgreso": fecha_egreso_rac,
         "fechaAprobacion": sol_info.get("fechaAprobacion") or "",
         "estudianteNombre": f"{est_seleccionado.get('apellido', '')}, {est_seleccionado.get('nombres', '')}".strip() if est_seleccionado else "AMANTE, SERGIO DAVID",
         "lugarNac": lugar_nac_str,
         "fechaNac": est_seleccionado.get("fechaNac", "01/02/2002") if est_seleccionado else "01/02/2002",
         "tipoDoc": est_seleccionado.get("tipoDoc", "DNI") if est_seleccionado else "DNI",
         "dniFormateado": dni_formateado,
+        "acreditaCon": acredita_rac,
+        "promedioTrayectoria": prom_trayectoria,
+        "promedioTrayectoriaLetras": prom_trayectoria_letras,
+        "notaFinal": nota_final_rac,
+        "notaFinalLetras": nota_final_letras,
         "trayecto": trayecto_final,
         "cargaHorariaTotal": carga_total,
         "esBorrador": es_borrador,
