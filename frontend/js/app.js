@@ -229,14 +229,13 @@ function pintarCurso() {
   var d = estado.datos, e = d.encabezado;
   var hsCatTotal = e.hsCatTotal || 510;
   var refIng = e.referencialIngreso || 'Primaria Completa';
-  var acreditaCon = e.acreditaCon || 'Primario completo';
   $('main').innerHTML =
     '<h1>' + esc(e.oferta || estado.curso.oferta) + '</h1>' +
     '<dl class="ficha">' +
       '<dt>Establecimiento</dt><dd>' + esc(e.establecimiento) + (e.cue ? ' · CUE ' + esc(e.cue) : '') + '</dd>' +
       '<dt>Turno / División</dt><dd>' + esc(e.turno) + ' · ' + esc(e.division) + ' · Ciclo ' + esc(e.ciclo) +
         ' · ' + d.estudiantes.length + ' estudiantes</dd>' +
-      '<dt>Referencial de ingreso</dt><dd><span id="ficha_ref_ingreso">' + esc(refIng) + '</span> &nbsp;·&nbsp; <b>Acredita con:</b> <span id="ficha_acredita_con">' + esc(acreditaCon) + '</span> &nbsp;·&nbsp; <b>Hs. cát.:</b> <span id="ficha_hs_cat">' + esc(hsCatTotal) + '</span></dd>' +
+      '<dt>Referencial de ingreso</dt><dd><span id="ficha_ref_ingreso">' + esc(refIng) + '</span> &nbsp;·&nbsp; <b>Hs. cát.:</b> <span id="ficha_hs_cat">' + esc(hsCatTotal) + '</span></dd>' +
       '<dt>Diseño curricular</dt><dd>' + esc(e.disenio) + '</dd>' +
     '</dl>' +
     '<div class="pestanias" role="tablist">' +
@@ -444,20 +443,28 @@ function pintarNotas() {
   var thExtraFinal = (tieneDosCuat && filtroCuat === 'Todos')
     ? '<th class="mod" style="background:#e8f1fa">Prom. 1° Cuat.</th>' +
       '<th class="mod" style="background:#e6f4ea">Prom. 2° Cuat.</th>' +
-      '<th class="mod">Nota final</th>' +
+      '<th class="mod">Calificación Final</th>' +
       '<th class="mod">Libro Actas N°</th>' +
       '<th class="mod">Folio N°</th>' +
       '<th class="mod">Fecha</th>'
-    : '<th class="mod">Nota final</th>' +
+    : '<th class="mod">Calificación Final</th>' +
       '<th class="mod">Libro Actas N°</th>' +
       '<th class="mod">Folio N°</th>' +
       '<th class="mod">Fecha</th>';
 
-  var opcionesRefIngreso = ['Primaria Completa', 'Secundario Completo', 'Ciclo Básico Completo (CB Completo)'].map(function (op) {
-    return '<option value="' + esc(op) + '"' + (op === refIngresoActual ? ' selected' : '') + '>' + esc(op) + '</option>';
+  var ofertaCursoActual = enc.oferta || (estado.curso && estado.curso.oferta) || '';
+  var listaOpcionesAcred = obtenerOpcionesAcreditacion(ofertaCursoActual);
+  var checksRefIngreso = listaOpcionesAcred.map(function (op) {
+    var marcado = String(refIngresoActual).toLowerCase().indexOf(op.toLowerCase()) !== -1;
+    return '<label style="display:inline-flex;align-items:center;gap:4px;font-weight:normal;margin-right:8px;cursor:pointer">' +
+      '<input type="checkbox" class="chk-ref-ingreso-rac" value="' + esc(op) + '"' + (marcado ? ' checked' : '') + '> ' + esc(op) +
+    '</label>';
   }).join('');
-  var opcionesAcreditaCon = ['Primario completo', 'Secundario completo', 'Ciclo Básico Completo (CB Completo)'].map(function (op) {
-    return '<option value="' + esc(op) + '"' + (op === acreditaConActual ? ' selected' : '') + '>' + esc(op) + '</option>';
+  var checksAcreditaCon = listaOpcionesAcred.map(function (op) {
+    var marcado = String(acreditaConActual).toLowerCase().indexOf(op.toLowerCase()) !== -1;
+    return '<label style="display:inline-flex;align-items:center;gap:4px;font-weight:normal;margin-right:8px;cursor:pointer">' +
+      '<input type="checkbox" class="chk-acredita-con-rac" value="' + esc(op) + '"' + (marcado ? ' checked' : '') + '> ' + esc(op) +
+    '</label>';
   }).join('');
 
   var encabezadoImpresionRac =
@@ -480,7 +487,7 @@ function pintarNotas() {
         '</tr>' +
         '<tr>' +
           '<td style="border:none;padding:2px 4px"><b>Diseño Curricular / Norma Aprobatoria:</b> ' + esc(enc.disenio || '—') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>Referencial de ingreso:</b> <span id="imp_ref_ingreso">' + esc(refIngresoActual) + '</span> &nbsp;·&nbsp; <b>Acredita con:</b> <span id="imp_acredita_con">' + esc(acreditaConActual) + '</span></td>' +
+          '<td style="border:none;padding:2px 4px"><b>Referencial de ingreso:</b> <span id="imp_ref_ingreso">' + esc(refIngresoActual) + '</span></td>' +
           '<td style="border:none;padding:2px 4px"><b>Hs. cát.:</b> <span id="imp_hs_cat">' + esc(hsCatActual) + '</span></td>' +
         '</tr>' +
       '</table>' +
@@ -505,12 +512,7 @@ function pintarNotas() {
       ? '<div class="acciones">' +
           '<button class="boton" id="guardar" disabled>Guardar cambios</button>' +
           '<button type="button" class="boton" style="background:#137333" onclick="mostrarModalNuevoEstudiante()">+ Agregar Alumno</button>' +
-          '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600">Referencial de ingreso: ' +
-            '<select id="selRefIngresoRac" style="font-size:12px;padding:4px 8px">' + opcionesRefIngreso + '</select>' +
-          '</label>' +
-          '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600">Acredita con: ' +
-            '<select id="selAcreditaConRac" style="font-size:12px;padding:4px 8px">' + opcionesAcreditaCon + '</select>' +
-          '</label>' +
+          '<div style="display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:12px;background:#f8fafc;border:1px solid var(--borde);padding:4px 8px;border-radius:6px"><b>Referencial de ingreso:</b> ' + checksRefIngreso + '</div>' +
           '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600">Hs. cát.: ' +
             '<input id="inpHsCatRac" value="' + esc(hsCatActual) + '" style="width:65px;font-size:12px;padding:4px 6px">' +
           '</label>' +
@@ -518,7 +520,7 @@ function pintarNotas() {
           '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente. ≥7 Aprobado · <7 Desaprobado</span>' +
         '</div>'
       : '<div class="acciones">' +
-          '<span style="font-size:12px"><b>Referencial de ingreso:</b> ' + esc(refIngresoActual) + ' &nbsp;·&nbsp; <b>Acredita con:</b> ' + esc(acreditaConActual) + ' &nbsp;·&nbsp; <b>Hs. cát.:</b> ' + esc(hsCatActual) + '</span>' +
+          '<span style="font-size:12px"><b>Referencial de ingreso:</b> ' + esc(refIngresoActual) + ' &nbsp;·&nbsp; <b>Hs. cát.:</b> ' + esc(hsCatActual) + '</span>' +
           '<button type="button" class="boton" style="background:#1F4E78" id="imprimirRac">🖨️ Imprimir Registro Anual</button>' +
           '<span style="color:var(--suave);font-size:12px">Tu rol es de consulta: puedes visualizar e imprimir, no modificar.</span>' +
         '</div>') +
@@ -544,19 +546,27 @@ function pintarNotas() {
   if ($('imprimirRac')) {
     $('imprimirRac').addEventListener('click', function () { window.print(); });
   }
-  if ($('selRefIngresoRac')) {
-    $('selRefIngresoRac').addEventListener('change', function () {
-      var val = $('selRefIngresoRac').value;
+  Array.prototype.forEach.call(document.querySelectorAll('.chk-ref-ingreso-rac'), function (chk) {
+    chk.addEventListener('change', function () {
+      var seleccionados = [];
+      Array.prototype.forEach.call(document.querySelectorAll('.chk-ref-ingreso-rac:checked'), function (c) {
+        seleccionados.push(c.value);
+      });
+      var val = seleccionados.length ? seleccionados.join(' / ') : 'Primaria Completa';
       if (estado.datos && estado.datos.encabezado) {
         estado.datos.encabezado.referencialIngreso = val;
       }
       if ($('imp_ref_ingreso')) $('imp_ref_ingreso').textContent = val;
       if ($('ficha_ref_ingreso')) $('ficha_ref_ingreso').textContent = val;
     });
-  }
-  if ($('selAcreditaConRac')) {
-    $('selAcreditaConRac').addEventListener('change', function () {
-      var val = $('selAcreditaConRac').value;
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.chk-acredita-con-rac'), function (chk) {
+    chk.addEventListener('change', function () {
+      var seleccionados = [];
+      Array.prototype.forEach.call(document.querySelectorAll('.chk-acredita-con-rac:checked'), function (c) {
+        seleccionados.push(c.value);
+      });
+      var val = seleccionados.length ? seleccionados.join(' / ') : 'Primario completo';
       if (estado.datos && estado.datos.encabezado) {
         estado.datos.encabezado.acreditaCon = val;
       }
@@ -566,7 +576,7 @@ function pintarNotas() {
         td.textContent = val;
       });
     });
-  }
+  });
   if ($('inpHsCatRac')) {
     $('inpHsCatRac').addEventListener('input', function () {
       var val = $('inpHsCatRac').value;
@@ -808,7 +818,11 @@ async function pintarActa() {
           mesa: mesaPayload,
           cambios: cambios
         });
-        avisar('¡Datos de los docentes y notas del acta guardados con éxito!', 'ok');
+        var rCurso = await llamar('/api/curso/' + encodeURIComponent(estado.curso.id));
+        if (rCurso && rCurso.datos) {
+          estado.datos = rCurso.datos;
+        }
+        avisar('¡Acta de Examen guardada y reflejada en el Registro Anual de Calificaciones!', 'ok');
         pintarActa();
       } catch (e) {
         problema(e);
@@ -1424,8 +1438,31 @@ async function inspeccionarAnaliticoModal(idCurso, doc) {
   }
 }
 
+// Helper para opciones de Acreditación de Ingreso según la Oferta Formativa
+function esCursoElectricistaOInstaladorRenovable(oferta) {
+  var s = String(oferta || '').toLowerCase();
+  if (s.normalize) s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return (s.indexOf('electricista') !== -1 && s.indexOf('inmueble') !== -1) ||
+         (s.indexOf('instalador') !== -1 && s.indexOf('sistema') !== -1 && s.indexOf('electric') !== -1);
+}
+
+function obtenerOpcionesAcreditacion(oferta) {
+  var ops = ['Primaria Completa', 'Secundaria Completa', 'CB Completo', 'Superior Completa'];
+  if (esCursoElectricistaOInstaladorRenovable(oferta)) {
+    ops.push('Montador Electricista Domiciliario');
+  }
+  return ops;
+}
+
 // Modal para cargar un nuevo alumno en el curso actual (Rol Administrativo / Dirección)
 function mostrarModalNuevoEstudiante() {
+  var ofertaActual = (estado.datos && estado.datos.encabezado && estado.datos.encabezado.oferta) ||
+                     (estado.curso && estado.curso.oferta) || '';
+  var opcionesAcr = obtenerOpcionesAcreditacion(ofertaActual);
+  var opcionesAcrHtml = opcionesAcr.map(function (op) {
+    return '<option value="' + esc(op) + '">' + esc(op) + '</option>';
+  }).join('');
+
   var modal = document.createElement('div');
   modal.className = 'modal-backdrop';
   modal.id = 'modalActivo';
@@ -1458,6 +1495,9 @@ function mostrarModalNuevoEstudiante() {
         '<label style="display:block;font-size:12px;font-weight:600">Lugar de Nac. · País' +
           '<input id="ne_pais" style="width:100%;margin-top:4px" value="Argentina">' +
         '</label>' +
+        '<label style="display:block;font-size:12px;font-weight:600;grid-column:1 / -1">Acreditación de Ingreso (Acredita con) *' +
+          '<select id="ne_acreditacon" style="width:100%;margin-top:4px">' + opcionesAcrHtml + '</select>' +
+        '</label>' +
       '</div>' +
       '<div class="acciones" style="justify-content:flex-end;margin-top:16px">' +
         '<button type="button" class="boton suave" onclick="cerrarModal()">Cancelar</button>' +
@@ -1476,6 +1516,7 @@ function mostrarModalNuevoEstudiante() {
       avisar('Completá Apellido, Nombres y N° de Documento (DNI).', 'error');
       return;
     }
+    var acrVal = $('ne_acreditacon') ? $('ne_acreditacon').value : 'Primaria Completa';
     $('btnGuardarEstudiante').disabled = true;
     try {
       await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/estudiante', 'POST', {
@@ -1486,7 +1527,9 @@ function mostrarModalNuevoEstudiante() {
         fechaNac: $('ne_fechanac').value.trim(),
         provincia: $('ne_provincia').value.trim(),
         pais: $('ne_pais').value.trim(),
-        folio: $('ne_folio').value.trim()
+        folio: $('ne_folio').value.trim(),
+        acreditaCon: acrVal,
+        nivel: acrVal
       });
       cerrarModal();
       avisar('¡Alumno ' + ape.toUpperCase() + ', ' + nom + ' cargado con éxito!', 'ok');
@@ -1502,21 +1545,39 @@ function mostrarModalNuevoEstudiante() {
 function mostrarModalNuevoCurso() {
   var modal = document.createElement('div');
   modal.className = 'panel';
-  modal.style.maxWidth = '550px';
+  modal.style.maxWidth = '580px';
   modal.style.margin = '20px auto';
   modal.style.border = '1px solid var(--borde)';
   modal.style.borderRadius = '8px';
   modal.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)';
 
+  var cueDef = (estado.sesion && estado.sesion.cues && estado.sesion.cues.length) ? estado.sesion.cues[0] : '';
+
   modal.innerHTML =
     '<h2>+ Registrar Nuevo Curso</h2>' +
     '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
-      '<label>Institución <input id="nc_inst" placeholder="Ej: Escuela Profesional Nº 6" value="Escuela Profesional Nº 6"></label>' +
-      '<label>CUE <input id="nc_cue" placeholder="Ej: 3800006" value="3800006"></label>' +
-      '<label>Oferta Formativa <input id="nc_oferta" placeholder="Ej: Peluquero" value="Peluquero"></label>' +
-      '<label>Ciclo <input id="nc_ciclo" placeholder="2026" value="2026"></label>' +
-      '<label>Turno <select id="nc_turno"><option value="Mañana">Mañana</option><option value="Tarde">Tarde</option><option value="Vespertino" selected>Vespertino</option></select></label>' +
-      '<label>Curso / División <input id="nc_division" placeholder=\'1º "U"\' value=\'1º "U"\'></label>' +
+      '<label><b>Institución *</b> <input id="nc_inst" placeholder="Ej: Escuela Profesional Nº 6" value=""></label>' +
+      '<label><b>CUE *</b> <input id="nc_cue" placeholder="Ej: 3800006" value="' + esc(cueDef) + '"></label>' +
+      '<label><b>Oferta Formativa *</b> <input id="nc_oferta" placeholder="Ej: Electricista en Inmueble / Peluquero" value=""></label>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">' +
+        '<label><b>Ciclo</b> <input id="nc_ciclo" placeholder="2026" value="2026"></label>' +
+        '<label><b>Turno</b> <select id="nc_turno"><option value="Mañana">Mañana</option><option value="Tarde">Tarde</option><option value="Vespertino" selected>Vespertino</option></select></label>' +
+        '<label><b>Curso / División</b> <input id="nc_division" placeholder=\'1º "U"\' value=\'1º "U"\'></label>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">' +
+        '<label><b>Diseño Curricular / Norma</b> <input id="nc_disenio" placeholder="Ej: Res. Nº 2114-E-2026" value="Res. Ministerial"></label>' +
+        '<label><b>Hs. cátedra</b> <input id="nc_hscat" placeholder="510" value="510"></label>' +
+      '</div>' +
+      '<div style="background:#f8fafc;border:1px solid var(--borde);border-radius:6px;padding:10px">' +
+        '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--azul)">Referencial de ingreso (podés marcar uno o más):</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:12px;font-size:13px">' +
+          '<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" class="nc_chk_ref" value="Primaria Completa" checked> Primaria Completa</label>' +
+          '<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" class="nc_chk_ref" value="Secundaria Completa"> Secundaria Completa</label>' +
+          '<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" class="nc_chk_ref" value="CB Completo"> CB Completo</label>' +
+          '<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" class="nc_chk_ref" value="Superior Completa"> Superior Completa</label>' +
+          '<label id="lbl_ref_montador" style="display:none;align-items:center;gap:5px;cursor:pointer;color:#137333;font-weight:600"><input type="checkbox" class="nc_chk_ref" id="chk_ref_montador" value="Montador Electricista Domiciliario"> Montador Electricista Domiciliario</label>' +
+        '</div>' +
+      '</div>' +
       '<label>ID del archivo de Google Drive <input id="nc_id" placeholder="Opcional (se genera automático si queda vacío)"></label>' +
       '<div class="acciones" style="justify-content:flex-end;margin-top:14px">' +
         '<button class="boton suave" id="nc_cancelar">Cancelar</button>' +
@@ -1527,15 +1588,41 @@ function mostrarModalNuevoCurso() {
   $('main').innerHTML = '';
   $('main').appendChild(modal);
 
+  $('nc_oferta').addEventListener('input', function () {
+    var mostrarMontador = esCursoElectricistaOInstaladorRenovable($('nc_oferta').value);
+    if ($('lbl_ref_montador')) $('lbl_ref_montador').style.display = mostrarMontador ? 'inline-flex' : 'none';
+    if (!mostrarMontador) {
+      if ($('chk_ref_montador')) $('chk_ref_montador').checked = false;
+    }
+  });
+
   $('nc_cancelar').addEventListener('click', verCursos);
   $('nc_guardar').addEventListener('click', async function () {
+    var instVal = $('nc_inst').value.trim();
+    var cueVal = $('nc_cue').value.trim();
+    var ofertaVal = $('nc_oferta').value.trim();
+    if (!instVal || !cueVal || !ofertaVal) {
+      alert('Por favor completá los datos obligatorios del curso: Institución, CUE y Oferta Formativa.');
+      avisar('Completá Institución, CUE y Oferta Formativa antes de guardar.', 'error');
+      return;
+    }
+    var refs = [];
+    Array.prototype.forEach.call(document.querySelectorAll('.nc_chk_ref:checked'), function (c) { refs.push(c.value); });
+    if (!refs.length) {
+      alert('Seleccioná al menos una opción en "Referencial de ingreso".');
+      return;
+    }
+
     var payload = {
-      cue: $('nc_cue').value.trim(),
-      institucion: $('nc_inst').value.trim(),
-      oferta: $('nc_oferta').value.trim(),
-      ciclo: $('nc_ciclo').value.trim(),
+      cue: cueVal,
+      institucion: instVal,
+      oferta: ofertaVal,
+      ciclo: $('nc_ciclo').value.trim() || '2026',
       turno: $('nc_turno').value,
-      division: $('nc_division').value.trim(),
+      division: $('nc_division').value.trim() || '1º "U"',
+      disenio: $('nc_disenio').value.trim() || 'Res. Ministerial',
+      hsCatTotal: $('nc_hscat').value.trim() || '510',
+      referencialIngreso: refs.join(' / '),
       id: $('nc_id').value.trim() || ('curso-' + Date.now()),
       estado: 'Abierto'
     };
@@ -1584,7 +1671,9 @@ function mostrarModalImportarExcel() {
   $('imp_procesar').addEventListener('click', function () {
     var input = $('inp_excel_file');
     if (!input.files || !input.files.length) {
-      avisar('Seleccioná primero un archivo Excel (.xlsm o .xlsx)', 'error');
+      $('estado_importacion').innerHTML = '<div style="background:#fce8e6;border:1px solid #ea4335;color:#c5221f;padding:10px;border-radius:6px;font-weight:bold">⚠️ No subió ningún archivo. Seleccione primero un archivo Excel (.xlsm o .xlsx).</div>';
+      alert('⚠️ No subió ningún archivo.\n\nPor favor seleccione un archivo Excel (.xlsm o .xlsx) antes de presionar "Convertir e Importar Curso".');
+      avisar('No subió ningún archivo. Seleccioná un archivo Excel (.xlsm o .xlsx).', 'error');
       return;
     }
     var archivo = input.files[0];

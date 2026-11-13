@@ -129,9 +129,79 @@ _ESTUDIANTES_DEMO = [
         "provincia": "Jujuy",
         "notas": ["9", "10", "9", "9", "10", "10"],
         "notaFinal": "10",
-        "fechaEgreso": "10/12/2026",
+        "fechaEgreso": "15/12/2026",
         "folio": "14",
         "situacion": "Aprobó todo"
+    }
+]
+
+_ENCABEZADO_DEMO = {
+    "establecimiento": "Escuela Profesional Nº 6",
+    "localidad": "San Salvador de Jujuy",
+    "cue": "3800006",
+    "domicilio": "Av. Fascio 1050",
+    "oferta": "Peluquero",
+    "ciclo": "2026",
+    "libro": "1",
+    "folio": "1",
+    "fechaActa": "15/12/2026",
+    "turno": "Vespertino",
+    "matriculados": "4",
+    "division": '1º "U"',
+    "disenio": "Resolución Nº 2114-E-2026"
+}
+
+_ACTA_DEMO_MESA = {
+    "fecha": "15/12/2026",
+    "presidente": "Prof. Martín Gomez",
+    "vocal1": "Prof. Ana Torres",
+    "vocal2": "Prof. Luis Pérez"
+}
+
+_ACTA_DEMO_ESTUDIANTES = [
+    {
+        "filaActa": 13,
+        "filaRac": 9,
+        "orden": "1",
+        "documento": "44645553",
+        "nombre": "AMANTE, Sergio David",
+        "teorico": "",
+        "practico": "",
+        "definitiva": "",
+        "definitivaLetras": ""
+    },
+    {
+        "filaActa": 14,
+        "filaRac": 10,
+        "orden": "2",
+        "documento": "40123456",
+        "nombre": "ALVAREZ, María Belén",
+        "teorico": "9",
+        "practico": "9",
+        "definitiva": "9",
+        "definitivaLetras": "NUEVE"
+    },
+    {
+        "filaActa": 15,
+        "filaRac": 11,
+        "orden": "3",
+        "documento": "39876543",
+        "nombre": "BENITEZ, Carlos Javier",
+        "teorico": "8",
+        "practico": "8",
+        "definitiva": "8",
+        "definitivaLetras": "OCHO"
+    },
+    {
+        "filaActa": 16,
+        "filaRac": 12,
+        "orden": "4",
+        "documento": "42111222",
+        "nombre": "CORONEL, Luciana Rocío",
+        "teorico": "10",
+        "practico": "10",
+        "definitiva": "10",
+        "definitivaLetras": "DIEZ"
     }
 ]
 
@@ -214,19 +284,7 @@ def leer_curso(id_archivo: str) -> Dict[str, Any]:
             est_copia.append(e)
 
         return {
-            "encabezado": {
-                "establecimiento": "Escuela Profesional Nº 6",
-                "localidad": "San Salvador de Jujuy",
-                "cue": "3800006",
-                "domicilio": "Av. Fascio 1050",
-                "oferta": "Peluquero",
-                "ciclo": "2026",
-                "libro": "1",
-                "turno": "Vespertino",
-                "matriculados": "3",
-                "division": '1º "U"',
-                "disenio": "Resolución Nº 2114-E-2026"
-            },
+            "encabezado": dict(_ENCABEZADO_DEMO),
             "modulos": [
                 {"i": 0, "nombre": "Relaciones Laborales", "periodo": "1C", "hsReloj": 24, "hsCat": 36},
                 {"i": 1, "nombre": "Piel y Anexos", "periodo": "1C", "hsReloj": 24, "hsCat": 36},
@@ -431,6 +489,7 @@ def guardar_estudiante(id_curso: str, est_data: Dict[str, Any], sesion_usr: Dict
         cant_mods = len(paq["datosCurso"].get("modulos", [])) or 6
         nueva_fila = (max([e["fila"] for e in lista_est], default=8) + 1)
         nuevo_orden = str(len(lista_est) + 1)
+        acredita_val = texto(est_data.get("acreditaCon") or est_data.get("nivel")) or "Primaria Completa"
         nuevo_est = {
             "fila": nueva_fila,
             "orden": nuevo_orden,
@@ -442,6 +501,8 @@ def guardar_estudiante(id_curso: str, est_data: Dict[str, Any], sesion_usr: Dict
             "localidad": texto(est_data.get("localidad")) or paq["datosCurso"]["encabezado"].get("localidad", "Jujuy"),
             "provincia": texto(est_data.get("provincia")) or "Jujuy",
             "pais": texto(est_data.get("pais")) or "Argentina",
+            "acreditaCon": acredita_val,
+            "nivel": acredita_val,
             "notas": [""] * cant_mods,
             "notaFinal": "",
             "fechaEgreso": "",
@@ -468,6 +529,7 @@ def guardar_estudiante(id_curso: str, est_data: Dict[str, Any], sesion_usr: Dict
     if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
         nueva_fila = (max([e["fila"] for e in _ESTUDIANTES_DEMO], default=8) + 1)
         nuevo_orden = str(len(_ESTUDIANTES_DEMO) + 1)
+        acredita_val = texto(est_data.get("acreditaCon") or est_data.get("nivel")) or "Primaria Completa"
         nuevo_est = {
             "fila": nueva_fila,
             "orden": nuevo_orden,
@@ -479,6 +541,8 @@ def guardar_estudiante(id_curso: str, est_data: Dict[str, Any], sesion_usr: Dict
             "localidad": texto(est_data.get("localidad")) or "Jujuy",
             "provincia": texto(est_data.get("provincia")) or "Jujuy",
             "pais": texto(est_data.get("pais")) or "Argentina",
+            "acreditaCon": acredita_val,
+            "nivel": acredita_val,
             "notas": [""] * 6,
             "notaFinal": "",
             "fechaEgreso": "",
@@ -486,6 +550,18 @@ def guardar_estudiante(id_curso: str, est_data: Dict[str, Any], sesion_usr: Dict
             "situacion": "En curso"
         }
         _ESTUDIANTES_DEMO.append(nuevo_est)
+        _ACTA_DEMO_ESTUDIANTES.append({
+            "filaActa": 12 + len(_ESTUDIANTES_DEMO),
+            "filaRac": nueva_fila,
+            "orden": nuevo_orden,
+            "permiso": nuevo_orden,
+            "documento": documento_str,
+            "nombre": f"{apellido}, {nombres}",
+            "teorico": "",
+            "practico": "",
+            "definitiva": "",
+            "definitivaLetras": ""
+        })
         registrar(sesion_usr, "Alta Estudiante", f"{curso['oferta']} {curso['ciclo']}", f"{apellido}, {nombres} (DNI {documento_str})")
         return {"fila": nueva_fila, "estudiante": nuevo_est}
 
@@ -556,47 +632,8 @@ def leer_acta(id_curso: str, sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "curso": curso,
             "puedeCargar": True,
-            "mesa": {
-                "fecha": "15/12/2026",
-                "presidente": "Prof. Martín Gomez",
-                "vocal1": "Prof. Ana Torres",
-                "vocal2": "Prof. Luis Pérez"
-            },
-            "estudiantes": [
-                {
-                    "filaActa": 13,
-                    "filaRac": 9,
-                    "orden": "1",
-                    "documento": "40123456",
-                    "nombre": "ALVAREZ, María Belén",
-                    "teorico": "9",
-                    "practico": "9",
-                    "definitiva": "9",
-                    "definitivaLetras": "NUEVE"
-                },
-                {
-                    "filaActa": 14,
-                    "filaRac": 10,
-                    "orden": "2",
-                    "documento": "39876543",
-                    "nombre": "BENITEZ, Carlos Javier",
-                    "teorico": "8",
-                    "practico": "8",
-                    "definitiva": "8",
-                    "definitivaLetras": "OCHO"
-                },
-                {
-                    "filaActa": 15,
-                    "filaRac": 11,
-                    "orden": "3",
-                    "documento": "42111222",
-                    "nombre": "CORONEL, Luciana Rocío",
-                    "teorico": "10",
-                    "practico": "10",
-                    "definitiva": "10",
-                    "definitivaLetras": "DIEZ"
-                }
-            ]
+            "mesa": dict(_ACTA_DEMO_MESA),
+            "estudiantes": [dict(x) for x in _ACTA_DEMO_ESTUDIANTES]
         }
 
     rangos = [
@@ -673,10 +710,12 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
             mesa_dest = acta_obj["mesa"]
             est_list = acta_obj["estudiantes"]
             enc_dest = _CURSOS_IMPORTADOS[curso["id"]]["datosCurso"]["encabezado"]
+            rac_est_list = _CURSOS_IMPORTADOS[curso["id"]]["datosCurso"]["estudiantes"]
         else:
             mesa_dest = _ACTA_DEMO_MESA
             est_list = _ACTA_DEMO_ESTUDIANTES
-            enc_dest = None
+            enc_dest = _ENCABEZADO_DEMO
+            rac_est_list = _ESTUDIANTES_DEMO
 
         if mesa:
             for k in ("fecha", "presidente", "vocal1", "vocal2"):
@@ -687,6 +726,8 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
                     enc_dest["libro"] = texto(mesa["libro"])
                 if "folio" in mesa:
                     enc_dest["folio"] = texto(mesa["folio"])
+                if "fecha" in mesa and texto(mesa["fecha"]):
+                    enc_dest["fechaActa"] = texto(mesa["fecha"])
 
         for c in (cambios or []):
             fila_a = int(c.get("filaActa", 0))
@@ -710,6 +751,28 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
                                 es["definitivaLetras"] = letras_acta.get(prom, str(prom))
                             except Exception:
                                 pass
+                    break
+
+        # Sincronizar todo lo cargado en el Acta de Examen con el Registro Anual de Calificaciones (RAC)
+        libro_acta_actual = enc_dest.get("libro", "1") if enc_dest else "1"
+        folio_acta_actual = enc_dest.get("folio", "") if enc_dest else ""
+        fecha_acta_actual = mesa_dest.get("fecha", "")
+        for es_acta in est_list:
+            doc_a = str(es_acta.get("documento", "")).strip()
+            fila_r = int(es_acta.get("filaRac", 0))
+            def_val = str(es_acta.get("definitiva", "")).strip()
+            for est_rac in rac_est_list:
+                if (doc_a and str(est_rac.get("documento", "")).strip() == doc_a) or (fila_r and int(est_rac.get("fila", 0)) == fila_r):
+                    if def_val:
+                        est_rac["notaFinal"] = def_val
+                        if def_val.isdigit() and int(def_val) >= 7:
+                            est_rac["situacion"] = "Aprobó todo"
+                    if est_rac.get("notaFinal") or def_val:
+                        est_rac["libroActa"] = libro_acta_actual
+                        if folio_acta_actual:
+                            est_rac["folio"] = folio_acta_actual
+                        if fecha_acta_actual:
+                            est_rac["fechaEgreso"] = fecha_acta_actual
                     break
 
         return {"guardados": len(cambios or []) + (1 if mesa else 0)}
@@ -1076,7 +1139,10 @@ def crear_curso_manual(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dic
                 "turno": turno,
                 "matriculados": "0",
                 "division": division,
-                "disenio": "Res. Ministerial"
+                "disenio": texto(datos.get("disenio")) or "Res. Ministerial",
+                "hsCatTotal": texto(datos.get("hsCatTotal")) or "510",
+                "referencialIngreso": texto(datos.get("referencialIngreso")) or "Primaria Completa",
+                "acreditaCon": texto(datos.get("acreditaCon")) or "Primaria Completa"
             },
             "modulos": modulos,
             "estudiantes": []

@@ -231,11 +231,15 @@ async def api_importar_excel(request: Request) -> JSONResponse:
         email = get_current_user_email(request)
         s = sesion(email)
         body = await request.json()
-        nombre_archivo = str(body.get("nombreArchivo", "Libro_Matriz.xlsx"))
-        b64_str = str(body.get("contenidoBase64", ""))
+        nombre_archivo = str(body.get("nombreArchivo", "")).strip()
+        b64_str = str(body.get("contenidoBase64", "")).strip()
+        if not b64_str or not nombre_archivo:
+            return JSONResponse({"ok": False, "error": "No subió ningún archivo."}, status_code=400)
         if "," in b64_str:
             b64_str = b64_str.split(",", 1)[1]
         contenido = base64.b64decode(b64_str)
+        if not contenido:
+            return JSONResponse({"ok": False, "error": "No subió ningún archivo."}, status_code=400)
         res = importar_excel_en_sistema(contenido, nombre_archivo, s)
         return JSONResponse({"ok": True, **res})
     except (AuthException, PermissionDeniedException) as e:
