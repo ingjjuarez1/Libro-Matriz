@@ -62,6 +62,27 @@ def _excel_serial_a_fecha(val: Any) -> str:
         pass
     return s
 
+def _normalizar_acredita_o_referencial(val: Any) -> str:
+    """Normaliza el texto de Referencial de Ingreso o Acredita con desde el Excel."""
+    s = str(val or "").strip()
+    if not s:
+        return "Primaria Completa"
+    n = _norm(s)
+    partes = []
+    if "primari" in n:
+        partes.append("Primaria Completa")
+    if "secundari" in n:
+        partes.append("Secundaria Completa")
+    if "ciclo basico" in n or "cb " in f"{n} " or "c b" in n:
+        partes.append("CB Completo")
+    if "superior" in n or "terciari" in n or "universitari" in n:
+        partes.append("Superior Completa")
+    if "montador" in n:
+        partes.append("Montador Electricista Domiciliario")
+    if partes:
+        return " / ".join(partes)
+    return s
+
 def _normalizar_pais(val: Any) -> str:
     """Normaliza abreviaturas de nacionalidad/país (ej: 'Arg' -> 'Argentina')."""
     s = str(val or "").strip()
@@ -236,16 +257,37 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
     rn = hojas.get("Reg Notas", {})
     d2 = hojas.get("Datos2", {})
     ac = hojas.get("Acta Examen", {})
+    lm = hojas.get("L Matriz", {})
 
-    establecimiento = str(_celda(po, "A4") or "Escuela Profesional").strip()
+    establecimiento = str(_celda(po, "A4") or _celda(rn, "G4") or "Escuela Profesional").strip()
     domicilio = str(_celda(po, "A6") or "").strip()
     cue_raw = str(_celda(po, "I6") or "3800006").strip()
     cue = re.sub(r"\D", "", cue_raw) or "3800006"
-    localidad = str(_celda(po, "E8") or "San Salvador de Jujuy").strip()
-    oferta = str(_celda(po, "A14") or os.path.splitext(nombre_archivo)[0]).strip()
-    ciclo = str(_celda(po, "I4") or datetime.datetime.now().year).strip()
-    disenio = str(_celda(po, "A20") or _celda(po, "I18") or "Res. Ministerial").strip()
-    turno_raw = str(_celda(po, "A22") or "Vespertino").strip()
+    localidad = str(_celda(po, "E8") or _celda(lm, "E4") or "San Salvador de Jujuy").strip()
+    oferta = str(_celda(po, "A14") or _celda(rn, "H5") or os.path.splitext(nombre_archivo)[0]).strip()
+    familia_profesional = str(_celda(po, "A16") or _celda(po, "B16") or _celda(lm, "D9") or "—").strip()
+    ciclo = str(_celda(po, "I4") or _celda(rn, "C6") or datetime.datetime.now().year).strip()
+
+    # Datos de la tabla de Portada / Reg Notas / L Matriz:
+    # - Horas Cátedras, Nivel, Certificación, Norma Jurisdiccional de Aprobación Res. N°,
+    #   Resolución Diseño Curricular y/o Plan de Estudio Jurisdiccional N°, Validez Nacional R.M.E N°, Disposición
+    hs_cat_raw = str(_celda(rn, "AK6") or _celda(po, "A18") or _celda(po, "B18") or "510").strip()
+    hs_cat_total = hs_cat_raw if re.match(r"^\d+$", hs_cat_raw) else "510"
+    nivel_curso = str(_celda(rn, "AC6") or _celda(po, "C18") or _celda(po, "D18") or "II").strip()
+    certificacion = str(_celda(po, "E18") or _celda(po, "F18") or "Diseño Curricular Jurisdiccional").strip()
+    if certificacion in ("I", "II", "III"):
+        certificacion = "Diseño Curricular Jurisdiccional"
+    norma_aprobacion = str(_celda(rn, "I7") or _celda(lm, "E10") or _celda(po, "I18") or _celda(po, "H18") or _celda(po, "G18") or "—").strip()
+    resolucion_disenio = str(_celda(rn, "W7") or _celda(lm, "P10") or _celda(po, "A20") or _celda(po, "B20") or "—").strip()
+    validez_nacional = str(_celda(rn, "AI7") or _celda(lm, "G11") or _celda(po, "E20") or _celda(po, "F20") or _celda(po, "D20") or "—").strip()
+    disposicion = str(_celda(lm, "O11") or _celda(po, "H20") or _celda(po, "I20") or _celda(po, "G20") or "-").strip()
+    referencial_ingreso = _normalizar_acredita_o_referencial(
+        _celda(po, "I14") or _celda(po, "H14") or _celda(po, "G14") or _celda(lm, "E6") or "Primaria Completa"
+    )
+    libro_nro = str(_celda(lm, "C1") or "1").strip()
+
+    disenio = resolucion_disenio if resolucion_disenio != "—" else (norma_aprobacion if norma_aprobacion != "—" else "Res. Ministerial")
+    turno_raw = str(_celda(po, "A22") or _celda(rn, "S6") or "Vespertino").strip()
     if _norm(turno_raw) in ("noche", "nocturno", "vespertino"):
         turno = "Vespertino"
     elif "manana" in _norm(turno_raw):
@@ -255,9 +297,11 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
     else:
         turno = "Vespertino"
 
-    curso_num = _celda(po, "D22") or "1"
-    div_letra = _celda(po, "G22") or '"U"'
-    division = f"{curso_num}° {div_letra}".strip()
+    curso_num = str(_celda(po, "D22") or "1°").strip()
+    if curso_num and not curso_num.endswith("°") and not curso_num.endswith("º"):
+        curso_num = f"{curso_num}°"
+    div_letra = str(_celda(po, "G22") or _celda(rn, "L6") or '"U"').strip()
+    division = f"{curso_num} {div_letra}".strip()
 
     # Determinar si la oferta es de 1 cuatrimestre o de 2/3 cuatrimestres
     duracion_rn = str(_celda(rn, "AD8") or _celda(po, "A18") or "").strip().lower()
@@ -393,6 +437,7 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
         loc_nac = str(_celda(es, f"O{r}") or localidad).strip()
         prov_nac = str(_celda(es, f"Q{r}") or _celda(es, f"L{r}") or "Jujuy").strip()
         pais_nac = _normalizar_pais(_celda(es, f"G{r}"))
+        acredita_est = _normalizar_acredita_o_referencial(_celda(es, f"K{r}") or "Primaria Completa")
 
         notas_est = []
         mapa_n = notas_por_dni.get(dni, {})
@@ -413,6 +458,8 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
             "localidad": loc_nac,
             "provincia": prov_nac,
             "pais": pais_nac,
+            "acreditaCon": acredita_est,
+            "nivel": acredita_est,
             "notas": notas_est,
             "notaFinal": nota_final,
             "fechaEgreso": "",
@@ -453,7 +500,19 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
         disenio=disenio,
         modulos=modulos,
         estudiantes=estudiantes,
-        acta_estudiantes=acta_estudiantes
+        acta_estudiantes=acta_estudiantes,
+        libro=libro_nro,
+        hs_cat_total=hs_cat_total,
+        nivel_curso=nivel_curso,
+        certificacion=certificacion,
+        norma_aprobacion=norma_aprobacion,
+        resolucion_disenio=resolucion_disenio,
+        validez_nacional=validez_nacional,
+        disposicion=disposicion,
+        referencial_ingreso=referencial_ingreso,
+        familia_profesional=familia_profesional,
+        curso_anio=curso_num,
+        division_letra=div_letra
     )
 
 def _importar_planilla_rac(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_archivo: str) -> Dict[str, Any]:
@@ -654,13 +713,25 @@ def _armar_paquete_curso(
     modulos: List[Dict[str, Any]],
     estudiantes: List[Dict[str, Any]],
     acta_estudiantes: List[Dict[str, Any]],
-    libro: str = "1"
+    libro: str = "1",
+    hs_cat_total: str = "510",
+    nivel_curso: str = "II",
+    certificacion: str = "Diseño Curricular Jurisdiccional",
+    norma_aprobacion: str = "—",
+    resolucion_disenio: str = "",
+    validez_nacional: str = "—",
+    disposicion: str = "-",
+    referencial_ingreso: str = "Primaria Completa",
+    familia_profesional: str = "—",
+    curso_anio: str = "1°",
+    division_letra: str = '"U"'
 ) -> Dict[str, Any]:
     return {
         "resumenCurso": {
             "cue": cue,
             "institucion": establecimiento,
             "oferta": oferta,
+            "familiaProfesional": familia_profesional,
             "ciclo": ciclo,
             "turno": turno,
             "division": division,
@@ -674,13 +745,24 @@ def _armar_paquete_curso(
                 "cue": cue,
                 "domicilio": domicilio,
                 "oferta": oferta,
+                "familiaProfesional": familia_profesional,
                 "ciclo": ciclo,
                 "libro": libro,
                 "folio": "1",
                 "turno": turno,
+                "cursoAnio": curso_anio,
+                "divisionLetra": division_letra,
                 "matriculados": str(len(estudiantes)),
                 "division": division,
-                "disenio": disenio
+                "disenio": disenio,
+                "hsCatTotal": hs_cat_total,
+                "nivelCurso": nivel_curso,
+                "certificacion": certificacion,
+                "normaAprobacion": norma_aprobacion if norma_aprobacion != "—" else disenio,
+                "resolucionDisenio": resolucion_disenio or disenio,
+                "validezNacional": validez_nacional,
+                "disposicion": disposicion,
+                "referencialIngreso": referencial_ingreso
             },
             "modulos": modulos,
             "estudiantes": estudiantes

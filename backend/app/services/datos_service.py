@@ -141,14 +141,25 @@ _ENCABEZADO_DEMO = {
     "cue": "3800006",
     "domicilio": "Av. Fascio 1050",
     "oferta": "Peluquero",
+    "familiaProfesional": "Estética Profesional",
     "ciclo": "2026",
     "libro": "1",
     "folio": "1",
     "fechaActa": "15/12/2026",
     "turno": "Vespertino",
     "matriculados": "4",
-    "division": '1º "U"',
-    "disenio": "Resolución Nº 2114-E-2026"
+    "cursoAnio": "1°",
+    "divisionLetra": '"U"',
+    "division": '1° "U"',
+    "hsCatTotal": "510",
+    "nivelCurso": "II",
+    "certificacion": "Diseño Curricular Jurisdiccional",
+    "normaAprobacion": "4006-E/2023",
+    "resolucionDisenio": "661-E/2022",
+    "validezNacional": "530/23",
+    "disposicion": "-",
+    "referencialIngreso": "Primaria Completa",
+    "disenio": "661-E/2022"
 }
 
 _ACTA_DEMO_MESA = {
@@ -417,6 +428,13 @@ def guardar_notas(id_curso: str, cambios: List[Dict[str, Any]], sesion_usr: Dict
         est_lista = _CURSOS_IMPORTADOS[curso["id"]]["datosCurso"]["estudiantes"]
         for c in cambios:
             f = int(c.get("fila", 0))
+            if c.get("campo") == "acreditaCon" or "acreditaCon" in c:
+                val_acr = texto(c.get("acreditaCon") if "acreditaCon" in c else c.get("valor"))
+                for est in est_lista:
+                    if est["fila"] == f:
+                        est["acreditaCon"] = val_acr
+                        est["nivel"] = val_acr
+                continue
             m = int(c.get("modulo", 0))
             v_norm = normalizar_nota(c.get("valor"))
             for est in est_lista:
@@ -430,6 +448,13 @@ def guardar_notas(id_curso: str, cambios: List[Dict[str, Any]], sesion_usr: Dict
     if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
         for c in cambios:
             f = int(c.get("fila", 0))
+            if c.get("campo") == "acreditaCon" or "acreditaCon" in c:
+                val_acr = texto(c.get("acreditaCon") if "acreditaCon" in c else c.get("valor"))
+                for est in _ESTUDIANTES_DEMO:
+                    if est["fila"] == f:
+                        est["acreditaCon"] = val_acr
+                        est["nivel"] = val_acr
+                continue
             m = int(c.get("modulo", 0))
             v_norm = normalizar_nota(c.get("valor"))
             for est in _ESTUDIANTES_DEMO:
@@ -1133,14 +1158,23 @@ def crear_curso_manual(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dic
                 "cue": cue,
                 "domicilio": "S/D",
                 "oferta": oferta,
+                "familiaProfesional": texto(datos.get("familiaProfesional")) or "—",
                 "ciclo": ciclo,
                 "libro": "1",
                 "folio": "1",
                 "turno": turno,
                 "matriculados": "0",
+                "cursoAnio": texto(datos.get("cursoAnio")) or "1°",
+                "divisionLetra": texto(datos.get("divisionLetra")) or '"U"',
                 "division": division,
-                "disenio": texto(datos.get("disenio")) or "Res. Ministerial",
+                "disenio": texto(datos.get("resolucionDisenio")) or texto(datos.get("disenio")) or "661-E/2022",
                 "hsCatTotal": texto(datos.get("hsCatTotal")) or "510",
+                "nivelCurso": texto(datos.get("nivelCurso")) or "II",
+                "certificacion": texto(datos.get("certificacion")) or "Diseño Curricular Jurisdiccional",
+                "normaAprobacion": texto(datos.get("normaAprobacion")) or "4006-E/2023",
+                "resolucionDisenio": texto(datos.get("resolucionDisenio")) or texto(datos.get("disenio")) or "661-E/2022",
+                "validezNacional": texto(datos.get("validezNacional")) or "530/23",
+                "disposicion": texto(datos.get("disposicion")) or "-",
                 "referencialIngreso": texto(datos.get("referencialIngreso")) or "Primaria Completa",
                 "acreditaCon": texto(datos.get("acreditaCon")) or "Primaria Completa"
             },

@@ -253,7 +253,7 @@ def sesion(email: Optional[str] = None) -> Dict[str, Any]:
         "rol": rol,
         "cues": cues,
         "verTodo": ver_todo,
-        "puedeCargar": (rol == Roles.ADMINISTRATIVO),
+        "puedeCargar": (rol in [Roles.ADMINISTRATIVO, Roles.DIRECCION]),
         "esTitulos": es_titulos,
         "puedeAdministrarUsuarios": (rol == Roles.DIRECCION)
     }
