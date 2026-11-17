@@ -182,7 +182,9 @@ def obtener_estado_estudiante(id_curso: str, documento: str) -> Dict[str, Any]:
                 "motivoObservacion": sol.get("motivoObservacion", ""),
                 "impreso": bool(sol.get("impreso", False)),
                 "fechaImpresion": sol.get("fechaImpresion", ""),
-                "impresoPor": sol.get("impresoPor", "")
+                "impresoPor": sol.get("impresoPor", ""),
+                "consultasQr": int(sol.get("consultasQr") or 0),
+                "ultimaConsultaQr": sol.get("ultimaConsultaQr", "")
             }
     return {
         "idSolicitud": None,
@@ -193,7 +195,9 @@ def obtener_estado_estudiante(id_curso: str, documento: str) -> Dict[str, Any]:
         "motivoObservacion": "",
         "impreso": False,
         "fechaImpresion": "",
-        "impresoPor": ""
+        "impresoPor": "",
+        "consultasQr": 0,
+        "ultimaConsultaQr": ""
     }
 
 def esta_estudiante_congelado(id_curso: str, documento: str) -> bool:
@@ -328,6 +332,8 @@ def aprobar_solicitud(id_solicitud: str, sesion_usr: Dict[str, Any], numero_cert
     REGLA: Requiere rol 'titulos'. En ese instante, las notas quedan congeladas.
     Idempotente: si ya está Aprobado, no sobreescribe el número de certificado ni el estado de impresión.
     """
+    if sesion_usr.get("esDirectoraTitulos") or sesion_usr.get("puedeAprobarTitulos") is False:
+        raise PermissionDeniedException("El rol Directora de Títulos es de supervisión y estadísticas: no puede aprobar certificados.")
     if not sesion_usr.get("esTitulos") and sesion_usr.get("rol") != Roles.DIRECCION:
         raise PermissionDeniedException("Solo la Dirección de Títulos tiene permisos para aprobar certificados.")
 
@@ -366,6 +372,8 @@ def observar_solicitud(id_solicitud: str, motivo: str, sesion_usr: Dict[str, Any
     Observa una solicitud requiriendo obligatoriamente el motivo.
     REGLA: Requiere rol 'titulos'. Vuelve al panel de la escuela con el motivo.
     """
+    if sesion_usr.get("esDirectoraTitulos") or sesion_usr.get("puedeAprobarTitulos") is False:
+        raise PermissionDeniedException("El rol Directora de Títulos es de supervisión y estadísticas: no puede observar solicitudes.")
     if not sesion_usr.get("esTitulos") and sesion_usr.get("rol") != Roles.DIRECCION:
         raise PermissionDeniedException("Solo la Dirección de Títulos tiene permisos para observar solicitudes.")
 
@@ -413,6 +421,8 @@ def aprobar_estudiantes_curso(
     Permite a Dirección de Títulos aprobar directamente desde el curso/RAC a uno o varios
     estudiantes elegibles (o a todos los egresados aprobados del curso si documentos es None/vacío).
     """
+    if sesion_usr.get("esDirectoraTitulos") or sesion_usr.get("puedeAprobarTitulos") is False:
+        raise PermissionDeniedException("El rol Directora de Títulos es de supervisión y estadísticas: no puede aprobar certificados.")
     if not sesion_usr.get("esTitulos") and sesion_usr.get("rol") != Roles.DIRECCION:
         raise PermissionDeniedException("Solo la Dirección de Títulos tiene permisos para aprobar certificados.")
 
@@ -538,14 +548,19 @@ def registrar_impresion_certificado(id_curso: str, documento: str, sesion_usr: D
 def validar_certificado_por_numero(nro_certificado: str, dni: Optional[str] = None) -> Dict[str, Any]:
     """
     Verifica públicamente (vía QR) si un certificado o título es válido y fue aprobado por Títulos.
+    Registra cada consulta QR para el Dashboard de Estadísticas.
     """
     nro_limpio = str(nro_certificado or "").strip()
     dni_limpio = str(dni or "").strip()
+    ahora_qr = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
     for sol in _SOLICITUDES_CACHE.values():
         match_nro = bool(nro_limpio and sol.get("numeroCertificado") == nro_limpio)
         match_dni = bool(dni_limpio and sol.get("documento") == dni_limpio)
         if match_nro or ( not nro_limpio and match_dni ):
+            sol["consultasQr"] = int(sol.get("consultasQr") or 0) + 1
+            sol["ultimaConsultaQr"] = ahora_qr
+            _guardar_solicitudes_disco()
             es_valido = (sol.get("estado") == EstadoCertificado.APROBADO and bool(sol.get("numeroCertificado")))
             return {
                 "valido": es_valido,
@@ -558,7 +573,9 @@ def validar_certificado_por_numero(nro_certificado: str, dni: Optional[str] = No
                 "institucion": sol.get("institucion", ""),
                 "cue": sol.get("cue", ""),
                 "ciclo": sol.get("ciclo", ""),
-                "fechaAprobacion": sol.get("fechaAprobacion", "")
+                "fechaAprobacion": sol.get("fechaAprobacion", ""),
+                "consultasQr": sol["consultasQr"],
+                "ultimaConsultaQr": sol["ultimaConsultaQr"]
             }
 
     return {

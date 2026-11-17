@@ -12,12 +12,13 @@ CREDENTIALS_FILE: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials
 
 # Roles del sistema
 class Roles:
-    DIRECCION = "Dirección DETP"      # ve todas las escuelas, no carga
-    DIRECTIVO = "Directivo"           # ve solo su escuela, no carga
-    ADMINISTRATIVO = "Administrativo"  # ve y carga solo su escuela
-    TITULOS = "titulos"               # nuevo rol: bandeja centralizada de pedidos de todas las instituciones
+    DIRECCION = "Dirección DETP"              # ve todas las escuelas, administra usuarios, aprueba títulos
+    DIRECTORA_TITULOS = "Directora de Títulos" # exclusivo Tatiana: ve Dashboard, estadísticas, consultas QR y pendientes de Títulos (no crea usuarios, no aprueba, no ve RAC)
+    DIRECTIVO = "Directivo"                   # ve solo su escuela, no carga
+    ADMINISTRATIVO = "Administrativo"          # ve y modifica el RAC solo de su escuela
+    TITULOS = "titulos"                       # bandeja centralizada de pedidos de todas las instituciones
 
-    ALL = [DIRECCION, DIRECTIVO, ADMINISTRATIVO, TITULOS, "Títulos"]
+    ALL = [DIRECCION, DIRECTORA_TITULOS, "Directora de Titulos", DIRECTIVO, ADMINISTRATIVO, TITULOS, "Títulos"]
 
 # Estados del circuito de emisión de certificados
 class EstadoCertificado:

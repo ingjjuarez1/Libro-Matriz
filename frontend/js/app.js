@@ -297,8 +297,12 @@ async function iniciarSesion() {
 
     estado.sesion = r.sesion;
     estado.institucionUsuario = r.institucionUsuario || null;
+    var esDirTitulos = Boolean(r.sesion && r.sesion.esDirectoraTitulos);
     if ($('btnTopImportar')) {
-      $('btnTopImportar').hidden = !(r.sesion.puedeCargar || r.sesion.verTodo || r.sesion.esTitulos);
+      $('btnTopImportar').hidden = esDirTitulos || !(r.sesion.puedeCargar || r.sesion.verTodo || r.sesion.esTitulos);
+    }
+    if ($('btnTopUsuarios')) {
+      $('btnTopUsuarios').hidden = !r.sesion.puedeAdministrarUsuarios;
     }
     if ($('btnTopDashboard')) {
       $('btnTopDashboard').hidden = !(r.sesion.verTodo || r.sesion.esTitulos);
@@ -325,7 +329,15 @@ async function iniciarSesion() {
     var pestaniaGuardada = localStorage.getItem('lm_pestania') || 'notas';
     var existeCursoGuardado = cursoGuardado && estado.cursos.some(function (c) { return c.id === cursoGuardado; });
 
-    if (vistaGuardada === 'curso' && existeCursoGuardado) {
+    if (esDirTitulos) {
+      if (vistaGuardada === 'bandeja') {
+        verBandejaTitulos();
+      } else if (vistaGuardada === 'nomina') {
+        verNominaEscuela();
+      } else {
+        verResumen();
+      }
+    } else if (vistaGuardada === 'curso' && existeCursoGuardado) {
       abrirCurso(cursoGuardado, pestaniaGuardada);
     } else if (vistaGuardada === 'nomina') {
       verNominaEscuela(existeCursoGuardado ? cursoGuardado : '');
@@ -1919,6 +1931,9 @@ async function verBandejaTitulos() {
   try {
     var r = await llamar('/api/solicitudes');
     var solicitudes = r.solicitudes || [];
+    var esDirTitulos = Boolean(estado.sesion && estado.sesion.esDirectoraTitulos);
+    var puedeAprobarBandeja = Boolean(estado.sesion && estado.sesion.puedeAprobarTitulos !== false && !esDirTitulos);
+    var puedeVerRacBandeja = Boolean(!estado.sesion || (estado.sesion.puedeVerRac !== false && !esDirTitulos));
 
     var nPendientes = solicitudes.filter(function (s) { return s.estado === 'Pendiente'; }).length;
     var nAprobados = solicitudes.filter(function (s) { return s.estado === 'Aprobado'; }).length;
@@ -1934,9 +1949,9 @@ async function verBandejaTitulos() {
       if (s.estado === 'Aprobado') badgeClass = 'badge-aprobado';
       else if (s.estado === 'Observado') badgeClass = 'badge-observado';
 
-      var checkHtml = (s.estado !== 'Aprobado')
+      var checkHtml = (puedeAprobarBandeja && s.estado !== 'Aprobado')
         ? '<input type="checkbox" class="chk-sol" value="' + esc(s.id) + '">'
-        : '<span style="color:#137333">✓</span>';
+        : (s.estado === 'Aprobado' ? '<span style="color:#137333">✓</span>' : '—');
 
       var detalleEstado = '';
       if (s.estado === 'Aprobado') {
@@ -1946,14 +1961,18 @@ async function verBandejaTitulos() {
       }
 
       var accionesHtml = '';
-      if (s.estado !== 'Aprobado') {
-        accionesHtml =
-          '<button class="boton" style="padding:4px 10px;font-size:12px" onclick="abrirModalAprobar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ')">Aprobar</button> ' +
-          '<button class="boton suave" style="padding:4px 10px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ')">Observar</button>';
+      if (puedeAprobarBandeja) {
+        if (s.estado !== 'Aprobado') {
+          accionesHtml =
+            '<button class="boton" style="padding:4px 10px;font-size:12px" onclick="abrirModalAprobar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ')">Aprobar</button> ' +
+            '<button class="boton suave" style="padding:4px 10px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ')">Observar</button>';
+        } else {
+          accionesHtml = '<span style="color:var(--suave);font-size:12px">Calificaciones congeladas</span>';
+        }
       } else {
-        accionesHtml = '<span style="color:var(--suave);font-size:12px">Calificaciones congeladas</span>';
+        accionesHtml = '<span style="color:var(--suave);font-size:12px">Consulta de estado</span>';
       }
-      var verRacBtn = s.idCurso
+      var verRacBtn = (puedeVerRacBandeja && s.idCurso)
         ? ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="abrirCurso(' + escJsArg(s.idCurso) + ', \'notas\')">Ver RAC</button>'
         : '';
 
@@ -1974,12 +1993,12 @@ async function verBandejaTitulos() {
 
     $('main').innerHTML =
       '<h1>Bandeja de Entrada · Dirección de Títulos</h1>' +
-      '<p style="color:var(--suave)">Gestión, revisión centralizada y emisión de certificados de Formación Profesional.</p>' +
+      '<p style="color:var(--suave)">' + (esDirTitulos ? 'Supervisión de pedidos pendientes, observados y aprobados de Formación Profesional (modo consulta sin aprobación ni acceso a RAC).' : 'Gestión, revisión centralizada y emisión de certificados de Formación Profesional.') + '</p>' +
 
       '<div class="acciones" style="margin:12px 0">' +
-        '<button class="boton" id="btnVerCursosRac" style="background:#1F4E78">📚 Ver Cursos y RAC</button>' +
+        (puedeVerRacBandeja ? '<button class="boton" id="btnVerCursosRac" style="background:#1F4E78">📚 Ver Cursos y RAC</button>' : '') +
+        '<button class="boton" id="btnDashboardTitulos" style="background:#1F4E78">📊 Dashboard de Estadísticas</button>' +
         '<button class="boton suave" id="btnNominaTitulos">📋 Nómina de Egresados</button>' +
-        '<button class="boton suave" id="btnDashboardTitulos">📊 Dashboard de Estadísticas</button>' +
       '</div>' +
 
       '<div style="display:flex;gap:12px;margin:16px 0;flex-wrap:wrap">' +
@@ -1989,12 +2008,14 @@ async function verBandejaTitulos() {
         '<button class="boton ' + (estado.filtroBandeja === 'Todos' ? '' : 'suave') + '" id="f_tod">Todos (' + solicitudes.length + ')</button>' +
       '</div>' +
 
-      '<div class="acciones" style="background:#fff;padding:10px 14px;border:1px solid var(--borde);border-radius:6px">' +
-        '<label style="display:flex;align-items:center;gap:6px;font-weight:600">' +
-          '<input type="checkbox" id="chkTodos"> Seleccionar todos' +
-        '</label>' +
-        '<button class="boton" id="btnAprobarLote" disabled>Aprobar seleccionados en lote</button>' +
-      '</div>' +
+      (puedeAprobarBandeja
+        ? '<div class="acciones" style="background:#fff;padding:10px 14px;border:1px solid var(--borde);border-radius:6px">' +
+            '<label style="display:flex;align-items:center;gap:6px;font-weight:600">' +
+              '<input type="checkbox" id="chkTodos"> Seleccionar todos' +
+            '</label>' +
+            '<button class="boton" id="btnAprobarLote" disabled>Aprobar seleccionados en lote</button>' +
+          '</div>'
+        : '') +
 
       '<div class="tabla-ancha"><table><thead><tr>' +
         '<th style="width:36px;text-align:center">✓</th>' +
@@ -2015,10 +2036,12 @@ async function verBandejaTitulos() {
 
     var chkTodos = $('chkTodos');
     var chks = document.querySelectorAll('.chk-sol');
-    chkTodos.addEventListener('change', function () {
-      chks.forEach(function (c) { c.checked = chkTodos.checked; });
-      actualizarBotonLote();
-    });
+    if (chkTodos) {
+      chkTodos.addEventListener('change', function () {
+        chks.forEach(function (c) { c.checked = chkTodos.checked; });
+        actualizarBotonLote();
+      });
+    }
 
     chks.forEach(function (c) {
       c.addEventListener('change', actualizarBotonLote);
@@ -2027,25 +2050,28 @@ async function verBandejaTitulos() {
     function actualizarBotonLote() {
       var seleccionados = Array.from(document.querySelectorAll('.chk-sol:checked'));
       var btn = $('btnAprobarLote');
+      if (!btn) return;
       btn.disabled = seleccionados.length === 0;
       btn.textContent = 'Aprobar seleccionados en lote (' + seleccionados.length + ')';
     }
 
-    $('btnAprobarLote').addEventListener('click', async function () {
-      var ids = Array.from(document.querySelectorAll('.chk-sol:checked')).map(function (c) { return c.value; });
-      if (!ids.length) return;
-      if (!confirm('¿Confirma la aprobación en lote de ' + ids.length + ' certificado(s)? Se generarán números correlativos oficiales y las notas quedarán congeladas.')) {
-        return;
-      }
-      avisar('Aprobando en lote…');
-      try {
-        var res = await llamar('/api/solicitudes/aprobar-lote', 'POST', { ids: ids });
-        avisar('¡Se aprobaron ' + res.cantidad + ' certificados con éxito!', 'ok');
-        verBandejaTitulos();
-      } catch (err) {
-        problema(err);
-      }
-    });
+    if ($('btnAprobarLote')) {
+      $('btnAprobarLote').addEventListener('click', async function () {
+        var ids = Array.from(document.querySelectorAll('.chk-sol:checked')).map(function (c) { return c.value; });
+        if (!ids.length) return;
+        if (!confirm('¿Confirma la aprobación en lote de ' + ids.length + ' certificado(s)? Se generarán números correlativos oficiales y las notas quedarán congeladas.')) {
+          return;
+        }
+        avisar('Aprobando en lote…');
+        try {
+          var res = await llamar('/api/solicitudes/aprobar-lote', 'POST', { ids: ids });
+          avisar('¡Se aprobaron ' + res.cantidad + ' certificados con éxito!', 'ok');
+          verBandejaTitulos();
+        } catch (err) {
+          problema(err);
+        }
+      });
+    }
 
   } catch (e) {
     problema(e);
@@ -2653,6 +2679,7 @@ async function verResumen() {
     var porTurno = est.porTurno || [];
     var obsPorEscuela = est.observacionesPorEscuela || [];
     var obsDetalle = est.observacionesDetalle || [];
+    var qrDetalle = est.consultasQrDetalle || [];
     var escuelasDisp = est.escuelasDisponibles || [];
     var cuesDisp = est.cuesDisponibles || [];
 
@@ -2681,9 +2708,10 @@ async function verResumen() {
             '<td style="text-align:center;color:#137333;font-weight:700">' + (i.certificadosAprobados || 0) + '</td>' +
             '<td style="text-align:center;color:#b06000">' + (i.certificadosPendientes || 0) + '</td>' +
             '<td style="text-align:center;color:#c5221f;font-weight:700">' + (i.certificadosObservados || 0) + '</td>' +
+            '<td style="text-align:center;color:#1F4E78;font-weight:700">' + (i.consultasQr || 0) + '</td>' +
           '</tr>';
         }).join('')
-      : '<tr><td colspan="10" style="text-align:center;color:var(--suave);padding:16px">No hay datos para los filtros aplicados.</td></tr>';
+      : '<tr><td colspan="11" style="text-align:center;color:var(--suave);padding:16px">No hay datos para los filtros aplicados.</td></tr>';
 
     function _renderMiniTabla(titulo, items, campoClave) {
       var rows = items.length
@@ -2726,6 +2754,19 @@ async function verResumen() {
         }).join('')
       : '<tr><td colspan="5" style="text-align:center;color:var(--suave);padding:14px">No se registran solicitudes observadas / errores para los filtros seleccionados.</td></tr>';
 
+    var filasQr = qrDetalle.length
+      ? qrDetalle.map(function (q) {
+          return '<tr>' +
+            '<td><b>' + esc(q.institucion) + '</b><br><small style="color:var(--suave)">CUE ' + esc(q.cue || '—') + '</small></td>' +
+            '<td>' + esc(q.oferta) + '<br><small style="color:var(--suave)">' + esc(q.ciclo) + '</small></td>' +
+            '<td><b>' + esc(q.estudiante) + '</b><br><small>DNI ' + esc(q.documento) + '</small></td>' +
+            '<td style="text-align:center;font-weight:700">' + esc(q.numeroCertificado || '—') + '</td>' +
+            '<td style="text-align:center;color:#1F4E78;font-weight:700">' + (q.consultasQr || 0) + '</td>' +
+            '<td style="text-align:center;font-size:12px">' + esc(q.ultimaConsultaQr || '—') + '</td>' +
+          '</tr>';
+        }).join('')
+      : '<tr><td colspan="6" style="text-align:center;color:var(--suave);padding:14px">Todavía no se registraron consultas externas mediante código QR.</td></tr>';
+
     $('main').innerHTML =
       '<div class="solo-impresion" style="text-align:center;margin-bottom:10px">' +
         '<div style="font-size:15px;font-weight:bold">SECRETARÍA DE GESTIÓN EDUCATIVA - DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL</div>' +
@@ -2733,8 +2774,9 @@ async function verResumen() {
       '</div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">' +
         '<div><h1>📊 Dashboard de Estadísticas</h1>' +
-        '<p style="color:var(--suave);margin:0">Indicadores académicos, certificación de Títulos y observaciones por escuela.</p></div>' +
+        '<p style="color:var(--suave);margin:0">Indicadores académicos, certificación de Títulos, consultas por QR y observaciones por escuela.</p></div>' +
         '<div class="acciones no-imprimir" style="margin:0">' +
+          '<button type="button" class="boton" id="btnDashVerPendientes" style="background:#137333">📥 Ver Pendientes de Títulos (' + (k.totalPendientesTitulos || 0) + ')</button>' +
           '<button type="button" class="boton suave" id="btnDashCsv">📥 Exportar CSV</button>' +
           '<button type="button" class="boton" id="btnDashImprimir">🖨️ Imprimir Dashboard</button>' +
         '</div>' +
@@ -2769,6 +2811,7 @@ async function verResumen() {
         '<div class="dash-kpi ok"><div class="dash-kpi-lbl">Certificados Aprobados</div><div class="dash-kpi-val" style="color:#137333">' + (k.totalCertificadosAprobados || 0) + '</div><div class="dash-kpi-sub">Tasa de titulación: ' + (k.tasaTitulacion || 0) + '%</div></div>' +
         '<div class="dash-kpi warn"><div class="dash-kpi-lbl">Pendientes en Títulos</div><div class="dash-kpi-val" style="color:#b06000">' + (k.totalPendientesTitulos || 0) + '</div><div class="dash-kpi-sub">En revisión</div></div>' +
         '<div class="dash-kpi mal"><div class="dash-kpi-lbl">Errores / Observaciones</div><div class="dash-kpi-val" style="color:#c5221f">' + (k.totalObservados || 0) + '</div><div class="dash-kpi-sub">Solicitudes observadas</div></div>' +
+        '<div class="dash-kpi"><div class="dash-kpi-lbl">📱 Consultas por QR</div><div class="dash-kpi-val" style="color:#1F4E78">' + (k.totalConsultasQr || 0) + '</div><div class="dash-kpi-sub">' + (k.certificadosConsultadosQr || 0) + ' cert. verificados por QR</div></div>' +
       '</div>' +
 
       '<div class="dash-card">' +
@@ -2794,7 +2837,7 @@ async function verResumen() {
           '<th style="text-align:center">Matriculados</th><th style="text-align:center">Aprobados</th>' +
           '<th style="text-align:center">Desaprobados</th><th style="text-align:center">Ausentes</th>' +
           '<th style="text-align:center">Cert. Aprobados</th><th style="text-align:center">Cert. Pendientes</th>' +
-          '<th style="text-align:center">Cert. Observados (Errores)</th>' +
+          '<th style="text-align:center">Cert. Observados (Errores)</th><th style="text-align:center">Consultas QR</th>' +
         '</tr></thead><tbody>' + filasEscuela + '</tbody></table></div>' +
       '</div>' +
 
@@ -2805,6 +2848,15 @@ async function verResumen() {
       '</div>' +
 
       '<div class="dash-card">' +
+        '<h3>📱 Consultas de Certificados por Código QR (' + (k.totalConsultasQr || 0) + ' consultas totales)</h3>' +
+        '<div class="tabla-ancha"><table><thead><tr>' +
+          '<th>Escuela / CUE</th><th>Curso</th><th>Estudiante / DNI</th>' +
+          '<th style="width:160px;text-align:center">N° Certificado</th><th style="width:110px;text-align:center">Veces Consultado</th>' +
+          '<th style="width:140px;text-align:center">Última Consulta QR</th>' +
+        '</tr></thead><tbody>' + filasQr + '</tbody></table></div>' +
+      '</div>' +
+
+      '<div class="dash-card">' +
         '<h3>Errores y Observaciones de Títulos (' + obsDetalle.length + ')</h3>' +
         obsBadgesHtml +
         '<div class="tabla-ancha"><table><thead><tr>' +
@@ -2812,6 +2864,13 @@ async function verResumen() {
           '<th style="width:130px;text-align:center">Fecha</th><th>Motivo de Error / Observación</th>' +
         '</tr></thead><tbody>' + filasObs + '</tbody></table></div>' +
       '</div>';
+
+    if ($('btnDashVerPendientes')) {
+      $('btnDashVerPendientes').addEventListener('click', function () {
+        estado.filtroBandeja = 'Pendiente';
+        verBandejaTitulos();
+      });
+    }
 
     if ($('btnDashAplicar')) {
       $('btnDashAplicar').addEventListener('click', function () {
@@ -2896,6 +2955,7 @@ async function verAdminUsuarios() {
               '<option value="Administrativo">Administrativo (Carga escuela)</option>' +
               '<option value="Directivo">Directivo (Consulta escuela)</option>' +
               '<option value="titulos">titulos (Dirección de Títulos)</option>' +
+              '<option value="Directora de Títulos">Directora de Títulos (Exclusivo Tatiana: Dashboard, QR y Pendientes)</option>' +
               '<option value="Dirección DETP">Dirección DETP (Crea/Borra usuarios)</option>' +
             '</select></div>' +
           '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">CUE (solo para escuelas)</label>' +

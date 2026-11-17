@@ -32,6 +32,14 @@ _USUARIOS_INICIALES: List[Dict[str, Any]] = [
         "Oficial": True
     },
     {
+        "Email": "tatiana.reinoso@jujuy.edu.ar",
+        "Nombre": "REINOSO TORRES Tatiana Marisel",
+        "Rol": Roles.DIRECTORA_TITULOS,
+        "CUE": "",
+        "Activo": "Sí",
+        "Oficial": True
+    },
+    {
         "Email": "titulos@jujuy.edu.ar",
         "Nombre": "Dirección de Títulos",
         "Rol": Roles.TITULOS,
@@ -195,10 +203,10 @@ def obtener_usuarios_panel() -> List[Dict[str, Any]]:
 def guardar_usuario_panel(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
     """
     Crea o actualiza un usuario en la administración centralizada.
-    EXCLUSIVO para el rol 'Dirección DETP' / 'titulos' (Coordinación y Dirección de Títulos).
+    EXCLUSIVO para usuarios con permiso puedeAdministrarUsuarios (Dirección DETP / Coordinación).
     """
-    if not (sesion_usr.get("puedeAdministrarUsuarios") or sesion_usr.get("rol") == Roles.DIRECCION or sesion_usr.get("esTitulos")):
-        raise PermissionDeniedException("Solo Dirección DETP / Coordinación / Dirección de Títulos pueden crear o modificar usuarios.")
+    if not sesion_usr.get("puedeAdministrarUsuarios"):
+        raise PermissionDeniedException("Tu rol no tiene permisos para crear o modificar usuarios.")
 
     email = str(datos.get("Email", "")).strip().lower()
     if not email or "@" not in email:
@@ -255,9 +263,9 @@ def guardar_usuario_panel(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> 
     return nuevo_item
 
 def eliminar_usuario_panel(email_objetivo: str, sesion_usr: Dict[str, Any]) -> bool:
-    """Elimina un usuario del registro (EXCLUSIVO para rol Dirección DETP / Dirección de Títulos)."""
-    if not (sesion_usr.get("puedeAdministrarUsuarios") or sesion_usr.get("rol") == Roles.DIRECCION or sesion_usr.get("esTitulos")):
-        raise PermissionDeniedException("Solo Dirección DETP / Coordinación / Dirección de Títulos pueden borrar usuarios.")
+    """Elimina un usuario del registro (EXCLUSIVO para usuarios con puedeAdministrarUsuarios)."""
+    if not sesion_usr.get("puedeAdministrarUsuarios"):
+        raise PermissionDeniedException("Tu rol no tiene permisos para borrar usuarios.")
 
     email_norm = str(email_objetivo or "").strip().lower()
     if email_norm == "sge.detp.areapedagogica@jujuy.edu.ar":
@@ -310,7 +318,9 @@ def sesion(email: Optional[str] = None) -> Dict[str, Any]:
     raw_cues = str(usuario_encontrado.get("CUE", "")).split(",")
     cues = [normalizar_cue(c) for c in raw_cues if normalizar_cue(c)]
 
-    es_nivel_central = (rol == Roles.DIRECCION or rol.lower() in ["titulos", "títulos"])
+    rol_low = rol.lower()
+    es_directora_titulos = (rol_low in ["directora de títulos", "directora de titulos"])
+    es_nivel_central = (rol == Roles.DIRECCION or rol_low in ["titulos", "títulos"] or es_directora_titulos)
     es_titulos = es_nivel_central
     ver_todo = es_nivel_central
     if not ver_todo and not cues:
@@ -327,7 +337,10 @@ def sesion(email: Optional[str] = None) -> Dict[str, Any]:
         "verTodo": ver_todo,
         "puedeCargar": (rol == Roles.ADMINISTRATIVO),
         "esTitulos": es_titulos,
-        "puedeAdministrarUsuarios": es_nivel_central
+        "esDirectoraTitulos": es_directora_titulos,
+        "puedeAprobarTitulos": bool(es_nivel_central and not es_directora_titulos),
+        "puedeVerRac": bool(not es_directora_titulos),
+        "puedeAdministrarUsuarios": bool(rol == Roles.DIRECCION or rol_low in ["titulos", "títulos"])
     }
 
 def alcanza_cue(s: Dict[str, Any], cue: Any) -> bool:

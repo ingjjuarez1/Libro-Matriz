@@ -1437,6 +1437,9 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
     tot_cert_aprobados = 0
     tot_cert_pendientes = 0
     tot_cert_observados = 0
+    tot_consultas_qr = 0
+    tot_cert_consultados_qr = 0
+    qr_detalle: List[Dict[str, Any]] = []
 
     for c in cursos_todos:
         try:
@@ -1536,7 +1539,8 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
                 "ausentes": 0,
                 "certificadosAprobados": 0,
                 "certificadosPendientes": 0,
-                "certificadosObservados": 0
+                "certificadosObservados": 0,
+                "consultasQr": 0
             }
         por_institucion[k_inst]["cursos"] += 1
 
@@ -1560,6 +1564,7 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
 
         for e, es_aprobado, es_ausente, st_cert in estudiantes_filtrados:
             sol_e = e.get("solicitudCertificado") or {}
+            cant_qr_est = int(sol_e.get("consultasQr") or 0)
             tot_matriculados += 1
             if es_aprobado:
                 tot_aprobados += 1
@@ -1567,6 +1572,20 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
                 tot_desaprobados += 1
             if es_ausente:
                 tot_ausentes += 1
+            if cant_qr_est > 0:
+                tot_consultas_qr += cant_qr_est
+                tot_cert_consultados_qr += 1
+                qr_detalle.append({
+                    "cue": cue_c,
+                    "institucion": inst_c,
+                    "oferta": oferta_c,
+                    "ciclo": texto(enc.get("ciclo") or c.get("ciclo")),
+                    "documento": texto(e.get("documento")),
+                    "estudiante": f"{texto(e.get('apellido')).upper()}, {texto(e.get('nombres'))}".strip(", "),
+                    "numeroCertificado": texto(sol_e.get("numeroCertificado")),
+                    "consultasQr": cant_qr_est,
+                    "ultimaConsultaQr": texto(sol_e.get("ultimaConsultaQr"))
+                })
             if st_cert == EstadoCertificado.APROBADO:
                 tot_cert_aprobados += 1
             elif st_cert == EstadoCertificado.PENDIENTE:
@@ -1604,6 +1623,7 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
                 row_inst["certificadosPendientes"] += 1
             elif st_cert == EstadoCertificado.OBSERVADO:
                 row_inst["certificadosObservados"] += 1
+            row_inst["consultasQr"] = int(row_inst.get("consultasQr") or 0) + cant_qr_est
 
             for grp_map, grp_key in ((por_oferta, oferta_c), (por_familia, familia_c), (por_turno, turno_c)):
                 g = grp_map[grp_key]
@@ -1647,7 +1667,9 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
             "totalCertificadosAprobados": tot_cert_aprobados,
             "tasaTitulacion": tasa_titulacion,
             "totalPendientesTitulos": tot_cert_pendientes,
-            "totalObservados": tot_cert_observados
+            "totalObservados": tot_cert_observados,
+            "totalConsultasQr": tot_consultas_qr,
+            "certificadosConsultadosQr": tot_cert_consultados_qr
         },
         "porEscuela": _enriquecer_pct(list(por_institucion.values()), "institucion"),
         "porOferta": _enriquecer_pct(list(por_oferta.values()), "oferta"),
@@ -1655,6 +1677,7 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
         "porTurno": _enriquecer_pct(list(por_turno.values()), "turno"),
         "observacionesPorEscuela": sorted(list(obs_por_escuela_map.values()), key=lambda x: x["institucion"]),
         "observacionesDetalle": obs_detalle,
+        "consultasQrDetalle": sorted(qr_detalle, key=lambda x: x.get("consultasQr", 0), reverse=True),
         "escuelasDisponibles": sorted(list(escuelas_disp_map.keys())),
         "cuesDisponibles": sorted(list(cues_disp_set))
     }

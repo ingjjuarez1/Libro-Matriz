@@ -73,6 +73,9 @@ async def api_inicio(request: Request) -> JSONResponse:
                 "puedeCargar": s["puedeCargar"],
                 "verTodo": s["verTodo"],
                 "esTitulos": bool(s.get("esTitulos")),
+                "esDirectoraTitulos": bool(s.get("esDirectoraTitulos")),
+                "puedeAprobarTitulos": bool(s.get("puedeAprobarTitulos", s.get("esTitulos"))),
+                "puedeVerRac": bool(s.get("puedeVerRac", True)),
                 "puedeAdministrarUsuarios": bool(s.get("puedeAdministrarUsuarios"))
             },
             "institucionUsuario": obtener_institucion_usuario(s),
