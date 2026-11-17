@@ -783,11 +783,11 @@ function pintarNotas() {
       var condAcadRac = _estadoAcademicoEstudiante(es);
       if (estCert === 'Aprobado') {
         celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;white-space:nowrap">' +
-          '<span class="badge-estado badge-aprobado" title="Certificado Aprobado">APROBADO (' + esc(solEst.numeroCertificado || '') + ')</span></td>';
+          '<span class="badge-estado badge-aprobado" title="Certificado Emitido: ' + esc(solEst.numeroCertificado || '') + '">APROBADO</span></td>';
       } else if (condAcadRac === 'APROBADO') {
         cantElegiblesSinAprobar++;
         celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;white-space:nowrap">' +
-          '<button type="button" class="boton" style="padding:3px 8px;font-size:11px;background:#137333" onclick="aprobarTitulosCurso([' + escJsArg(es.documento) + '], \'notas\')">✅ Aprobar</button></td>';
+          '<span class="badge-estado badge-aprobado" style="cursor:pointer" title="Clic para aprobar certificado oficial" onclick="aprobarTitulosCurso([' + escJsArg(es.documento) + '], \'notas\')">APROBADO</span></td>';
       } else if (condAcadRac === 'DESAPROBADO') {
         celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;white-space:nowrap"><span class="badge-estado badge-observado">DESAPROBADO</span></td>';
       } else {
@@ -1333,13 +1333,13 @@ function pintarSolicitudesCurso() {
         accionHtml = '<span class="badge-estado badge-no-solicitado">AUSENTE</span>';
       }
     } else if (st === 'Aprobado') {
-      accionHtml = '<span class="badge-estado badge-aprobado">APROBADO (' + esc(sol.numeroCertificado) + ')</span>';
+      accionHtml = '<span class="badge-estado badge-aprobado" title="Certificado N° ' + esc(sol.numeroCertificado || '') + '">APROBADO</span>';
     } else if (esTitulos) {
       cantElegiblesPend++;
       var nombreEst = (es.apellido || '') + ', ' + (es.nombres || '');
-      accionHtml = '<button type="button" class="boton" style="background:#137333" onclick="aprobarTitulosCurso([' + escJsArg(es.documento) + '], \'solicitudes\')">✅ Aprobar</button>';
+      accionHtml = '<span class="badge-estado badge-aprobado" style="cursor:pointer" title="Clic para aprobar certificado oficial" onclick="aprobarTitulosCurso([' + escJsArg(es.documento) + '], \'solicitudes\')">APROBADO</span>';
       if (st === 'Pendiente' && sol.idSolicitud) {
-        accionHtml += ' <button type="button" class="boton suave" style="color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(' + escJsArg(sol.idSolicitud) + ', ' + escJsArg(nombreEst) + ', true)">Observar</button>';
+        accionHtml += ' <button type="button" class="boton suave" style="padding:2px 6px;font-size:11px;color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(' + escJsArg(sol.idSolicitud) + ', ' + escJsArg(nombreEst) + ', true)">Observar</button>';
       }
     } else {
       if (st === 'No solicitado') {
@@ -1363,9 +1363,11 @@ function pintarSolicitudesCurso() {
       '<td>' + esc(es.situacion || '—') + '</td>' +
       '<td style="text-align:center"><span class="badge-estado ' + badgeClass + '">' + esc(st) + '</span></td>' +
       '<td style="text-align:center;font-weight:bold">' + esc(sol.numeroCertificado || '—') + '</td>' +
-      '<td style="text-align:center">' +
-        accionHtml +
-        ' <button class="boton suave" style="margin-left:4px" onclick="verAnaliticoEstudiante(' + escJsArg(es.documento) + ')">Ver Analítico</button>' +
+      '<td style="text-align:center;white-space:nowrap">' +
+        '<div style="display:inline-flex;align-items:center;justify-content:center;gap:10px">' +
+          '<span style="display:inline-block;min-width:105px;text-align:center">' + accionHtml + '</span>' +
+          '<button class="boton suave" style="margin:0" onclick="verAnaliticoEstudiante(' + escJsArg(es.documento) + ')">Ver Analítico</button>' +
+        '</div>' +
       '</td>' +
     '</tr>';
   }).join('');
