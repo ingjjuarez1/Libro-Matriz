@@ -3,6 +3,7 @@ Rutas API REST para Libro Matriz FP.
 Reemplaza todas las llamadas de google.script.run.
 """
 
+import html
 import json
 import base64
 from typing import Dict, Any, Optional
@@ -29,13 +30,13 @@ from backend.app.services.titulos_service import (
     validar_certificado_por_numero, registrar_impresion_certificado
 )
 
-def get_current_user_email(request: Request) -> str:
+def get_current_user_email(request: Request, allow_default: bool = False) -> str:
     """
     Obtiene el email del usuario desde:
     1. Header 'X-User-Email'
     2. Header 'Authorization: Bearer <email_o_token>'
     3. Query parameter '?email=...'
-    4. Por defecto para pruebas: primer usuario activo del Panel
+    4. Por defecto (solo si allow_default=True): primer usuario activo del Panel
     """
     email = request.headers.get("x-user-email")
     if not email:
@@ -45,7 +46,7 @@ def get_current_user_email(request: Request) -> str:
         if auth_header.startswith("Bearer "):
             email = auth_header.split(" ", 1)[1]
     
-    if not email:
+    if not email and allow_default:
         usuarios = obtener_usuarios_panel()
         if usuarios:
             email = usuarios[0].get("Email", "")
@@ -85,10 +86,18 @@ async def api_inicio(request: Request) -> JSONResponse:
 async def api_sincronizar_cursos(request: Request) -> JSONResponse:
     """Sincroniza en el servidor los cursos importados o creados almacenados en el navegador."""
     try:
+        email = get_current_user_email(request, allow_default=False)
+        s = sesion(email)
+        if not s.get("puedeCargar"):
+            raise PermissionDeniedException(
+                f"Tu rol ({s.get('rol')}) es de consulta: no puedes sincronizar cursos."
+            )
         body = await request.json()
         paquetes = body.get("paquetes", {})
-        restaurados = sincronizar_cursos_locales(paquetes)
+        restaurados = sincronizar_cursos_locales(paquetes, sesion_usr=s)
         return JSONResponse({"ok": True, "restaurados": restaurados})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
@@ -109,6 +118,8 @@ async def api_curso(request: Request) -> JSONResponse:
         datos["puedeCargar"] = bool(s["puedeCargar"] and str(curso.get("estado")).lower() != "cerrado")
         
         return JSONResponse({"ok": True, "datos": datos, "paquete": _CURSOS_IMPORTADOS.get(id_curso)})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
@@ -136,16 +147,24 @@ async def api_guardar_estudiante(request: Request) -> JSONResponse:
         
         res = guardar_estudiante(id_curso, body, s)
         return JSONResponse({"ok": True, "fila": res["fila"], "estudiante": res.get("estudiante"), "paquete": res.get("paquete")})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 async def api_crear_curso(request: Request) -> JSONResponse:
     try:
-        email = get_current_user_email(request)
+        email = get_current_user_email(request, allow_default=False)
         s = sesion(email)
+        if not s.get("puedeCargar"):
+            raise PermissionDeniedException(
+                f"Tu rol ({s.get('rol')}) es de consulta: no puedes crear cursos."
+            )
         body = await request.json()
         curso = crear_curso_manual(body, s)
         return JSONResponse({"ok": True, "curso": curso, "paquete": _CURSOS_IMPORTADOS.get(curso["id"])})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
@@ -157,6 +176,8 @@ async def api_acta(request: Request) -> JSONResponse:
         
         datos_acta = leer_acta(id_curso, s)
         return JSONResponse({"ok": True, "acta": datos_acta})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
@@ -171,6 +192,8 @@ async def api_guardar_acta(request: Request) -> JSONResponse:
         cambios = body.get("cambios", [])
         res = guardar_acta(id_curso, mesa, cambios, s)
         return JSONResponse({"ok": True, "guardados": res["guardados"], "paquete": res.get("paquete")})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
@@ -186,6 +209,8 @@ async def api_analitico(request: Request) -> JSONResponse:
         
         res = obtener_analitico(id_curso, documento, fecha, certificado, s)
         return JSONResponse({"ok": True, "analitico": res})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
@@ -233,29 +258,49 @@ async def api_usuarios(request: Request) -> JSONResponse:
 
 async def api_instalar_panel(request: Request) -> JSONResponse:
     try:
-        email = get_current_user_email(request)
-        body = await request.json() if request.method == "POST" else {}
+        email = get_current_user_email(request, allow_default=False)
+        s = sesion(email)
+        if not (s.get("puedeAdministrarUsuarios") or s.get("verTodo")):
+            raise PermissionDeniedException("Solo Dirección DETP / Coordinación puede instalar el panel.")
+        try:
+            body = await request.json() if request.method == "POST" else {}
+        except Exception:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
         admin = body.get("adminEmail", email)
         res = instalar_panel(admin)
         return JSONResponse({"ok": True, "panel": res})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 async def api_importar_cursos(request: Request) -> JSONResponse:
     try:
+        email = get_current_user_email(request, allow_default=False)
+        s = sesion(email)
+        if not (s.get("puedeAdministrarUsuarios") or s.get("verTodo")):
+            raise PermissionDeniedException("Solo Dirección DETP / Coordinación puede importar cursos desde Drive.")
         body = await request.json()
         folder_id = body.get("folderId")
         panel_id = body.get("panelId", PANEL_ID)
         cantidad = importar_cursos_de_carpeta(folder_id, panel_id)
         return JSONResponse({"ok": True, "importados": cantidad})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 async def api_importar_excel(request: Request) -> JSONResponse:
     """Recibe un Viejo Excel (.xlsm o .xlsx) en base64 y crea el curso con su nómina y notas."""
     try:
-        email = get_current_user_email(request)
+        email = get_current_user_email(request, allow_default=False)
         s = sesion(email)
+        if not s.get("puedeCargar"):
+            raise PermissionDeniedException(
+                f"Tu rol ({s.get('rol')}) es de consulta: no puedes importar cursos."
+            )
         body = await request.json()
         nombre_archivo = str(body.get("nombreArchivo", "")).strip()
         b64_str = str(body.get("contenidoBase64", "")).strip()
@@ -295,6 +340,8 @@ async def api_crear_solicitud(request: Request) -> JSONResponse:
     try:
         email = get_current_user_email(request)
         s = sesion(email)
+        if not s.get("puedeCargar"):
+            raise PermissionDeniedException("Tu rol es de consulta: no puedes solicitar certificados.")
         body = await request.json()
         id_curso = body.get("idCurso", "")
         documento = body.get("documento", "")
@@ -536,23 +583,45 @@ async def pagina_validar_certificado(request: Request) -> HTMLResponse:
     cue_limpio = "".join(ch for ch in str(cue_est) if ch.isdigit()) or "380061200"
     corr_5 = "".join(ch for ch in folio_est if ch.isdigit()).zfill(5) if any(ch.isdigit() for ch in folio_est) else "00001"
     nro_mostrar = res.get("numeroCertificado") or nro or f"{ciclo_est}-{cue_limpio}-{corr_5}"
+    fecha_aprob = res.get("fechaAprobacion") or ""
+
+    def _esc(val: Any) -> str:
+        return html.escape(str(val if val is not None else ""), quote=True)
+
+    nombre_est_esc = _esc(nombre_est)
+    doc_est_esc = _esc(doc_est)
+    fecha_nac_esc = _esc(fecha_nac)
+    lugar_nac_esc = _esc(lugar_nac)
+    oferta_est_esc = _esc(oferta_est)
+    nro_mostrar_esc = _esc(nro_mostrar)
+    inst_est_esc = _esc(inst_est)
+    cue_est_esc = _esc(cue_est)
+    libro_est_esc = _esc(libro_est)
+    folio_est_esc = _esc(folio_est)
+    ciclo_est_esc = _esc(ciclo_est)
+    fecha_aprob_esc = _esc(fecha_aprob)
 
     badge = '<div style="background:#e6f4ea;border:2px solid #34a853;color:#137333;padding:14px;border-radius:8px;font-size:16px;font-weight:bold;text-align:center;margin:16px 0">✅ VERIFICACIÓN OFICIAL · DATOS DEL EGRESADO Y REGISTRO DE DIPLOMA</div>'
+    fila_fecha_aprob = (
+        f'<tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Fecha de Aprobación:</b></td><td style="padding:9px 6px">{fecha_aprob_esc}</td></tr>'
+        if fecha_aprob_esc else ""
+    )
     detalle = f"""
     <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:14px">
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555;width:46%"><b>Apellido y Nombres:</b></td><td style="padding:9px 6px"><b>{nombre_est}</b></td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Documento (DNI):</b></td><td style="padding:9px 6px"><b>{doc_est}</b></td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Fecha de Nacimiento:</b></td><td style="padding:9px 6px">{fecha_nac}</td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Lugar de Nacimiento:</b></td><td style="padding:9px 6px">{lugar_nac}</td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee;background:#f8fbff"><td style="padding:9px 6px;color:#1F4E78"><b>Se recibió de (Certificación):</b></td><td style="padding:9px 6px;color:#1F4E78"><b>{oferta_est}</b></td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee;background:#f8fbff"><td style="padding:9px 6px;color:#1F4E78"><b>N° de Registro de Diploma:</b></td><td style="padding:9px 6px;color:#1F4E78"><b>{nro_mostrar}</b></td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Institución de la que egresó:</b></td><td style="padding:9px 6px"><b>{inst_est}</b> (CUE {cue_est})</td></tr>
-      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Libro Actas / Folio:</b></td><td style="padding:9px 6px">Libro Actas N° {libro_est} · Folio N° {folio_est}</td></tr>
-      <tr><td style="padding:9px 6px;color:#555"><b>Cohorte / Ciclo Lectivo:</b></td><td style="padding:9px 6px">{ciclo_est}</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555;width:46%"><b>Apellido y Nombres:</b></td><td style="padding:9px 6px"><b>{nombre_est_esc}</b></td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Documento (DNI):</b></td><td style="padding:9px 6px"><b>{doc_est_esc}</b></td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Fecha de Nacimiento:</b></td><td style="padding:9px 6px">{fecha_nac_esc}</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Lugar de Nacimiento:</b></td><td style="padding:9px 6px">{lugar_nac_esc}</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee;background:#f8fbff"><td style="padding:9px 6px;color:#1F4E78"><b>Se recibió de (Certificación):</b></td><td style="padding:9px 6px;color:#1F4E78"><b>{oferta_est_esc}</b></td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee;background:#f8fbff"><td style="padding:9px 6px;color:#1F4E78"><b>N° de Registro de Diploma:</b></td><td style="padding:9px 6px;color:#1F4E78"><b>{nro_mostrar_esc}</b></td></tr>
+      {fila_fecha_aprob}
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Institución de la que egresó:</b></td><td style="padding:9px 6px"><b>{inst_est_esc}</b> (CUE {cue_est_esc})</td></tr>
+      <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Libro Actas / Folio:</b></td><td style="padding:9px 6px">Libro Actas N° {libro_est_esc} · Folio N° {folio_est_esc}</td></tr>
+      <tr><td style="padding:9px 6px;color:#555"><b>Cohorte / Ciclo Lectivo:</b></td><td style="padding:9px 6px">{ciclo_est_esc}</td></tr>
     </table>
     """
 
-    html = f"""<!DOCTYPE html>
+    html_doc = f"""<!DOCTYPE html>
     <html lang="es-AR">
     <head>
       <meta charset="utf-8">
@@ -575,4 +644,4 @@ async def pagina_validar_certificado(request: Request) -> HTMLResponse:
       </div>
     </body>
     </html>"""
-    return HTMLResponse(html)
+    return HTMLResponse(html_doc)

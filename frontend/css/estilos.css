@@ -662,35 +662,30 @@ td.nota input.baja {
 
 .badge-estado {
   display: inline-block;
-  padding: 3px 9px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
+  padding: 0;
+  border-radius: 0;
+  font-size: 11.5px;
+  font-weight: 700;
   white-space: nowrap;
+  background: transparent !important;
+  border: none !important;
+  text-transform: uppercase;
 }
 
 .badge-pendiente {
-  background: #fef7e0;
   color: #b06000;
-  border: 1px solid #f9ab00;
 }
 
 .badge-observado {
-  background: #fce8e6;
-  color: #c5221f;
-  border: 1px solid #ea4335;
+  color: #b3261e;
 }
 
 .badge-aprobado {
-  background: #e6f4ea;
   color: #137333;
-  border: 1px solid #34a853;
 }
 
 .badge-no-solicitado {
-  background: #f1f3f4;
-  color: #5f6368;
-  border: 1px solid #dadce0;
+  color: #444444;
 }
 
 .alerta-observacion {
@@ -878,15 +873,175 @@ td.nota input:disabled {
   position: static;
 }
 
+.modo-medicion-impresion {
+  width: 1040px !important;
+  max-width: 1040px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #fff !important;
+}
+
+.modo-medicion-impresion.medicion-vertical {
+  width: 700px !important;
+  max-width: 700px !important;
+}
+
 .modo-medicion-impresion .solo-impresion {
   display: block !important;
 }
 
+.modo-medicion-impresion .barra,
+.modo-medicion-impresion .migas,
+.modo-medicion-impresion .pestanias,
 .modo-medicion-impresion .no-imprimir,
 .modo-medicion-impresion .acciones,
 .modo-medicion-impresion .alerta-congelado,
+.modo-medicion-impresion #bannerEstadoAnalitico,
+.modo-medicion-impresion .aviso,
+.modo-medicion-impresion main > h1,
+.modo-medicion-impresion main > p,
+.modo-medicion-impresion .ficha,
 .modo-medicion-impresion #panel > h2 {
   display: none !important;
+}
+
+.modo-medicion-impresion main,
+.modo-medicion-impresion .panel {
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: #fff !important;
+}
+
+.modo-medicion-impresion .inp-mesa,
+.modo-medicion-impresion .sel-acredita-est {
+  border: none !important;
+  background: transparent !important;
+  color: #000 !important;
+  padding: 0 !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  font-size: 8px !important;
+  line-height: 1.1 !important;
+  max-width: 74px !important;
+}
+
+.modo-medicion-impresion .tabla-ancha {
+  max-height: none !important;
+  height: auto !important;
+  overflow: visible !important;
+  border: none !important;
+}
+
+.modo-medicion-impresion .tabla-ancha table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 8.5px !important;
+  line-height: 1.15 !important;
+}
+
+.modo-medicion-impresion .tabla-ancha th,
+.modo-medicion-impresion .tabla-ancha td,
+.modo-medicion-impresion thead tr:nth-child(2) th {
+  position: static !important;
+  border: 1px solid #333 !important;
+  padding: 1.5px 2px !important;
+  line-height: 1.15 !important;
+}
+
+.modo-medicion-impresion th.col-meta-nro {
+  width: 20px !important;
+}
+
+.modo-medicion-impresion th.col-meta-doc,
+.modo-medicion-impresion th.col-meta-fnac,
+.modo-medicion-impresion th.col-meta-prov,
+.modo-medicion-impresion th.col-meta-pais,
+.modo-medicion-impresion th.col-acredita-rac {
+  width: auto !important;
+  white-space: nowrap !important;
+}
+
+.modo-medicion-impresion thead th.mod {
+  height: 112px !important;
+  width: 26px !important;
+  min-width: 24px !important;
+  max-width: 28px !important;
+  padding: 3px 1px !important;
+  vertical-align: bottom !important;
+}
+
+.modo-medicion-impresion thead th.mod .mod-txt {
+  max-height: 105px !important;
+  font-size: 8.5px !important;
+  line-height: 1.1 !important;
+  white-space: normal !important;
+}
+
+.modo-medicion-impresion th.col-nombre-est,
+.modo-medicion-impresion td.col-nombre-est {
+  white-space: nowrap !important;
+  width: 1% !important;
+}
+
+.modo-medicion-impresion .celda-acredita-rac {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 74px !important;
+  font-size: 8px !important;
+}
+
+.modo-medicion-impresion td.nota {
+  width: 26px !important;
+  min-width: 24px !important;
+  max-width: 28px !important;
+  padding: 1px !important;
+}
+
+.modo-medicion-impresion td.nota input {
+  border: none !important;
+  background: transparent !important;
+  width: 100% !important;
+  padding: 0 !important;
+  text-align: center !important;
+  font-weight: bold !important;
+  font-size: 8.5px !important;
+  line-height: 1.1 !important;
+  color: inherit !important;
+}
+
+.modo-medicion-impresion .pie-firmas-rac {
+  margin-top: 14px !important;
+}
+
+.modo-medicion-impresion .planilla-nomina {
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+.modo-medicion-impresion .tabla-nomina th,
+.modo-medicion-impresion .tabla-nomina td {
+  position: static !important;
+  border: 1px solid #222 !important;
+  padding: 3px 5px !important;
+  font-size: 10px !important;
+}
+
+.modo-medicion-impresion .hoja-oficial {
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 4mm 6mm !important;
+  max-width: 100% !important;
+  width: 100% !important;
 }
 
 /* ============================================================
@@ -1065,7 +1220,9 @@ td.nota input:disabled {
     appearance: none !important;
     -webkit-appearance: none !important;
     -moz-appearance: none !important;
-    font-size: 8.5px !important;
+    font-size: 8px !important;
+    line-height: 1.1 !important;
+    max-width: 74px !important;
   }
   .barra,
   .migas,
@@ -1100,13 +1257,26 @@ td.nota input:disabled {
     width: 100% !important;
     border-collapse: collapse !important;
     font-size: 8.5px !important;
+    line-height: 1.15 !important;
   }
   .tabla-ancha th,
   .tabla-ancha td,
   thead tr:nth-child(2) th {
     position: static !important;
     border: 1px solid #333 !important;
-    padding: 1.5px 2.5px !important;
+    padding: 1.5px 2px !important;
+    line-height: 1.15 !important;
+  }
+  th.col-meta-nro {
+    width: 20px !important;
+  }
+  th.col-meta-doc,
+  th.col-meta-fnac,
+  th.col-meta-prov,
+  th.col-meta-pais,
+  th.col-acredita-rac {
+    width: auto !important;
+    white-space: nowrap !important;
   }
   thead th.mod {
     height: 112px !important;
@@ -1127,6 +1297,13 @@ td.nota input:disabled {
     white-space: nowrap !important;
     width: 1% !important;
   }
+  .celda-acredita-rac {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 74px !important;
+    font-size: 8px !important;
+  }
   td.nota {
     width: 26px !important;
     min-width: 24px !important;
@@ -1141,10 +1318,11 @@ td.nota input:disabled {
     text-align: center !important;
     font-weight: bold !important;
     font-size: 8.5px !important;
+    line-height: 1.1 !important;
     color: inherit !important;
   }
   .pie-firmas-rac {
-    margin-top: 22px !important;
+    margin-top: 14px !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -1181,6 +1359,16 @@ td.nota input:disabled {
   }
   .impresion-bloqueada {
     display: none !important;
+  }
+  .badge-estado,
+  .badge-aprobado,
+  .badge-observado,
+  .badge-pendiente,
+  .badge-no-solicitado {
+    color: #000 !important;
+    background: transparent !important;
+    border: none !important;
+    font-weight: bold !important;
   }
 }
 

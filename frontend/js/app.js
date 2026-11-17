@@ -38,16 +38,50 @@ function _fmtFechaCorta(val) {
   return s;
 }
 
-function _esEstudianteElegibleTitulos(es) {
-  if (!es) return false;
-  var sit = String(es.situacion || '').trim();
-  if (sit.indexOf('Aprobó') !== 0) return false;
-  var nf = String(es.notaFinal || '').trim();
-  if (nf !== '') {
-    var num = parseFloat(nf.replace(',', '.'));
-    if (isNaN(num) || num < 7) return false;
+function _estadoAcademicoEstudiante(es) {
+  if (!es) return 'AUSENTE';
+  var notas = Array.isArray(es.notas) ? es.notas : [];
+  var tieneDesaprobado = false;
+  var tieneAusenteOVacio = false;
+  var cantCargadas = 0;
+
+  for (var i = 0; i < notas.length; i++) {
+    var v = String(notas[i] == null ? '' : notas[i]).trim().toUpperCase();
+    if (!v) {
+      tieneAusenteOVacio = true;
+      continue;
+    }
+    cantCargadas++;
+    if (v === 'AUS' || v === 'AUSENTE') {
+      tieneAusenteOVacio = true;
+    } else {
+      var n = parseFloat(v.replace(',', '.'));
+      if (!isNaN(n) && n < 7) {
+        tieneDesaprobado = true;
+      }
+    }
   }
-  return true;
+
+  var nf = String(es.notaFinal == null ? '' : es.notaFinal).trim().toUpperCase();
+  if (nf === 'AUS' || nf === 'AUSENTE') {
+    if (tieneDesaprobado) return 'DESAPROBADO';
+    return 'AUSENTE';
+  }
+  if (nf !== '') {
+    var numNf = parseFloat(nf.replace(',', '.'));
+    if (!isNaN(numNf)) {
+      if (numNf < 7 || tieneDesaprobado) return 'DESAPROBADO';
+      if (!tieneAusenteOVacio && cantCargadas > 0) return 'APROBADO';
+    }
+  }
+
+  if (tieneDesaprobado) return 'DESAPROBADO';
+  if (cantCargadas === 0 || tieneAusenteOVacio || nf === '') return 'AUSENTE';
+  return 'APROBADO';
+}
+
+function _esEstudianteElegibleTitulos(es) {
+  return _estadoAcademicoEstudiante(es) === 'APROBADO';
 }
 
 function _obtenerPaquetesLocales() {
@@ -140,7 +174,11 @@ async function llamar(url, metodo, cuerpo) {
 
 function esc(t) {
   return String(t == null ? '' : t)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function escJsArg(t) {
+  return esc(JSON.stringify(String(t == null ? '' : t)));
 }
 
 var tiempoAviso;
@@ -224,25 +262,7 @@ async function iniciarSesion() {
   $('main').innerHTML = '<div class="cargando">Iniciando sesión…</div>';
   try {
     var paqsLocales = _obtenerPaquetesLocales();
-    if (Object.keys(paqsLocales).length > 0) {
-      try {
-        await llamar('/api/sincronizar-cursos', 'POST', { paquetes: paqsLocales });
-      } catch (errSync) {
-        console.warn('No se pudo sincronizar cursos locales:', errSync);
-      }
-    }
     var r = await llamar('/api/inicio');
-    estado.sesion = r.sesion;
-    estado.institucionUsuario = r.institucionUsuario || null;
-    if ($('btnTopImportar')) {
-      $('btnTopImportar').hidden = !r.sesion.puedeCargar;
-    }
-    if ($('btnTopDashboard')) {
-      $('btnTopDashboard').hidden = !(r.sesion.verTodo || r.sesion.esTitulos);
-    }
-    var cursosServidor = r.cursos || [];
-    var idsPresentes = {};
-    cursosServidor.forEach(function (c) { if (c && c.id) idsPresentes[c.id] = true; });
     var cuesUsuario = (r.sesion && r.sesion.cues) ? r.sesion.cues : [];
     function _alcanzaCueCliente(cueCurso) {
       if (r.sesion && (r.sesion.verTodo || r.sesion.esTitulos)) return true;
@@ -255,13 +275,42 @@ async function iniciarSesion() {
         return cLimpio === uLimpio || (cBase && cBase === uBase);
       });
     }
+
+    var paqsPermitidos = {};
     Object.keys(paqsLocales).forEach(function (idLocal) {
       var p = paqsLocales[idLocal];
-      if (p && p.resumenCurso && p.resumenCurso.id && !idsPresentes[p.resumenCurso.id]) {
-        if (_alcanzaCueCliente(p.resumenCurso.cue)) {
-          cursosServidor.push(p.resumenCurso);
-          idsPresentes[p.resumenCurso.id] = true;
+      if (p && p.resumenCurso && p.resumenCurso.id && _alcanzaCueCliente(p.resumenCurso.cue)) {
+        paqsPermitidos[idLocal] = p;
+      }
+    });
+
+    if (r.sesion && r.sesion.puedeCargar && Object.keys(paqsPermitidos).length > 0) {
+      try {
+        var rSync = await llamar('/api/sincronizar-cursos', 'POST', { paquetes: paqsPermitidos });
+        if (rSync && rSync.restaurados > 0) {
+          r = await llamar('/api/inicio');
         }
+      } catch (errSync) {
+        console.warn('No se pudo sincronizar cursos locales:', errSync);
+      }
+    }
+
+    estado.sesion = r.sesion;
+    estado.institucionUsuario = r.institucionUsuario || null;
+    if ($('btnTopImportar')) {
+      $('btnTopImportar').hidden = !r.sesion.puedeCargar;
+    }
+    if ($('btnTopDashboard')) {
+      $('btnTopDashboard').hidden = !(r.sesion.verTodo || r.sesion.esTitulos);
+    }
+    var cursosServidor = r.cursos || [];
+    var idsPresentes = {};
+    cursosServidor.forEach(function (c) { if (c && c.id) idsPresentes[c.id] = true; });
+    Object.keys(paqsPermitidos).forEach(function (idLocal) {
+      var p = paqsPermitidos[idLocal];
+      if (p && p.resumenCurso && p.resumenCurso.id && !idsPresentes[p.resumenCurso.id]) {
+        cursosServidor.push(p.resumenCurso);
+        idsPresentes[p.resumenCurso.id] = true;
       }
     });
     estado.cursos = cursosServidor;
@@ -330,6 +379,18 @@ function verCursos() {
   var puedeCargar = Boolean(estado.sesion && estado.sesion.puedeCargar);
   var esTitulos = Boolean(estado.sesion && estado.sesion.esTitulos);
 
+  var aniosSet = { '2026': true, '2025': true, '2024': true };
+  (estado.cursos || []).forEach(function (c) {
+    var an = String(c.ciclo || '').trim();
+    if (an) aniosSet[an] = true;
+  });
+  var aniosLista = Object.keys(aniosSet).sort().reverse();
+  var anioSel = estado.filtroAnioCurso || '';
+  var opsAnios = '<option value="">Todos los años</option>' +
+    aniosLista.map(function (a) {
+      return '<option value="' + esc(a) + '"' + (anioSel === a ? ' selected' : '') + '>Año / Ciclo ' + esc(a) + '</option>';
+    }).join('');
+
   m.innerHTML =
     '<h1>Cursos' + (esTitulos ? ' y RAC' : '') + '</h1>' +
     '<p style="color:var(--suave);margin:0 0 12px">' + subtitulo + '</p>' +
@@ -341,7 +402,10 @@ function verCursos() {
       ((estado.sesion.verTodo || esTitulos) ? '<button class="boton suave" id="btnResumen">📊 Dashboard de Estadísticas</button>' : '') +
       (estado.sesion.puedeAdministrarUsuarios ? '<button class="boton suave" id="btnUsuarios">👤 Administrar Usuarios</button>' : '') +
     '</div>' +
-    '<input class="buscar" id="buscar" placeholder="Buscar por institución, oferta o CUE…">' +
+    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">' +
+      '<input class="buscar" id="buscar" style="margin:0;flex:1;min-width:240px" placeholder="Buscar por institución, oferta o CUE…">' +
+      '<select class="buscar" id="filtroAnioCurso" style="margin:0;width:auto;min-width:170px;font-weight:600">' + opsAnios + '</select>' +
+    '</div>' +
     '<div class="tarjetas" id="lista"></div>';
 
   if ($('btnNuevoCurso')) $('btnNuevoCurso').addEventListener('click', mostrarModalNuevoCurso);
@@ -351,12 +415,20 @@ function verCursos() {
   if ($('btnNominaEscuela')) $('btnNominaEscuela').addEventListener('click', function () { verNominaEscuela(); });
   if ($('btnUsuarios')) $('btnUsuarios').addEventListener('click', verAdminUsuarios);
   $('buscar').addEventListener('input', pintarLista);
+  if ($('filtroAnioCurso')) {
+    $('filtroAnioCurso').addEventListener('change', function () {
+      estado.filtroAnioCurso = $('filtroAnioCurso').value;
+      pintarLista();
+    });
+  }
   pintarLista();
 }
 
 function pintarLista() {
-  var q = ($('buscar').value || '').toLowerCase().trim();
+  var q = ($('buscar') ? $('buscar').value : '').toLowerCase().trim();
+  var anioFiltro = ($('filtroAnioCurso') ? $('filtroAnioCurso').value : (estado.filtroAnioCurso || '')).trim();
   var cs = estado.cursos.filter(function (c) {
+    if (anioFiltro && String(c.ciclo || '').trim() !== anioFiltro) return false;
     return !q || (c.institucion + ' ' + c.oferta + ' ' + c.cue + ' ' + c.ciclo).toLowerCase().indexOf(q) >= 0;
   });
   $('lista').innerHTML = cs.length ? cs.map(function (c) {
@@ -465,6 +537,7 @@ function _configurarPaginaImpresion(modo) {
 var _elementoZoomActivo = null;
 function _limpiarZoomImpresion() {
   document.body.classList.remove('modo-medicion-impresion');
+  document.body.classList.remove('medicion-vertical');
   if (_elementoZoomActivo) {
     _elementoZoomActivo.style.zoom = '';
     _elementoZoomActivo = null;
@@ -480,6 +553,9 @@ function _imprimirElementoEnUnaHoja(contenedor, orientacion) {
   }
   _limpiarZoomImpresion();
   document.body.classList.add('modo-medicion-impresion');
+  if (orientacion === 'a4-vertical') {
+    document.body.classList.add('medicion-vertical');
+  }
   var tablaWrap = contenedor.querySelector('.tabla-ancha');
   var prevMaxH = tablaWrap ? tablaWrap.style.maxHeight : '';
   var prevOverflow = tablaWrap ? tablaWrap.style.overflow : '';
@@ -494,6 +570,7 @@ function _imprimirElementoEnUnaHoja(contenedor, orientacion) {
     tablaWrap.style.overflow = prevOverflow;
   }
   document.body.classList.remove('modo-medicion-impresion');
+  document.body.classList.remove('medicion-vertical');
 
   // Área imprimible A4 apaisado con márgenes 5mm 7mm (~1040x710 px a 96dpi)
   var maxW = (orientacion === 'a4-vertical') ? 700 : 1040;
@@ -703,16 +780,18 @@ function pintarNotas() {
     if (esTitulos) {
       var solEst = es.solicitudCertificado || {};
       var estCert = solEst.estado || 'No solicitado';
-      var elegibleTit = _esEstudianteElegibleTitulos(es);
+      var condAcadRac = _estadoAcademicoEstudiante(es);
       if (estCert === 'Aprobado') {
         celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;white-space:nowrap">' +
-          '<span class="badge-estado badge-aprobado" title="Certificado Aprobado">🔒 ' + esc(solEst.numeroCertificado || 'Aprobado') + '</span></td>';
-      } else if (elegibleTit) {
+          '<span class="badge-estado badge-aprobado" title="Certificado Aprobado">APROBADO (' + esc(solEst.numeroCertificado || '') + ')</span></td>';
+      } else if (condAcadRac === 'APROBADO') {
         cantElegiblesSinAprobar++;
         celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;white-space:nowrap">' +
-          '<button type="button" class="boton" style="padding:3px 8px;font-size:11px;background:#137333" onclick="aprobarTitulosCurso([\'' + esc(es.documento) + '\'], \'notas\')">✅ Aprobar</button></td>';
+          '<button type="button" class="boton" style="padding:3px 8px;font-size:11px;background:#137333" onclick="aprobarTitulosCurso([' + escJsArg(es.documento) + '], \'notas\')">✅ Aprobar</button></td>';
+      } else if (condAcadRac === 'DESAPROBADO') {
+        celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;white-space:nowrap"><span class="badge-estado badge-observado">DESAPROBADO</span></td>';
       } else {
-        celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;color:var(--suave);font-size:11px;white-space:nowrap">No elegible</td>';
+        celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;white-space:nowrap"><span class="badge-estado badge-no-solicitado">AUSENTE</span></td>';
       }
     }
 
@@ -853,11 +932,11 @@ function pintarNotas() {
         (esTitulos ? '<th class="no-imprimir" rowspan="2" style="width:125px;text-align:center;background:#e6f4ea;color:#135c2d">Certificado / Títulos</th>' : '') +
       '</tr>' +
       '<tr>' +
-        '<th style="width:26px;text-align:center">N°</th><th class="col-nombre-est">Apellido y nombres</th><th style="width:72px;text-align:center">Documento</th>' +
-        '<th style="width:76px;text-align:center">Fecha nac.</th>' +
-        '<th style="width:66px;text-align:center">Provincia</th>' +
-        '<th style="width:62px;text-align:center">País</th>' +
-        '<th style="width:95px;text-align:center">Acredita con</th>' +
+        '<th class="col-meta-nro" style="width:26px;text-align:center">N°</th><th class="col-nombre-est">Apellido y nombres</th><th class="col-meta-doc" style="width:72px;text-align:center">Documento</th>' +
+        '<th class="col-meta-fnac" style="width:76px;text-align:center">Fecha nac.</th>' +
+        '<th class="col-meta-prov" style="width:66px;text-align:center">Provincia</th>' +
+        '<th class="col-meta-pais" style="width:62px;text-align:center">País</th>' +
+        '<th class="col-acredita-rac" style="width:95px;text-align:center">Acredita con</th>' +
         th + thExtraFinal +
       '</tr>' +
     '</thead><tbody>' + filas + '</tbody></table></div>' +
@@ -999,11 +1078,11 @@ async function pintarActa() {
 
       var badgeCond = '—';
       if (condStr === 'Aprobado') {
-        badgeCond = '<span class="badge-estado badge-aprobado">Aprobado</span>';
+        badgeCond = '<span class="badge-estado badge-aprobado">APROBADO</span>';
       } else if (condStr === 'Desaprobado') {
-        badgeCond = '<span class="badge-estado badge-observado">Desaprobado</span>';
+        badgeCond = '<span class="badge-estado badge-observado">DESAPROBADO</span>';
       } else if (condStr === 'Ausente') {
-        badgeCond = '<span class="badge-estado badge-no-solicitado">Ausente</span>';
+        badgeCond = '<span class="badge-estado badge-no-solicitado">AUSENTE</span>';
       }
 
       return '<tr>' +
@@ -1021,10 +1100,36 @@ async function pintarActa() {
     }).join('');
 
     var totalEst = a.estudiantes.length;
-    // Texto en letras del total
-    var letrasMap = {0:'cero',1:'uno',2:'dos',3:'tres',4:'cuatro',5:'cinco',6:'seis',7:'siete',8:'ocho',9:'nueve',10:'diez',
-      11:'once',12:'doce',13:'trece',14:'catorce',15:'quince',16:'dieciséis',17:'diecisiete',18:'dieciocho',19:'diecinueve',20:'veinte'};
-    function enLetras(n) { return letrasMap[n] || String(n); }
+    // Texto en letras del total (enteros 0 a 999 en español)
+    var unidadesLetras = [
+      'cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve',
+      'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve',
+      'veinte', 'veintiuno', 'veintidós', 'veintitrés', 'veinticuatro', 'veinticinco', 'veintiséis', 'veintisiete', 'veintiocho', 'veintinueve'
+    ];
+    var decenasLetras = {
+      3: 'treinta', 4: 'cuarenta', 5: 'cincuenta',
+      6: 'sesenta', 7: 'setenta', 8: 'ochenta', 9: 'noventa'
+    };
+    var centenasLetras = {
+      1: 'ciento', 2: 'doscientos', 3: 'trescientos', 4: 'cuatrocientos', 5: 'quinientos',
+      6: 'seiscientos', 7: 'setecientos', 8: 'ochocientos', 9: 'novecientos'
+    };
+    function enLetras(n) {
+      var num = Number(n);
+      if (!isFinite(num) || Math.floor(num) !== num || num < 0 || num > 999) {
+        return String(n);
+      }
+      if (num < 30) return unidadesLetras[num];
+      if (num < 100) {
+        var d = Math.floor(num / 10);
+        var u = num % 10;
+        return u === 0 ? decenasLetras[d] : (decenasLetras[d] + ' y ' + unidadesLetras[u]);
+      }
+      if (num === 100) return 'cien';
+      var c = Math.floor(num / 100);
+      var resto = num % 100;
+      return resto === 0 ? centenasLetras[c] : (centenasLetras[c] + ' ' + enLetras(resto));
+    }
 
     var libroNro = enc.libro || '1';
     var folioNro = enc.folio || '1';
@@ -1085,14 +1190,14 @@ async function pintarActa() {
         '<th style="width:105px">Condición</th>' +
       '</tr></thead><tbody>' + (filas || '') + '</tbody></table></div>' +
 
-      // ── Resumen (sin tabla, solo contenido) ──
+      // ── Resumen (sin tabla, 4 líneas separadas + texto) ──
       '<div class="acta-resumen">' +
-        '<p class="acta-texto-intro" style="margin:6px 0">' +
-          '<b>Aprobados:</b> ' + nApr + ' &nbsp;·&nbsp; ' +
-          '<b>Desaprobados:</b> ' + nDes + ' &nbsp;·&nbsp; ' +
-          '<b>Ausentes:</b> ' + nAus + ' &nbsp;·&nbsp; ' +
-          '<b>Total:</b> ' + totalEst +
-        '</p>' +
+        '<div class="acta-texto-intro" style="margin:6px 0;line-height:1.65">' +
+          '<div><b>Aprobados:</b> ' + nApr + '</div>' +
+          '<div><b>Desaprobados:</b> ' + nDes + '</div>' +
+          '<div><b>Ausentes:</b> ' + nAus + '</div>' +
+          '<div><b>Total:</b> ' + totalEst + '</div>' +
+        '</div>' +
         '<p class="acta-texto-intro" style="margin-top:8px">Se hace constar que sobre un total de ' + enLetras(totalEst) + ' (' + totalEst + ') alumnos/as, ' +
           'resultaron ' + enLetras(nApr) + ' (' + nApr + ') aprobados/as, ' +
           enLetras(nDes) + ' (' + nDes + ') desaprobados/as y ' +
@@ -1210,7 +1315,8 @@ function pintarSolicitudesCurso() {
   var cantElegiblesPend = 0;
 
   var filas = d.estudiantes.map(function (es) {
-    var aprobo = _esEstudianteElegibleTitulos(es);
+    var condAcadSol = _estadoAcademicoEstudiante(es);
+    var aprobo = (condAcadSol === 'APROBADO');
     var sol = es.solicitudCertificado || {};
     var st = sol.estado || 'No solicitado';
 
@@ -1221,23 +1327,27 @@ function pintarSolicitudesCurso() {
 
     var accionHtml = '';
     if (!aprobo) {
-      accionHtml = '<button class="boton" disabled style="opacity:0.4;background:var(--suave)" title="Solo habilitado para estudiantes con situación Aprobó">No elegible (No aprobó)</button>';
+      if (condAcadSol === 'DESAPROBADO') {
+        accionHtml = '<span class="badge-estado badge-observado">DESAPROBADO</span>';
+      } else {
+        accionHtml = '<span class="badge-estado badge-no-solicitado">AUSENTE</span>';
+      }
     } else if (st === 'Aprobado') {
-      accionHtml = '<span style="color:#137333;font-weight:600">🔒 Aprobado (' + esc(sol.numeroCertificado) + ')</span>';
+      accionHtml = '<span class="badge-estado badge-aprobado">APROBADO (' + esc(sol.numeroCertificado) + ')</span>';
     } else if (esTitulos) {
       cantElegiblesPend++;
       var nombreEst = (es.apellido || '') + ', ' + (es.nombres || '');
-      accionHtml = '<button type="button" class="boton" style="background:#137333" onclick="aprobarTitulosCurso([\'' + esc(es.documento) + '\'], \'solicitudes\')">✅ Aprobar</button>';
+      accionHtml = '<button type="button" class="boton" style="background:#137333" onclick="aprobarTitulosCurso([' + escJsArg(es.documento) + '], \'solicitudes\')">✅ Aprobar</button>';
       if (st === 'Pendiente' && sol.idSolicitud) {
-        accionHtml += ' <button type="button" class="boton suave" style="color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(\'' + esc(sol.idSolicitud) + '\', \'' + esc(nombreEst) + '\', true)">Observar</button>';
+        accionHtml += ' <button type="button" class="boton suave" style="color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(' + escJsArg(sol.idSolicitud) + ', ' + escJsArg(nombreEst) + ', true)">Observar</button>';
       }
     } else {
       if (st === 'No solicitado') {
-        accionHtml = '<button class="boton" onclick="solicitarCertificadoEstudiante(\'' + esc(es.documento) + '\')">Solicitar Certificado</button>';
+        accionHtml = '<button class="boton" onclick="solicitarCertificadoEstudiante(' + escJsArg(es.documento) + ')">Solicitar Certificado</button>';
       } else if (st === 'Pendiente') {
         accionHtml = '<span style="color:#b06000;font-weight:600">⏳ En revisión por Títulos</span>';
       } else if (st === 'Observado') {
-        accionHtml = '<button class="boton" style="background:#e37400" onclick="solicitarCertificadoEstudiante(\'' + esc(es.documento) + '\')">Reenviar a Títulos</button>';
+        accionHtml = '<button class="boton" style="background:#e37400" onclick="solicitarCertificadoEstudiante(' + escJsArg(es.documento) + ')">Reenviar a Títulos</button>';
       }
     }
 
@@ -1255,7 +1365,7 @@ function pintarSolicitudesCurso() {
       '<td style="text-align:center;font-weight:bold">' + esc(sol.numeroCertificado || '—') + '</td>' +
       '<td style="text-align:center">' +
         accionHtml +
-        ' <button class="boton suave" style="margin-left:4px" onclick="verAnaliticoEstudiante(\'' + esc(es.documento) + '\')">Ver Analítico</button>' +
+        ' <button class="boton suave" style="margin-left:4px" onclick="verAnaliticoEstudiante(' + escJsArg(es.documento) + ')">Ver Analítico</button>' +
       '</td>' +
     '</tr>';
   }).join('');
@@ -1712,18 +1822,18 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
       '</tr></thead>' +
       '<tbody>' +
         filasModulos +
-        '<tr style="font-weight:bold;background:#f8fafc">' +
-          '<td colspan="4" style="text-align:left">Nota de la Trayectoria (Promedio de Módulos)</td>' +
-          '<td style="text-align:center">' + esc(d.promedioTrayectoria || '—') + '</td>' +
-          '<td style="text-align:center">' + esc(d.promedioTrayectoriaLetras || '—') + '</td>' +
-          '<td colspan="2" style="text-align:center">Carga horaria: ' + esc(d.cargaHorariaTotal.reloj) + ' hs reloj / ' + esc(d.cargaHorariaTotal.cat) + ' hs cát.</td>' +
+        '<tr style="font-weight:bold;color:#000;background:transparent">' +
+          '<td colspan="4" style="text-align:left;color:#000">Nota de la Trayectoria (Promedio de Módulos)</td>' +
+          '<td style="text-align:center;color:#000">' + esc(d.promedioTrayectoria || '—') + '</td>' +
+          '<td style="text-align:center;color:#000">' + esc(d.promedioTrayectoriaLetras || '—') + '</td>' +
+          '<td colspan="2" style="text-align:center;color:#000">Carga horaria: ' + esc(d.cargaHorariaTotal.reloj) + ' hs reloj / ' + esc(d.cargaHorariaTotal.cat) + ' hs cát.</td>' +
         '</tr>' +
-        '<tr style="font-weight:bold;background:#eef4fa">' +
-          '<td colspan="4" style="text-align:left">Calificación Final (Examen Final)</td>' +
-          '<td style="text-align:center">' + esc(d.notaFinal || '—') + '</td>' +
-          '<td style="text-align:center">' + esc(d.notaFinalLetras || '—') + '</td>' +
-          '<td style="text-align:center">' + esc(d.fechaEgreso || '—') + '</td>' +
-          '<td style="text-align:center">' + esc(d.establecimiento || '') + '</td>' +
+        '<tr style="font-weight:bold;color:#000;background:transparent">' +
+          '<td colspan="4" style="text-align:left;color:#000">Calificación Final (Examen Final)</td>' +
+          '<td style="text-align:center;color:#000">' + esc(d.notaFinal || '—') + '</td>' +
+          '<td style="text-align:center;color:#000">' + esc(d.notaFinalLetras || '—') + '</td>' +
+          '<td style="text-align:center;color:#000">' + esc(d.fechaEgreso || '—') + '</td>' +
+          '<td style="text-align:center;color:#000">' + esc(d.establecimiento || '') + '</td>' +
         '</tr>' +
       '</tbody>' +
     '</table>' +
@@ -1836,13 +1946,13 @@ async function verBandejaTitulos() {
       var accionesHtml = '';
       if (s.estado !== 'Aprobado') {
         accionesHtml =
-          '<button class="boton" style="padding:4px 10px;font-size:12px" onclick="abrirModalAprobar(\'' + esc(s.id) + '\', \'' + esc(s.estudiante) + '\')">Aprobar</button> ' +
-          '<button class="boton suave" style="padding:4px 10px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(\'' + esc(s.id) + '\', \'' + esc(s.estudiante) + '\')">Observar</button>';
+          '<button class="boton" style="padding:4px 10px;font-size:12px" onclick="abrirModalAprobar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ')">Aprobar</button> ' +
+          '<button class="boton suave" style="padding:4px 10px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ')">Observar</button>';
       } else {
         accionesHtml = '<span style="color:var(--suave);font-size:12px">Calificaciones congeladas</span>';
       }
       var verRacBtn = s.idCurso
-        ? ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="abrirCurso(\'' + esc(s.idCurso) + '\', \'notas\')">Ver RAC</button>'
+        ? ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="abrirCurso(' + escJsArg(s.idCurso) + ', \'notas\')">Ver RAC</button>'
         : '';
 
       return '<tr>' +
@@ -1855,7 +1965,7 @@ async function verBandejaTitulos() {
         '<td style="text-align:center;white-space:nowrap">' +
           accionesHtml +
           verRacBtn +
-          ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="inspeccionarAnaliticoModal(\'' + esc(s.idCurso) + '\', \'' + esc(s.documento) + '\')">Ver Analítico</button>' +
+          ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="inspeccionarAnaliticoModal(' + escJsArg(s.idCurso) + ', ' + escJsArg(s.documento) + ')">Ver Analítico</button>' +
         '</td>' +
       '</tr>';
     }).join('');
@@ -2760,10 +2870,10 @@ async function verAdminUsuarios() {
           '<span class="badge-estado ' + (u.Activo === 'Sí' ? 'badge-aprobado' : 'badge-observado') + '">' + esc(u.Activo) + '</span>' +
         '</td>' +
         '<td style="text-align:center">' +
-          '<button class="boton suave" style="padding:4px 8px;font-size:12px;margin-right:4px" onclick="cargarUsuarioEnFormulario(\'' + esc(u.Email) + '\', \'' + esc(u.Nombre) + '\', \'' + esc(u.Rol) + '\', \'' + esc(u.CUE || '') + '\')">Editar Rol</button>' +
+          '<button class="boton suave" style="padding:4px 8px;font-size:12px;margin-right:4px" onclick="cargarUsuarioEnFormulario(' + escJsArg(u.Email) + ', ' + escJsArg(u.Nombre) + ', ' + escJsArg(u.Rol) + ', ' + escJsArg(u.CUE || '') + ')">Editar Rol</button>' +
           (esPrincipal
             ? '<span style="color:var(--suave);font-size:11px">Principal</span>'
-            : '<button class="boton suave" style="padding:4px 8px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="borrarUsuarioSistema(\'' + esc(u.Email) + '\')">Borrar</button>') +
+            : '<button class="boton suave" style="padding:4px 8px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="borrarUsuarioSistema(' + escJsArg(u.Email) + ')">Borrar</button>') +
         '</td>' +
       '</tr>';
     }).join('');

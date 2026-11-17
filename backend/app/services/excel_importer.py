@@ -234,14 +234,15 @@ def _calcular_situacion_y_promedio(notas_str: List[str]) -> Tuple[str, str]:
 
     total_mod = len(notas_str)
     if completas == 0:
-        return "", "En curso"
+        return "", "Ausente"
+    if desaprobadas > 0:
+        return "", f"Desaprobó ({desaprobadas} mód.)"
     if aprobadas == total_mod:
         prom = str(round(suma / total_mod))
         return prom, "Aprobó todo"
     faltan = total_mod - aprobadas
-    if desaprobadas > 0:
-        return "", f"Desaprobó ({desaprobadas} mód.)"
-    return "", f"Adeuda {faltan} módulo(s)"
+    prom_parcial = str(round(suma / aprobadas)) if aprobadas > 0 else ""
+    return prom_parcial, f"Adeuda {faltan} módulo(s)"
 
 def procesar_archivo_excel(contenido: bytes, nombre_archivo: str) -> Dict[str, Any]:
     """
@@ -393,8 +394,8 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
     if rn:
         for idx, m in enumerate(mods_info[:12]):
             for r in range(14, 240):
-                dni_val = re.sub(r"\D", "", str(_celda(rn, r, m["dni_col_rn"]) or ""))
-                nom_val = _norm(_celda(rn, r, m["nom_col_rn"]))
+                dni_val = re.sub(r"\D", "", str(_celda(rn, r, m["dni_col_rn"]) or _celda(rn, r, 2) or ""))
+                nom_val = _norm(_celda(rn, r, m["nom_col_rn"]) or _celda(rn, r, 6))
                 if not dni_val and not nom_val:
                     continue
                 vt = _celda(rn, r, m["col_rn_t"])
@@ -420,7 +421,7 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
     if d2:
         for idx, m in enumerate(mods_info[:12]):
             for r in range(5, 240):
-                dni_val = re.sub(r"\D", "", str(_celda(d2, r, m["dni_col_d2"]) or ""))
+                dni_val = re.sub(r"\D", "", str(_celda(d2, r, m["dni_col_d2"]) or _celda(d2, r, 2) or ""))
                 if dni_val:
                     v = _celda(d2, r, m["col_d2"])
                     if isinstance(v, (int, float)) and 1 <= v <= 10:

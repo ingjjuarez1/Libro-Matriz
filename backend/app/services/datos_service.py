@@ -148,16 +148,44 @@ def _guardar_cursos_disco() -> None:
         pass
 
 
-def sincronizar_cursos_locales(paquetes: Dict[str, Any]) -> int:
+def sincronizar_cursos_locales(paquetes: Dict[str, Any], sesion_usr: Optional[Dict[str, Any]] = None) -> int:
     """Restaura paquetes de cursos guardados en el navegador si el contenedor se reinició."""
+    if sesion_usr is not None and not sesion_usr.get("puedeCargar"):
+        raise PermissionDeniedException(
+            f"Tu rol ({sesion_usr.get('rol')}) es de consulta: no puedes sincronizar cursos."
+        )
     if not isinstance(paquetes, dict):
         return 0
-    restaurados = 0
+
+    paquetes_validos: List[tuple] = []
     for id_c, paq in paquetes.items():
-        if isinstance(paq, dict) and "resumenCurso" in paq and "datosCurso" in paq:
-            if id_c not in _CURSOS_IMPORTADOS:
-                _CURSOS_IMPORTADOS[id_c] = paq
-                restaurados += 1
+        if not (isinstance(paq, dict) and "resumenCurso" in paq and "datosCurso" in paq):
+            continue
+        res_c = paq.get("resumenCurso")
+        datos_c = paq.get("datosCurso")
+        if not isinstance(res_c, dict) or not isinstance(datos_c, dict):
+            continue
+        enc_c = datos_c.get("encabezado") if isinstance(datos_c.get("encabezado"), dict) else {}
+        if sesion_usr is not None and not sesion_usr.get("verTodo"):
+            pkg_cue = normalizar_cue(res_c.get("cue") or enc_c.get("cue"))
+            if not pkg_cue:
+                cues_usr = sesion_usr.get("cues") or []
+                if not cues_usr:
+                    raise PermissionDeniedException("No tienes un CUE asignado para sincronizar cursos.")
+                res_c["cue"] = cues_usr[0]
+                if isinstance(datos_c.get("encabezado"), dict):
+                    datos_c["encabezado"]["cue"] = cues_usr[0]
+            elif not alcanza_cue(sesion_usr, pkg_cue):
+                raise PermissionDeniedException(
+                    f"No tienes permiso para sincronizar cursos de otra institución (CUE {pkg_cue})."
+                )
+        paquetes_validos.append((id_c, paq))
+
+    restaurados = 0
+    for id_c, paq in paquetes_validos:
+        if id_c not in _CURSOS_IMPORTADOS:
+            _CURSOS_IMPORTADOS[id_c] = paq
+            restaurados += 1
     if restaurados > 0:
         _guardar_cursos_disco()
     return restaurados
@@ -430,6 +458,17 @@ def leer_curso(id_archivo: str) -> Dict[str, Any]:
         est_copia = []
         for est in datos_imp.get("estudiantes", []):
             e = dict(est)
+            notas_e = list(e.get("notas", []))
+            prom_recalc, sit_recalc = _calcular_situacion_y_promedio(notas_e)
+            if prom_recalc and not e.get("promedioModulos"):
+                e["promedioModulos"] = prom_recalc
+            nf_e = texto(e.get("notaFinal"))
+            if nf_e == "AUS":
+                e["situacion"] = "Ausente examen final"
+            elif nf_e and nf_e.isdigit() and int(nf_e) < 7:
+                e["situacion"] = "Desaprobó examen final"
+            elif sit_recalc.startswith("Aprobó") or sit_recalc.startswith("Desaprobó"):
+                e["situacion"] = sit_recalc
             sol_info = obtener_estado_estudiante(id_archivo, e.get("documento", ""))
             e["solicitudCertificado"] = sol_info
             e["notasCongeladas"] = (sol_info.get("estado") == EstadoCertificado.APROBADO)
@@ -914,6 +953,22 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
             enc_dest = _ENCABEZADO_DEMO
             rac_est_list = _ESTUDIANTES_DEMO
 
+        est_por_fila = {int(es.get("filaActa", 0)): es for es in est_list}
+        for c in (cambios or []):
+            fila_a = int(c.get("filaActa", 0))
+            campo = c.get("campo")
+            if campo not in ("teorico", "practico"):
+                raise ValueError(f"Campo del acta no válido: '{campo}'.")
+            val_norm = str(normalizar_nota(c.get("valor")))
+            es = est_por_fila.get(fila_a)
+            if es and val_norm != texto(es.get(campo, "")):
+                doc_est = texto(es.get("documento"))
+                if doc_est and esta_estudiante_congelado(curso["id"], doc_est):
+                    raise PermissionDeniedException(
+                        f"Las notas de {es.get('nombre') or doc_est} (DNI {doc_est}) "
+                        "están congeladas porque su certificado oficial ya fue APROBADO por la Dirección de Títulos."
+                    )
+
         if mesa:
             for k in ("fecha", "presidente", "vocal1", "vocal2"):
                 if k in mesa:
@@ -934,11 +989,14 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
                 if int(es.get("filaActa", 0)) == fila_a:
                     if campo in ("teorico", "practico"):
                         es[campo] = val_norm
-                        vt = es.get("teorico", "")
-                        vp = es.get("practico", "")
+                        vt = texto(es.get("teorico", ""))
+                        vp = texto(es.get("practico", ""))
                         if vt == "AUS" or vp == "AUS":
                             es["definitiva"] = "AUS"
                             es["definitivaLetras"] = "AUSENTE"
+                        elif vt == "" or vp == "":
+                            es["definitiva"] = ""
+                            es["definitivaLetras"] = ""
                         else:
                             try:
                                 nt = float(vt)
@@ -947,7 +1005,8 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
                                 es["definitiva"] = str(prom)
                                 es["definitivaLetras"] = letras_acta.get(prom, str(prom))
                             except Exception:
-                                pass
+                                es["definitiva"] = ""
+                                es["definitivaLetras"] = ""
                     break
 
         # Sincronizar todo lo cargado en el Acta de Examen con el Registro Anual de Calificaciones (RAC)
@@ -956,6 +1015,8 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
         fecha_acta_actual = mesa_dest.get("fecha", "")
         for es_acta in est_list:
             doc_a = str(es_acta.get("documento", "")).strip()
+            if doc_a and esta_estudiante_congelado(curso["id"], doc_a):
+                continue
             fila_r = int(es_acta.get("filaRac", 0))
             def_val = str(es_acta.get("definitiva", "")).strip()
             for est_rac in rac_est_list:
@@ -986,6 +1047,23 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
         if curso["id"] in _CURSOS_IMPORTADOS:
             _guardar_cursos_disco()
         return {"guardados": len(cambios or []) + (1 if mesa else 0), "paquete": _CURSOS_IMPORTADOS.get(curso["id"])}
+
+    acta_actual = leer_acta(curso["id"], sesion_usr)
+    est_por_fila_gs = {int(es.get("filaActa", 0)): es for es in acta_actual.get("estudiantes", [])}
+    for c in (cambios or []):
+        fila_a = int(c.get("filaActa", 0))
+        campo = c.get("campo")
+        if campo not in ("teorico", "practico"):
+            raise ValueError(f"Campo del acta no válido: '{campo}'.")
+        val_norm = str(normalizar_nota(c.get("valor")))
+        es = est_por_fila_gs.get(fila_a)
+        if es and val_norm != texto(es.get(campo, "")):
+            doc_est = texto(es.get("documento"))
+            if doc_est and esta_estudiante_congelado(curso["id"], doc_est):
+                raise PermissionDeniedException(
+                    f"Las notas de {es.get('nombre') or doc_est} (DNI {doc_est}) "
+                    "están congeladas porque su certificado oficial ya fue APROBADO por la Dirección de Títulos."
+                )
 
     updates = []
     if mesa:
@@ -1332,8 +1410,6 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
             return True
         return False
 
-    from backend.app.services.titulos_service import listar_solicitudes
-
     cursos_todos = cursos_del_panel()
     escuelas_disp_map: Dict[str, str] = {}
     cues_disp_set = set()
@@ -1349,6 +1425,8 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
     por_oferta: Dict[str, Dict[str, Any]] = {}
     por_familia: Dict[str, Dict[str, Any]] = {}
     por_turno: Dict[str, Dict[str, Any]] = {}
+    obs_detalle: List[Dict[str, Any]] = []
+    obs_por_escuela_map: Dict[str, Dict[str, Any]] = {}
 
     tot_cursos = 0
     tot_matriculados = 0
@@ -1430,8 +1508,18 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
 
             estudiantes_filtrados.append((e, es_aprobado, es_ausente, st_cert))
 
-        if (f_desde or f_hasta or f_estado != "todos") and not estudiantes_filtrados and len(d.get("estudiantes", [])) > 0:
-            continue
+        if not estudiantes_filtrados:
+            if f_estado != "todos":
+                continue
+            if f_desde or f_hasta:
+                if len(d.get("estudiantes", [])) > 0:
+                    continue
+                if fecha_curso_dt is None:
+                    continue
+                if f_desde and fecha_curso_dt < f_desde:
+                    continue
+                if f_hasta and fecha_curso_dt > f_hasta:
+                    continue
 
         tot_cursos += 1
         k_inst = f"{cue_c}||{inst_c}"
@@ -1470,6 +1558,7 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
             grp_map[grp_key]["cursos"] += 1
 
         for e, es_aprobado, es_ausente, st_cert in estudiantes_filtrados:
+            sol_e = e.get("solicitudCertificado") or {}
             tot_matriculados += 1
             if es_aprobado:
                 tot_aprobados += 1
@@ -1483,6 +1572,21 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
                 tot_cert_pendientes += 1
             elif st_cert == EstadoCertificado.OBSERVADO:
                 tot_cert_observados += 1
+                obs_detalle.append({
+                    "id": sol_e.get("idSolicitud") or "",
+                    "idCurso": c["id"],
+                    "cue": cue_c,
+                    "institucion": inst_c,
+                    "oferta": oferta_c,
+                    "ciclo": texto(enc.get("ciclo") or c.get("ciclo")),
+                    "documento": texto(e.get("documento")),
+                    "estudiante": f"{texto(e.get('apellido')).upper()}, {texto(e.get('nombres'))}".strip(", "),
+                    "fechaSolicitud": texto(sol_e.get("fechaSolicitud")),
+                    "motivoObservacion": texto(sol_e.get("motivoObservacion"))
+                })
+                if k_inst not in obs_por_escuela_map:
+                    obs_por_escuela_map[k_inst] = {"cue": cue_c, "institucion": inst_c, "cantidad": 0}
+                obs_por_escuela_map[k_inst]["cantidad"] += 1
 
             row_inst = por_institucion[k_inst]
             row_inst["estudiantes"] += 1
@@ -1524,42 +1628,7 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
         lista_items.sort(key=lambda x: str(x.get(sort_key, "")))
         return lista_items
 
-    # Solicitudes observadas (errores / observaciones de Títulos)
-    todas_obs = listar_solicitudes(sesion_usr, estado_filtro=EstadoCertificado.OBSERVADO)
-    obs_detalle: List[Dict[str, Any]] = []
-    obs_por_escuela_map: Dict[str, Dict[str, Any]] = {}
-    for sol in todas_obs:
-        inst_s = texto(sol.get("institucion") or "Sin Institución")
-        cue_s = texto(sol.get("cue") or "")
-        if f_escuela and f_escuela not in inst_s.lower():
-            continue
-        if f_cue and not _mismo_cue_str(cue_s, f_cue):
-            continue
-        if f_desde or f_hasta:
-            dt_s = _parse_fecha_dt(sol.get("fechaSolicitud"))
-            if dt_s is not None:
-                if f_desde and dt_s < f_desde:
-                    continue
-                if f_hasta and dt_s > f_hasta:
-                    continue
-        if f_estado in ("aprobados", "desaprobados", "desaprobados_en_curso", "cert_aprobados", "certificados_aprobados"):
-            continue
-        obs_detalle.append({
-            "id": sol.get("id", ""),
-            "idCurso": sol.get("idCurso", ""),
-            "cue": cue_s,
-            "institucion": inst_s,
-            "oferta": texto(sol.get("oferta")),
-            "ciclo": texto(sol.get("ciclo")),
-            "documento": texto(sol.get("documento")),
-            "estudiante": texto(sol.get("estudiante")),
-            "fechaSolicitud": texto(sol.get("fechaSolicitud")),
-            "motivoObservacion": texto(sol.get("motivoObservacion"))
-        })
-        k_o = f"{cue_s}||{inst_s}"
-        if k_o not in obs_por_escuela_map:
-            obs_por_escuela_map[k_o] = {"cue": cue_s, "institucion": inst_s, "cantidad": 0}
-        obs_por_escuela_map[k_o]["cantidad"] += 1
+    obs_detalle.sort(key=lambda x: x.get("fechaSolicitud", ""), reverse=True)
 
     pct_aprobacion = round((tot_aprobados * 100.0) / tot_matriculados, 1) if tot_matriculados > 0 else 0.0
     pct_desaprobacion = round((tot_desaprobados * 100.0) / tot_matriculados, 1) if tot_matriculados > 0 else 0.0
@@ -1577,7 +1646,7 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
             "totalCertificadosAprobados": tot_cert_aprobados,
             "tasaTitulacion": tasa_titulacion,
             "totalPendientesTitulos": tot_cert_pendientes,
-            "totalObservados": len(obs_detalle) if obs_detalle else tot_cert_observados
+            "totalObservados": tot_cert_observados
         },
         "porEscuela": _enriquecer_pct(list(por_institucion.values()), "institucion"),
         "porOferta": _enriquecer_pct(list(por_oferta.values()), "oferta"),
@@ -1601,14 +1670,27 @@ def importar_excel_en_sistema(contenido: bytes, nombre_archivo: str, sesion_usr:
     Procesa un archivo Excel (.xlsm o .xlsx), extrae la nómina de estudiantes,
     calificaciones y acta de examen, y lo registra inmediatamente en el sistema.
     """
+    if not sesion_usr.get("puedeCargar"):
+        raise PermissionDeniedException(
+            f"Tu rol ({sesion_usr.get('rol')}) es de consulta: no puedes importar cursos."
+        )
     paquete = procesar_archivo_excel(contenido, nombre_archivo)
     resumen = paquete["resumenCurso"]
     enc_imp = paquete["datosCurso"]["encabezado"]
 
-    # Si el usuario pertenece a una escuela con CUE específico, asignar su CUE si el Excel no tenía uno válido
-    if not sesion_usr.get("verTodo") and sesion_usr.get("cues"):
-        resumen["cue"] = sesion_usr["cues"][0]
-        enc_imp["cue"] = sesion_usr["cues"][0]
+    # Para usuarios de escuela (no verTodo), validar CUE o vincular al CUE propio si falta
+    if not sesion_usr.get("verTodo"):
+        cue_excel = normalizar_cue(resumen.get("cue") or enc_imp.get("cue"))
+        if not cue_excel:
+            cues_usr = sesion_usr.get("cues") or []
+            if not cues_usr:
+                raise PermissionDeniedException("No tienes un CUE asignado para importar cursos.")
+            resumen["cue"] = cues_usr[0]
+            enc_imp["cue"] = cues_usr[0]
+        elif not alcanza_cue(sesion_usr, cue_excel):
+            raise PermissionDeniedException(
+                f"El archivo Excel pertenece a otra institución (CUE {cue_excel}) y no tienes permiso para importarlo."
+            )
 
     inst_info = _buscar_institucion_por_cue(resumen.get("cue"))
     if inst_info:
@@ -1640,12 +1722,28 @@ def importar_excel_en_sistema(contenido: bytes, nombre_archivo: str, sesion_usr:
 
 def crear_curso_manual(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
     """Registra un nuevo curso en el sistema listo para que el Administrativo cargue alumnos."""
+    if not sesion_usr.get("puedeCargar"):
+        raise PermissionDeniedException(
+            f"Tu rol ({sesion_usr.get('rol')}) es de consulta: no puedes crear cursos."
+        )
     id_solicitado = texto(datos.get("id"))
     if id_solicitado and id_solicitado not in _CURSOS_IMPORTADOS:
         id_curso = id_solicitado
     else:
         id_curso = _generar_id_curso_manual()
-    cue = texto(datos.get("cue")) or (sesion_usr["cues"][0] if sesion_usr.get("cues") else "3800006")
+    cue_raw = texto(datos.get("cue"))
+    if not sesion_usr.get("verTodo"):
+        if not normalizar_cue(cue_raw):
+            cues_usr = sesion_usr.get("cues") or []
+            if not cues_usr:
+                raise PermissionDeniedException("No tienes un CUE asignado para crear cursos.")
+            cue = cues_usr[0]
+        elif not alcanza_cue(sesion_usr, cue_raw):
+            raise PermissionDeniedException("No tienes permiso para crear cursos en otra institución (CUE).")
+        else:
+            cue = cue_raw
+    else:
+        cue = cue_raw or (sesion_usr["cues"][0] if sesion_usr.get("cues") else "3800006")
     inst_info = _buscar_institucion_por_cue(cue)
     institucion = texto(datos.get("institucion")) or (inst_info.get("nombre") if inst_info else "") or "Escuela Profesional"
     localidad = texto(datos.get("localidad")) or (inst_info.get("localidad") if inst_info else "") or "San Salvador de Jujuy"
@@ -1820,7 +1918,7 @@ def obtener_nomina_egresados(
             if ciclo_norm and texto(c.get("ciclo")) != ciclo_norm:
                 continue
             seleccionados.append(c)
-        if not seleccionados and not cue_norm and todos_cursos:
+        if not seleccionados and not cue_norm and not ciclo_norm and todos_cursos:
             seleccionados = [todos_cursos[0]]
 
     encabezado_nomina = {

@@ -177,6 +177,7 @@ def obtener_estado_estudiante(id_curso: str, documento: str) -> Dict[str, Any]:
                 "idSolicitud": sol["id"],
                 "estado": sol["estado"],
                 "numeroCertificado": sol.get("numeroCertificado", ""),
+                "fechaSolicitud": sol.get("fechaSolicitud", ""),
                 "fechaAprobacion": sol.get("fechaAprobacion", ""),
                 "motivoObservacion": sol.get("motivoObservacion", ""),
                 "impreso": bool(sol.get("impreso", False)),
@@ -187,6 +188,7 @@ def obtener_estado_estudiante(id_curso: str, documento: str) -> Dict[str, Any]:
         "idSolicitud": None,
         "estado": EstadoCertificado.NO_SOLICITADO,
         "numeroCertificado": "",
+        "fechaSolicitud": "",
         "fechaAprobacion": "",
         "motivoObservacion": "",
         "impreso": False,
@@ -209,34 +211,54 @@ def _buscar_solicitud_por_curso_doc(id_curso: str, documento: str) -> Optional[D
 
 def _es_estudiante_elegible_titulos(datos_estudiante: Optional[Dict[str, Any]]) -> Tuple[bool, str]:
     """
-    Regla académica oficial: el estudiante es elegible SOLO si su situación
-    comienza con 'Aprobó' y (si notaFinal no está vacía) notaFinal es numérica >= 7.
+    Regla académica oficial: el estudiante es elegible SOLO si aprobó todos los módulos (>= 7)
+    y tiene Calificación Final aprobada (>= 7, o situación 'Aprobó' sin AUS ni < 7).
     """
     if not datos_estudiante:
         return False, "No se encontraron datos académicos del estudiante."
     nombre_est = f"{datos_estudiante.get('apellido', '')}, {datos_estudiante.get('nombres', '')}".strip(", ") or "Estudiante"
     doc_norm = str(datos_estudiante.get("documento", "")).strip()
     situacion = str(datos_estudiante.get("situacion", "")).strip()
-    if not situacion.startswith("Aprobó"):
-        return (
-            False,
-            f"El estudiante {nombre_est} (DNI {doc_norm}) no está aprobado académicamente "
-            f"(situación actual: '{situacion or 'No aprobó'}')."
-        )
-    nf_raw = str(datos_estudiante.get("notaFinal", "")).strip()
+    notas_lista = datos_estudiante.get("notas") or []
+    tiene_desaprobado = False
+    tiene_ausente_o_vacio = False
+    for n_item in notas_lista:
+        s_n = str(n_item or "").strip().upper()
+        if not s_n or s_n in ("AUS", "AUSENTE"):
+            tiene_ausente_o_vacio = True
+        else:
+            try:
+                if float(s_n.replace(",", ".")) < 7:
+                    tiene_desaprobado = True
+            except Exception:
+                tiene_ausente_o_vacio = True
+
+    nf_raw = str(datos_estudiante.get("notaFinal", "")).strip().upper()
+    if nf_raw in ("AUS", "AUSENTE"):
+        return False, f"El estudiante {nombre_est} (DNI {doc_norm}) estuvo AUSENTE en el examen final."
     if nf_raw:
         try:
             nf_val = float(nf_raw.replace(",", "."))
             if nf_val < 7:
-                return (
-                    False,
-                    f"El estudiante {nombre_est} (DNI {doc_norm}) tiene calificación final '{nf_raw}' menor a 7."
-                )
+                return False, f"El estudiante {nombre_est} (DNI {doc_norm}) DESAPROBÓ con calificación final '{nf_raw}'."
         except Exception:
-            return (
-                False,
-                f"El estudiante {nombre_est} (DNI {doc_norm}) tiene calificación final '{nf_raw}' no aprobatoria."
-            )
+            return False, f"El estudiante {nombre_est} (DNI {doc_norm}) tiene calificación final '{nf_raw}' no aprobatoria."
+    elif notas_lista:
+        # Si el curso tiene módulos cargados y no rindió examen final (notaFinal vacía)
+        if tiene_desaprobado:
+            return False, f"El estudiante {nombre_est} (DNI {doc_norm}) DESAPROBÓ."
+        return False, f"El estudiante {nombre_est} (DNI {doc_norm}) figura AUSENTE en calificación final."
+
+    if tiene_desaprobado:
+        return False, f"El estudiante {nombre_est} (DNI {doc_norm}) DESAPROBÓ."
+    if tiene_ausente_o_vacio and not situacion.startswith("Aprobó"):
+        return False, f"El estudiante {nombre_est} (DNI {doc_norm}) figura AUSENTE."
+    if not situacion.startswith("Aprobó"):
+        return (
+            False,
+            f"El estudiante {nombre_est} (DNI {doc_norm}) no está aprobado académicamente "
+            f"(situación actual: '{situacion or 'Desaprobó'}')."
+        )
     return True, ""
 
 
