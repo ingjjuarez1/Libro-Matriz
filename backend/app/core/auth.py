@@ -340,6 +340,7 @@ def sesion(email: Optional[str] = None) -> Dict[str, Any]:
         "esDirectoraTitulos": es_directora_titulos,
         "puedeAprobarTitulos": bool(es_nivel_central and not es_directora_titulos),
         "puedeVerRac": bool(not es_directora_titulos),
+        "puedeVerDashboard": bool(ver_todo or es_titulos or rol == Roles.DIRECTIVO),
         "puedeAdministrarUsuarios": bool(rol == Roles.DIRECCION or rol_low in ["titulos", "títulos"])
     }
 

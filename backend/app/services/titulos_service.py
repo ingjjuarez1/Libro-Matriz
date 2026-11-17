@@ -38,7 +38,18 @@ _SOLICITUDES_CACHE: Dict[str, Dict[str, Any]] = {
         "motivoObservacion": "",
         "numeroCertificado": "",
         "fechaAprobacion": "",
-        "usuarioSolicitante": "admin.ep6@jujuy.edu.ar"
+        "usuarioSolicitante": "admin.ep6@jujuy.edu.ar",
+        "solicitadoPorNombre": "Administrativo EP Nº 6",
+        "historial": [
+            {
+                "fecha": "01/11/2026 10:30:00",
+                "accion": "Solicitud enviada a Títulos",
+                "usuario": "Administrativo EP Nº 6",
+                "email": "admin.ep6@jujuy.edu.ar",
+                "rol": "Administrativo",
+                "detalle": "Solicitud de certificado oficial ingresada en bandeja."
+            }
+        ]
     },
     "sol-42111222": {
         "id": "sol-42111222",
@@ -55,16 +66,93 @@ _SOLICITUDES_CACHE: Dict[str, Dict[str, Any]] = {
         "motivoObservacion": "El documento adjunto en legajo no coincide con la fecha de nacimiento indicada en el RAC. Verificar y corregir antes de emitir certificado.",
         "numeroCertificado": "",
         "fechaAprobacion": "",
-        "usuarioSolicitante": "admin.ep6@jujuy.edu.ar"
+        "usuarioSolicitante": "admin.ep6@jujuy.edu.ar",
+        "solicitadoPorNombre": "Administrativo EP Nº 6",
+        "observadoPor": "Dirección de Títulos",
+        "observadoEmail": "titulos@jujuy.edu.ar",
+        "observadoRol": "titulos",
+        "fechaObservacion": "29/10/2026 09:45:00",
+        "historial": [
+            {
+                "fecha": "28/10/2026 15:20:00",
+                "accion": "Solicitud enviada a Títulos",
+                "usuario": "Administrativo EP Nº 6",
+                "email": "admin.ep6@jujuy.edu.ar",
+                "rol": "Administrativo",
+                "detalle": "Solicitud de certificado oficial ingresada en bandeja."
+            },
+            {
+                "fecha": "29/10/2026 09:45:00",
+                "accion": "Observado por Títulos",
+                "usuario": "Dirección de Títulos",
+                "email": "titulos@jujuy.edu.ar",
+                "rol": "titulos",
+                "detalle": "El documento adjunto en legajo no coincide con la fecha de nacimiento indicada en el RAC. Verificar y corregir antes de emitir certificado."
+            }
+        ]
     }
 }
 
 _CORRELATIVO_POR_ANIO: Dict[int, int] = {}
 
 
+def _normalizar_historial_solicitud(sol: Dict[str, Any]) -> None:
+    """Garantiza que toda solicitud tenga historial y metadatos de quién solicitó/observó/aprobó."""
+    hist = sol.get("historial")
+    if not isinstance(hist, list):
+        hist = []
+    if not hist:
+        em_sol = sol.get("usuarioSolicitante") or "admin.escuela@jujuy.edu.ar"
+        nom_sol = sol.get("solicitadoPorNombre") or em_sol
+        hist.append({
+            "fecha": sol.get("fechaSolicitud") or "—",
+            "accion": "Solicitud enviada a Títulos",
+            "usuario": nom_sol,
+            "email": em_sol,
+            "rol": "Administrativo",
+            "detalle": "Solicitud de certificado oficial ingresada."
+        })
+        if sol.get("estado") == EstadoCertificado.OBSERVADO and sol.get("motivoObservacion"):
+            obs_por = sol.get("observadoPor") or "Dirección de Títulos"
+            obs_em = sol.get("observadoEmail") or "titulos@jujuy.edu.ar"
+            obs_rol = sol.get("observadoRol") or "titulos"
+            obs_fec = sol.get("fechaObservacion") or sol.get("fechaSolicitud") or "—"
+            sol["observadoPor"] = obs_por
+            sol["observadoEmail"] = obs_em
+            sol["observadoRol"] = obs_rol
+            sol["fechaObservacion"] = obs_fec
+            hist.append({
+                "fecha": obs_fec,
+                "accion": "Observado por Títulos",
+                "usuario": obs_por,
+                "email": obs_em,
+                "rol": obs_rol,
+                "detalle": sol.get("motivoObservacion", "")
+            })
+        elif sol.get("estado") == EstadoCertificado.APROBADO:
+            apr_por = sol.get("aprobadoPor") or "Dirección de Títulos"
+            apr_em = sol.get("aprobadoEmail") or "titulos@jujuy.edu.ar"
+            apr_rol = sol.get("aprobadoRol") or "titulos"
+            apr_fec = sol.get("fechaHoraAprobacion") or sol.get("fechaAprobacion") or "—"
+            sol["aprobadoPor"] = apr_por
+            sol["aprobadoEmail"] = apr_em
+            sol["aprobadoRol"] = apr_rol
+            sol["fechaHoraAprobacion"] = apr_fec
+            hist.append({
+                "fecha": apr_fec,
+                "accion": "Aprobado y Emitido",
+                "usuario": apr_por,
+                "email": apr_em,
+                "rol": apr_rol,
+                "detalle": f"Certificado Nº {sol.get('numeroCertificado', '')} aprobado."
+            })
+    sol["historial"] = hist
+
+
 def _reconstruir_correlativos() -> None:
     """Reconstruye los contadores correlativos por año desde los números de certificado guardados."""
     for sol in _SOLICITUDES_CACHE.values():
+        _normalizar_historial_solicitud(sol)
         nro = str(sol.get("numeroCertificado", "")).strip()
         m = re.match(r"^(\d{4})-.*-(\d+)$", nro)
         if m:
@@ -159,6 +247,7 @@ def listar_solicitudes(sesion_usr: Dict[str, Any], estado_filtro: Optional[str] 
         # Filtro por estado
         if estado_filtro and sol.get("estado") != estado_filtro:
             continue
+        _normalizar_historial_solicitud(sol)
         resultado.append(sol)
 
     # Ordenar por fecha más reciente
@@ -173,13 +262,25 @@ def obtener_estado_estudiante(id_curso: str, documento: str) -> Dict[str, Any]:
     doc_norm = str(documento).strip()
     for sol in _SOLICITUDES_CACHE.values():
         if sol.get("idCurso") == id_curso and str(sol.get("documento")).strip() == doc_norm:
+            _normalizar_historial_solicitud(sol)
             return {
                 "idSolicitud": sol["id"],
                 "estado": sol["estado"],
                 "numeroCertificado": sol.get("numeroCertificado", ""),
                 "fechaSolicitud": sol.get("fechaSolicitud", ""),
                 "fechaAprobacion": sol.get("fechaAprobacion", ""),
+                "fechaHoraAprobacion": sol.get("fechaHoraAprobacion", sol.get("fechaAprobacion", "")),
+                "aprobadoPor": sol.get("aprobadoPor", ""),
+                "aprobadoEmail": sol.get("aprobadoEmail", ""),
+                "aprobadoRol": sol.get("aprobadoRol", ""),
                 "motivoObservacion": sol.get("motivoObservacion", ""),
+                "observadoPor": sol.get("observadoPor", ""),
+                "observadoEmail": sol.get("observadoEmail", ""),
+                "observadoRol": sol.get("observadoRol", ""),
+                "fechaObservacion": sol.get("fechaObservacion", ""),
+                "usuarioSolicitante": sol.get("usuarioSolicitante", ""),
+                "solicitadoPorNombre": sol.get("solicitadoPorNombre", ""),
+                "historial": sol.get("historial", []),
                 "impreso": bool(sol.get("impreso", False)),
                 "fechaImpresion": sol.get("fechaImpresion", ""),
                 "impresoPor": sol.get("impresoPor", ""),
@@ -192,7 +293,18 @@ def obtener_estado_estudiante(id_curso: str, documento: str) -> Dict[str, Any]:
         "numeroCertificado": "",
         "fechaSolicitud": "",
         "fechaAprobacion": "",
+        "fechaHoraAprobacion": "",
+        "aprobadoPor": "",
+        "aprobadoEmail": "",
+        "aprobadoRol": "",
         "motivoObservacion": "",
+        "observadoPor": "",
+        "observadoEmail": "",
+        "observadoRol": "",
+        "fechaObservacion": "",
+        "usuarioSolicitante": "",
+        "solicitadoPorNombre": "",
+        "historial": [],
         "impreso": False,
         "fechaImpresion": "",
         "impresoPor": "",
@@ -296,6 +408,24 @@ def crear_o_reingresar_solicitud(
     sol_id = sol_existente["id"] if sol_existente else f"sol-{id_curso}-{doc_norm}"
     ahora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     nombre_completo = f"{datos_estudiante.get('apellido', '')}, {datos_estudiante.get('nombres', '')}".strip(", ")
+    usr_nombre = sesion_usr.get("nombre") or sesion_usr.get("email", "")
+    usr_email = sesion_usr.get("email", "")
+    usr_rol = sesion_usr.get("rol", "")
+
+    hist_prev = []
+    if sol_existente:
+        _normalizar_historial_solicitud(sol_existente)
+        hist_prev = list(sol_existente.get("historial", []))
+
+    accion_hist = "Reenviado a Títulos (tras corrección)" if sol_existente else "Solicitud enviada a Títulos"
+    hist_prev.append({
+        "fecha": ahora,
+        "accion": accion_hist,
+        "usuario": usr_nombre,
+        "email": usr_email,
+        "rol": usr_rol,
+        "detalle": "Solicitud de certificado oficial ingresada en bandeja de revisión."
+    })
 
     nueva_sol = {
         "id": sol_id,
@@ -312,7 +442,13 @@ def crear_o_reingresar_solicitud(
         "motivoObservacion": "",  # Se limpia al reingresar
         "numeroCertificado": "",
         "fechaAprobacion": "",
-        "usuarioSolicitante": sesion_usr.get("email", "")
+        "usuarioSolicitante": usr_email,
+        "solicitadoPorNombre": usr_nombre,
+        "observadoPor": sol_existente.get("observadoPor", "") if sol_existente else "",
+        "observadoEmail": sol_existente.get("observadoEmail", "") if sol_existente else "",
+        "observadoRol": sol_existente.get("observadoRol", "") if sol_existente else "",
+        "fechaObservacion": sol_existente.get("fechaObservacion", "") if sol_existente else "",
+        "historial": hist_prev
     }
 
     _SOLICITUDES_CACHE[sol_id] = nueva_sol
@@ -344,18 +480,37 @@ def aprobar_solicitud(id_solicitud: str, sesion_usr: Dict[str, Any], numero_cert
     if sol.get("estado") == EstadoCertificado.APROBADO:
         return sol
 
+    _normalizar_historial_solicitud(sol)
     num_cert = str(numero_certificado or "").strip()
     if not num_cert:
         num_cert = _siguiente_numero_certificado(sol.get("cue", ""))
 
-    ahora_fecha = datetime.datetime.now().strftime("%d/%m/%Y")
+    ahora_dt = datetime.datetime.now()
+    ahora_fecha = ahora_dt.strftime("%d/%m/%Y")
+    ahora_hora = ahora_dt.strftime("%d/%m/%Y %H:%M:%S")
+    usr_nombre = sesion_usr.get("nombre") or sesion_usr.get("email", "")
+    usr_email = sesion_usr.get("email", "")
+    usr_rol = sesion_usr.get("rol", "")
+
     sol["estado"] = EstadoCertificado.APROBADO
     sol["numeroCertificado"] = num_cert
     sol["fechaAprobacion"] = ahora_fecha
+    sol["fechaHoraAprobacion"] = ahora_hora
+    sol["aprobadoPor"] = usr_nombre
+    sol["aprobadoEmail"] = usr_email
+    sol["aprobadoRol"] = usr_rol
     sol["motivoObservacion"] = ""
     sol["impreso"] = False
     sol["fechaImpresion"] = ""
     sol["impresoPor"] = ""
+    sol.setdefault("historial", []).append({
+        "fecha": ahora_hora,
+        "accion": "Aprobado y Emitido",
+        "usuario": usr_nombre,
+        "email": usr_email,
+        "rol": usr_rol,
+        "detalle": f"Certificado Nº {num_cert} aprobado y habilitado con código QR."
+    })
     _guardar_solicitudes_disco()
 
     registrar(
@@ -385,10 +540,28 @@ def observar_solicitud(id_solicitud: str, motivo: str, sesion_usr: Dict[str, Any
     if not sol:
         raise ValueError(f"No se encontró la solicitud {id_solicitud}.")
 
+    _normalizar_historial_solicitud(sol)
+    ahora_obs = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    usr_nombre = sesion_usr.get("nombre") or sesion_usr.get("email", "")
+    usr_email = sesion_usr.get("email", "")
+    usr_rol = sesion_usr.get("rol", "")
+
     sol["estado"] = EstadoCertificado.OBSERVADO
     sol["motivoObservacion"] = motivo_limpio
+    sol["observadoPor"] = usr_nombre
+    sol["observadoEmail"] = usr_email
+    sol["observadoRol"] = usr_rol
+    sol["fechaObservacion"] = ahora_obs
     sol["numeroCertificado"] = ""
     sol["fechaAprobacion"] = ""
+    sol.setdefault("historial", []).append({
+        "fecha": ahora_obs,
+        "accion": "Observado por Títulos",
+        "usuario": usr_nombre,
+        "email": usr_email,
+        "rol": usr_rol,
+        "detalle": motivo_limpio
+    })
     _guardar_solicitudes_disco()
 
     registrar(

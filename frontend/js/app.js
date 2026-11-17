@@ -305,7 +305,7 @@ async function iniciarSesion() {
       $('btnTopUsuarios').hidden = !r.sesion.puedeAdministrarUsuarios;
     }
     if ($('btnTopDashboard')) {
-      $('btnTopDashboard').hidden = !(r.sesion.verTodo || r.sesion.esTitulos);
+      $('btnTopDashboard').hidden = !(r.sesion.verTodo || r.sesion.esTitulos || r.sesion.puedeVerDashboard || r.sesion.rol === 'Directivo');
     }
     var cursosServidor = r.cursos || [];
     var idsPresentes = {};
@@ -345,7 +345,7 @@ async function iniciarSesion() {
       verCursos();
     } else if (vistaGuardada === 'bandeja') {
       verBandejaTitulos();
-    } else if (vistaGuardada === 'resumen' && (r.sesion.verTodo || r.sesion.esTitulos)) {
+    } else if (vistaGuardada === 'resumen' && (r.sesion.verTodo || r.sesion.esTitulos || r.sesion.puedeVerDashboard || r.sesion.rol === 'Directivo')) {
       verResumen();
     } else if (vistaGuardada === 'usuarios' && r.sesion.puedeAdministrarUsuarios) {
       verAdminUsuarios();
@@ -411,7 +411,7 @@ function verCursos() {
       ((puedeCargar || estado.sesion.verTodo || esTitulos) ? '<button class="boton" id="btnImportarExcel" style="background:#137333">📥 Importar Viejo Excel</button>' : '') +
       (esTitulos ? '<button class="boton" id="btnTitulos">📥 Bandeja de Títulos</button>' : '<button class="boton suave" id="btnTitulos">Certificados de Títulos</button>') +
       '<button class="boton suave" id="btnNominaEscuela">📋 Nómina de Egresados</button>' +
-      ((estado.sesion.verTodo || esTitulos) ? '<button class="boton suave" id="btnResumen">📊 Dashboard de Estadísticas</button>' : '') +
+      ((estado.sesion.verTodo || esTitulos || estado.sesion.puedeVerDashboard || estado.sesion.rol === 'Directivo') ? '<button class="boton suave" id="btnResumen">📊 Dashboard de Estadísticas</button>' : '') +
       (estado.sesion.puedeAdministrarUsuarios ? '<button class="boton suave" id="btnUsuarios">👤 Administrar Usuarios</button>' : '') +
     '</div>' +
     '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">' +
@@ -1365,8 +1365,21 @@ function pintarSolicitudesCurso() {
 
     var alertaObs = '';
     if (st === 'Observado' && sol.motivoObservacion) {
-      alertaObs = '<div class="alerta-observacion">⚠️ <b>Observación de Títulos:</b> ' + esc(sol.motivoObservacion) + '</div>';
+      var obsAutor = sol.observadoPor ? (sol.observadoPor + (sol.observadoEmail ? ' (' + sol.observadoEmail + ')' : '')) : (sol.observadoEmail || 'Dirección de Títulos');
+      var obsFecha = sol.fechaObservacion ? (' · ' + sol.fechaObservacion) : '';
+      alertaObs = '<div class="alerta-observacion">' +
+        '⚠️ <b>Observación de Títulos:</b> ' + esc(sol.motivoObservacion) +
+        '<div style="margin-top:3px;font-size:11px;color:#5f6368">👤 <b>Observado por:</b> ' + esc(obsAutor) + esc(obsFecha) + '</div>' +
+      '</div>';
+    } else if (st === 'Aprobado' && (sol.aprobadoPor || sol.aprobadoEmail)) {
+      var aprAutor = sol.aprobadoPor ? (sol.aprobadoPor + (sol.aprobadoEmail ? ' (' + sol.aprobadoEmail + ')' : '')) : sol.aprobadoEmail;
+      var aprFecha = (sol.fechaHoraAprobacion || sol.fechaAprobacion) ? (' · ' + (sol.fechaHoraAprobacion || sol.fechaAprobacion)) : '';
+      alertaObs = '<div style="margin-top:4px;font-size:11px;color:#137333">✅ <b>Aprobado por:</b> ' + esc(aprAutor) + esc(aprFecha) + '</div>';
     }
+
+    var btnHistCurso = (sol.historial && sol.historial.length > 0)
+      ? '<button type="button" class="boton suave" style="margin:0;padding:4px 8px;font-size:11.5px" title="Ver quién solicitó, observó o aprobó" onclick="verHistorialEstudianteCurso(' + escJsArg(es.documento) + ')">🕒 Historial (' + sol.historial.length + ')</button>'
+      : '';
 
     return '<tr>' +
       '<td style="text-align:center">' + esc(es.orden) + '</td>' +
@@ -1376,8 +1389,9 @@ function pintarSolicitudesCurso() {
       '<td style="text-align:center"><span class="badge-estado ' + badgeClass + '">' + esc(st) + '</span></td>' +
       '<td style="text-align:center;font-weight:bold">' + esc(sol.numeroCertificado || '—') + '</td>' +
       '<td style="text-align:center;white-space:nowrap">' +
-        '<div style="display:inline-flex;align-items:center;justify-content:center;gap:10px">' +
+        '<div style="display:inline-flex;align-items:center;justify-content:center;gap:8px">' +
           '<span style="display:inline-block;min-width:105px;text-align:center">' + accionHtml + '</span>' +
+          btnHistCurso +
           '<button class="boton suave" style="margin:0" onclick="verAnaliticoEstudiante(' + escJsArg(es.documento) + ')">Ver Analítico</button>' +
         '</div>' +
       '</td>' +
@@ -1931,6 +1945,7 @@ async function verBandejaTitulos() {
   try {
     var r = await llamar('/api/solicitudes');
     var solicitudes = r.solicitudes || [];
+    estado.solicitudesBandeja = solicitudes;
     var esDirTitulos = Boolean(estado.sesion && estado.sesion.esDirectoraTitulos);
     var puedeAprobarBandeja = Boolean(estado.sesion && estado.sesion.puedeAprobarTitulos !== false && !esDirTitulos);
     var puedeVerRacBandeja = Boolean(!estado.sesion || (estado.sesion.puedeVerRac !== false && !esDirTitulos));
@@ -1955,9 +1970,21 @@ async function verBandejaTitulos() {
 
       var detalleEstado = '';
       if (s.estado === 'Aprobado') {
-        detalleEstado = '<div style="color:#137333;font-size:12px;font-weight:bold">Cert. ' + esc(s.numeroCertificado) + ' (' + esc(s.fechaAprobacion) + ')</div>';
+        var aprAutor = s.aprobadoPor ? (s.aprobadoPor + (s.aprobadoEmail ? ' (' + s.aprobadoEmail + ')' : '')) : (s.aprobadoEmail || 'Dirección de Títulos');
+        var aprFec = s.fechaHoraAprobacion || s.fechaAprobacion || '';
+        detalleEstado =
+          '<div style="color:#137333;font-size:12px;font-weight:bold">Cert. ' + esc(s.numeroCertificado) + ' (' + esc(s.fechaAprobacion) + ')</div>' +
+          '<div style="font-size:11px;color:#135c2d;margin-top:2px">✅ <b>Aprobó:</b> ' + esc(aprAutor) + (aprFec ? ' · ' + esc(aprFec) : '') + '</div>';
       } else if (s.estado === 'Observado') {
-        detalleEstado = '<div class="alerta-observacion"><b>Motivo:</b> ' + esc(s.motivoObservacion) + '</div>';
+        var obsAutor = s.observadoPor ? (s.observadoPor + (s.observadoEmail ? ' (' + s.observadoEmail + ')' : '')) : (s.observadoEmail || 'Dirección de Títulos');
+        var obsFec = s.fechaObservacion || '';
+        detalleEstado =
+          '<div class="alerta-observacion"><b>Motivo:</b> ' + esc(s.motivoObservacion) +
+            '<div style="font-size:11px;color:#5f6368;margin-top:3px">👤 <b>Observó:</b> ' + esc(obsAutor) + (obsFec ? ' · ' + esc(obsFec) : '') + '</div>' +
+          '</div>';
+      } else if (s.usuarioSolicitante || s.solicitadoPorNombre) {
+        var solAutor = s.solicitadoPorNombre ? (s.solicitadoPorNombre + (s.usuarioSolicitante ? ' (' + s.usuarioSolicitante + ')' : '')) : s.usuarioSolicitante;
+        detalleEstado = '<div style="font-size:11px;color:#5f6368;margin-top:2px">📤 <b>Solicitó:</b> ' + esc(solAutor) + '</div>';
       }
 
       var accionesHtml = '';
@@ -1975,6 +2002,8 @@ async function verBandejaTitulos() {
       var verRacBtn = (puedeVerRacBandeja && s.idCurso)
         ? ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="abrirCurso(' + escJsArg(s.idCurso) + ', \'notas\')">Ver RAC</button>'
         : '';
+      var histCount = (s.historial && s.historial.length) ? s.historial.length : 1;
+      var verHistBtn = ' <button class="boton suave" style="padding:4px 8px;font-size:12px" title="Ver historial de quién solicitó, observó o aprobó" onclick="verHistorialSolicitudBandeja(' + escJsArg(s.id) + ')">🕒 Historial (' + histCount + ')</button>';
 
       return '<tr>' +
         '<td style="text-align:center">' + checkHtml + '</td>' +
@@ -1986,6 +2015,7 @@ async function verBandejaTitulos() {
         '<td style="text-align:center;white-space:nowrap">' +
           accionesHtml +
           verRacBtn +
+          verHistBtn +
           ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="inspeccionarAnaliticoModal(' + escJsArg(s.idCurso) + ', ' + escJsArg(s.documento) + ')">Ver Analítico</button>' +
         '</td>' +
       '</tr>';
@@ -2160,6 +2190,66 @@ function abrirModalObservar(idSol, nombre, desdeCurso) {
 function cerrarModal() {
   var m = $('modalActivo');
   if (m) m.remove();
+}
+
+function verHistorialSolicitudBandeja(idSol) {
+  var sols = estado.solicitudesBandeja || [];
+  var sol = sols.find(function (x) { return x.id === idSol; });
+  if (!sol) return;
+  var titulo = (sol.estudiante || 'Estudiante') + ' (DNI ' + (sol.documento || '—') + ') · ' + (sol.oferta || '');
+  mostrarModalHistorialSolicitud(titulo, sol.historial || [], sol);
+}
+
+function verHistorialEstudianteCurso(documento) {
+  if (!estado.datos || !estado.datos.estudiantes) return;
+  var es = estado.datos.estudiantes.find(function (x) { return String(x.documento) === String(documento); });
+  if (!es || !es.solicitudCertificado) return;
+  var sol = es.solicitudCertificado;
+  var titulo = (es.apellido || '') + ', ' + (es.nombres || '') + ' (DNI ' + (es.documento || '—') + ')';
+  mostrarModalHistorialSolicitud(titulo, sol.historial || [], sol);
+}
+
+function mostrarModalHistorialSolicitud(tituloEst, historial, solObj) {
+  cerrarModal();
+  var lista = Array.isArray(historial) ? historial : [];
+  var filas = lista.length
+    ? lista.map(function (h, idx) {
+        var colorAcc = '#163a5f';
+        var accLow = String(h.accion || '').toLowerCase();
+        if (accLow.indexOf('aprob') !== -1) colorAcc = '#137333';
+        else if (accLow.indexOf('observ') !== -1) colorAcc = '#b3261e';
+        var autorStr = h.usuario ? (h.usuario + (h.email && h.email !== h.usuario ? ' (' + h.email + ')' : '')) : (h.email || '—');
+        return '<tr>' +
+          '<td style="text-align:center;font-weight:700">' + (idx + 1) + '</td>' +
+          '<td style="white-space:nowrap;font-size:12px">' + esc(h.fecha || '—') + '</td>' +
+          '<td style="font-weight:700;color:' + colorAcc + '">' + esc(h.accion || '—') + '</td>' +
+          '<td><b>' + esc(autorStr) + '</b>' + (h.rol ? '<br><small style="color:var(--suave)">Rol: ' + esc(h.rol) + '</small>' : '') + '</td>' +
+          '<td style="font-size:12.5px">' + esc(h.detalle || '—') + '</td>' +
+        '</tr>';
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--suave);padding:14px">Sin movimientos registrados en el historial.</td></tr>';
+
+  var modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.id = 'modalActivo';
+  modal.innerHTML =
+    '<div class="modal-caja" style="max-width:780px;max-height:85vh;overflow:auto">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+        '<h2 style="margin:0">🕒 Historial de Revisión y Auditoría de Títulos</h2>' +
+        '<button class="boton suave" onclick="cerrarModal()">Cerrar ✕</button>' +
+      '</div>' +
+      '<p style="margin:0 0 12px;font-size:13px;color:var(--suave)">Estudiante: <b>' + esc(tituloEst) + '</b>' +
+        (solObj && solObj.numeroCertificado ? ' · Certificado N° <b>' + esc(solObj.numeroCertificado) + '</b>' : '') +
+      '</p>' +
+      '<div class="tabla-ancha"><table><thead><tr>' +
+        '<th style="width:40px">#</th>' +
+        '<th style="width:135px">Fecha y Hora</th>' +
+        '<th style="width:160px">Acción</th>' +
+        '<th style="width:200px">Realizado por (Usuario / Rol)</th>' +
+        '<th>Detalle / Motivo</th>' +
+      '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
+    '</div>';
+  document.body.appendChild(modal);
 }
 
 async function inspeccionarAnaliticoModal(idCurso, doc) {
@@ -2754,12 +2844,15 @@ async function verResumen() {
 
     var filasObs = obsDetalle.length
       ? obsDetalle.map(function (o) {
+          var autorObs = o.observadoPor ? (o.observadoPor + (o.observadoEmail && o.observadoEmail !== o.observadoPor ? ' (' + o.observadoEmail + ')' : '')) : (o.observadoEmail || 'Dirección de Títulos');
           return '<tr>' +
             '<td><b>' + esc(o.institucion) + '</b><br><small style="color:var(--suave)">CUE ' + esc(o.cue || '—') + '</small></td>' +
             '<td>' + esc(o.oferta) + '<br><small style="color:var(--suave)">' + esc(o.ciclo) + '</small></td>' +
             '<td><b>' + esc(o.estudiante) + '</b><br><small>DNI ' + esc(o.documento) + '</small></td>' +
-            '<td style="text-align:center;font-size:12px">' + esc(o.fechaSolicitud || '—') + '</td>' +
-            '<td style="color:#b3261e">' + esc(o.motivoObservacion || 'Sin detalle') + '</td>' +
+            '<td style="text-align:center;font-size:12px">' + esc(o.fechaObservacion || o.fechaSolicitud || '—') + '</td>' +
+            '<td style="color:#b3261e">' + esc(o.motivoObservacion || 'Sin detalle') +
+              '<div style="font-size:11px;color:#5f6368;margin-top:2px">👤 <b>Observado por:</b> ' + esc(autorObs) + '</div>' +
+            '</td>' +
           '</tr>';
         }).join('')
       : '<tr><td colspan="5" style="text-align:center;color:var(--suave);padding:14px">No se registran solicitudes observadas / errores para los filtros seleccionados.</td></tr>';
@@ -2799,16 +2892,21 @@ async function verResumen() {
         }).join('')
       : '<tr><td colspan="7" style="text-align:center;color:var(--suave)">Sin datos</td></tr>';
 
+    var esSoloDirectivoEsc = Boolean(estado.sesion && estado.sesion.rol === 'Directivo' && !estado.sesion.verTodo && !estado.sesion.esTitulos);
+    var nombreEscDirectivo = (estado.institucionUsuario && estado.institucionUsuario.nombre) ? (' · ' + estado.institucionUsuario.nombre) : '';
+
     $('main').innerHTML =
       '<div class="solo-impresion" style="text-align:center;margin-bottom:10px">' +
         '<div style="font-size:15px;font-weight:bold">SECRETARÍA DE GESTIÓN EDUCATIVA - DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL</div>' +
-        '<div style="font-size:13px;font-weight:bold">DASHBOARD DE ESTADÍSTICAS · FORMACIÓN PROFESIONAL</div>' +
+        '<div style="font-size:13px;font-weight:bold">DASHBOARD DE ESTADÍSTICAS · FORMACIÓN PROFESIONAL' + esc(nombreEscDirectivo.toUpperCase()) + '</div>' +
       '</div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">' +
-        '<div><h1>📊 Dashboard de Estadísticas</h1>' +
-        '<p style="color:var(--suave);margin:0">Indicadores académicos, certificación de Títulos, consultas por QR y observaciones por escuela.</p></div>' +
+        '<div><h1>📊 Dashboard de Estadísticas' + esc(esSoloDirectivoEsc ? (nombreEscDirectivo || ' · Mi Escuela') : '') + '</h1>' +
+        '<p style="color:var(--suave);margin:0">' + (esSoloDirectivoEsc ? 'Indicadores exclusivos de tu establecimiento educativo: matrícula, egresados por nivel de acreditación, certificados y consultas QR.' : 'Indicadores académicos, certificación de Títulos, consultas por QR y observaciones por escuela.') + '</p></div>' +
         '<div class="acciones no-imprimir" style="margin:0">' +
-          '<button type="button" class="boton" id="btnDashVerPendientes" style="background:#137333">📥 Ver Pendientes de Títulos (' + (k.totalPendientesTitulos || 0) + ')</button>' +
+          (esSoloDirectivoEsc
+            ? '<button type="button" class="boton" id="btnDashVolverCursos" style="background:#1F4E78">📚 Ver Cursos de mi Escuela</button>'
+            : '<button type="button" class="boton" id="btnDashVerPendientes" style="background:#137333">📥 Ver Pendientes de Títulos (' + (k.totalPendientesTitulos || 0) + ')</button>') +
           '<button type="button" class="boton suave" id="btnDashCsv">📥 Exportar CSV</button>' +
           '<button type="button" class="boton" id="btnDashImprimir">🖨️ Imprimir Dashboard</button>' +
         '</div>' +
@@ -2911,6 +3009,11 @@ async function verResumen() {
         '</tr></thead><tbody>' + filasObs + '</tbody></table></div>' +
       '</div>';
 
+    if ($('btnDashVolverCursos')) {
+      $('btnDashVolverCursos').addEventListener('click', function () {
+        verCursos();
+      });
+    }
     if ($('btnDashVerPendientes')) {
       $('btnDashVerPendientes').addEventListener('click', function () {
         estado.filtroBandeja = 'Pendiente';

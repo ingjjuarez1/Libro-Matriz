@@ -1388,8 +1388,9 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
     Calcula y devuelve las estadísticas completas para el Dashboard de Gestión
     (accesible tanto a Dirección DETP como a Dirección de Títulos).
     """
-    if not (sesion_usr.get("verTodo") or sesion_usr.get("esTitulos")):
-        raise PermissionDeniedException("Este dashboard es exclusivo para la Dirección DETP y la Dirección de Títulos.")
+    es_directivo_escuela = (str(sesion_usr.get("rol", "")).strip().lower() == "directivo")
+    if not (sesion_usr.get("verTodo") or sesion_usr.get("esTitulos") or sesion_usr.get("puedeVerDashboard") or es_directivo_escuela):
+        raise PermissionDeniedException("Este dashboard es exclusivo para la Dirección DETP, la Dirección de Títulos y el Directivo de la Escuela.")
 
     filtros = filtros or {}
     f_escuela = texto(filtros.get("escuela")).lower()
@@ -1412,6 +1413,8 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
         return False
 
     cursos_todos = cursos_del_panel()
+    if not (sesion_usr.get("verTodo") or sesion_usr.get("esTitulos")):
+        cursos_todos = [c for c in cursos_todos if alcanza_cue(sesion_usr, c.get("cue"))]
     escuelas_disp_map: Dict[str, str] = {}
     cues_disp_set = set()
     for c in cursos_todos:
@@ -1627,7 +1630,10 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
                     "documento": texto(e.get("documento")),
                     "estudiante": f"{texto(e.get('apellido')).upper()}, {texto(e.get('nombres'))}".strip(", "),
                     "fechaSolicitud": texto(sol_e.get("fechaSolicitud")),
-                    "motivoObservacion": texto(sol_e.get("motivoObservacion"))
+                    "motivoObservacion": texto(sol_e.get("motivoObservacion")),
+                    "observadoPor": texto(sol_e.get("observadoPor") or sol_e.get("observadoEmail") or "Dirección de Títulos"),
+                    "observadoEmail": texto(sol_e.get("observadoEmail")),
+                    "fechaObservacion": texto(sol_e.get("fechaObservacion"))
                 })
                 if k_inst not in obs_por_escuela_map:
                     obs_por_escuela_map[k_inst] = {"cue": cue_c, "institucion": inst_c, "cantidad": 0}

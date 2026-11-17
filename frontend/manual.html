@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manual del Usuario por Rol · Sistema RAC y Títulos · DETP Jujuy</title>
+  <style>
+    :root {
+      --azul: #163a5f;
+      --azul-claro: #e8f0fe;
+      --verde: #137333;
+      --rojo: #b3261e;
+      --gris: #5f6368;
+      --borde: #dadce0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      color: #202124;
+      background: #f4f6f9;
+      line-height: 1.55;
+    }
+    .topbar {
+      background: var(--azul);
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    .topbar h1 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .topbar .sub {
+      font-size: 12px;
+      opacity: 0.85;
+      display: block;
+    }
+    .topbar-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      background: #fff;
+      color: var(--azul);
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-verde {
+      background: var(--verde);
+      color: #fff;
+    }
+    .contenedor {
+      max-width: 1120px;
+      margin: 24px auto;
+      padding: 0 18px 48px;
+    }
+    .portada {
+      background: #fff;
+      border: 1px solid var(--borde);
+      border-top: 6px solid var(--azul);
+      border-radius: 10px;
+      padding: 28px 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+    .portada h2 {
+      margin: 0 0 6px;
+      color: var(--azul);
+      font-size: 26px;
+    }
+    .portada p {
+      margin: 4px 0;
+      color: var(--gris);
+      font-size: 14px;
+    }
+    .indice {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .indice a {
+      display: block;
+      padding: 12px 14px;
+      background: #f8fafd;
+      border: 1px solid #d2e3fc;
+      border-radius: 8px;
+      color: var(--azul);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    .indice a:hover {
+      background: var(--azul-claro);
+    }
+    .indice a span {
+      display: block;
+      font-weight: 400;
+      color: var(--gris);
+      font-size: 11.5px;
+      margin-top: 3px;
+    }
+    .matriz-permisos {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 13px;
+      background: #fff;
+    }
+    .matriz-permisos th, .matriz-permisos td {
+      border: 1px solid var(--borde);
+      padding: 9px 10px;
+      text-align: center;
+    }
+    .matriz-permisos th {
+      background: var(--azul);
+      color: #fff;
+      font-weight: 700;
+    }
+    .matriz-permisos td:first-child {
+      text-align: left;
+      font-weight: 600;
+    }
+    .seccion-rol {
+      background: #fff;
+      border: 1px solid var(--borde);
+      border-radius: 10px;
+      padding: 26px 30px;
+      margin-bottom: 28px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+      page-break-inside: avoid;
+    }
+    .rol-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 12px;
+      border-bottom: 2px solid var(--azul);
+      padding-bottom: 12px;
+      margin-bottom: 18px;
+    }
+    .rol-header h3 {
+      margin: 0;
+      font-size: 21px;
+      color: var(--azul);
+    }
+    .rol-badge {
+      background: var(--azul-claro);
+      color: var(--azul);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid #b6d4fe;
+    }
+    .pasos {
+      background: #f8fafc;
+      border-left: 4px solid var(--azul);
+      padding: 12px 18px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 18px;
+      font-size: 13.5px;
+    }
+    .pasos ol, .pasos ul {
+      margin: 6px 0;
+      padding-left: 20px;
+    }
+    .pasos li {
+      margin-bottom: 5px;
+    }
+    .pantalla-card {
+      margin: 20px 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .pantalla-titulo {
+      background: #f1f5f9;
+      padding: 10px 16px;
+      font-weight: 700;
+      font-size: 13.5px;
+      color: #0f172a;
+      border-bottom: 1px solid #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .pantalla-card img {
+      width: 100%;
+      display: block;
+      height: auto;
+    }
+    .pantalla-pie {
+      padding: 10px 16px;
+      font-size: 12.5px;
+      color: #334155;
+      background: #fafbfc;
+      border-top: 1px solid #e2e8f0;
+    }
+    .alerta-importante {
+      background: #fef7e0;
+      border-left: 4px solid #f29900;
+      padding: 10px 14px;
+      font-size: 13px;
+      margin: 12px 0;
+      border-radius: 4px;
+    }
+    @media print {
+      body { background: #fff; }
+      .topbar { display: none !important; }
+      .contenedor { max-width: 100%; margin: 0; padding: 0; }
+      .seccion-rol { page-break-before: always; box-shadow: none; border: 1px solid #999; }
+      .pantalla-card { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>📖 Manual del Usuario por Rol · Libro Matriz / RAC y Títulos</h1>
+      <span class="sub">Secretaría de Gestión Educativa - Dirección de Educación Técnico Profesional · Dirección de Títulos</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-verde" onclick="window.print()">🖨️ Imprimir / Guardar en PDF</button>
+      <a class="btn" href="/">← Volver al Sistema</a>
+    </div>
+  </header>
+
+  <div class="contenedor">
+    <!-- PORTADA Y MATRIZ DE PERMISOS -->
+    <section class="portada">
+      <h2>Manual Operativo del Sistema por Rol de Usuario</h2>
+      <p><strong>Ministerio de Educación de la Provincia de Jujuy</strong> · Secretaría de Gestión Educativa · Dirección de Educación Técnico Profesional (DETP) y Dirección de Títulos.</p>
+      <p>Este documento detalla paso a paso las pantallas, funciones y permisos habilitados para cada uno de los <strong>5 roles institucionales</strong> del sistema.</p>
+
+      <div class="indice">
+        <a href="#rol-administrativo">1. Administrativo de la Escuela<span>Carga exclusiva del RAC, Acta de Examen, Importación de Excel y Envío a Títulos</span></a>
+        <a href="#rol-directivo">2. Directivo de la Escuela<span>Supervisión de su institución, lectura del RAC e impresión de documentos</span></a>
+        <a href="#rol-detp">3. Coordinación Pedagógica (DETP)<span>Supervisión provincial, Dashboard, Aprobación de Títulos y Gestión de Usuarios</span></a>
+        <a href="#rol-titulos">4. Dirección de Títulos (Operativo)<span>Bandeja de Títulos, Aprobación/Observación de Certificados, Nómina y RAC</span></a>
+        <a href="#rol-directora-titulos">5. Directora de Títulos (Tatiana)<span>Dashboard Estadístico, Egresados por Acreditación, Consultas QR y Pendientes</span></a>
+        <a href="#anexo-qr">6. Verificación Pública por QR<span>Consulta pública de autenticidad y registro automático de estadísticas QR</span></a>
+      </div>
+
+      <h3 style="margin-top:24px;color:var(--azul);font-size:16px">Matriz General de Permisos por Rol</h3>
+      <table class="matriz-permisos">
+        <thead>
+          <tr>
+            <th>Función / Módulo del Sistema</th>
+            <th>Administrativo de Escuela</th>
+            <th>Directivo de Escuela</th>
+            <th>Coordinación DETP</th>
+            <th>Dirección de Títulos</th>
+            <th>Directora de Títulos (Tatiana)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Alcance de Instituciones (CUE)</td>
+            <td>Solo su Escuela</td>
+            <td>Solo su Escuela</td>
+            <td>Todas las Escuelas</td>
+            <td>Todas las Escuelas</td>
+            <td>Todas las Escuelas</td>
+          </tr>
+          <tr>
+            <td><strong>Modificar / Cargar Notas en el RAC y Acta</strong></td>
+            <td style="color:#137333;font-weight:700">✔ SÍ (Exclusivo)</td>
+            <td>❌ Solo Lectura</td>
+            <td>❌ Solo Lectura</td>
+            <td>❌ Solo Lectura</td>
+            <td>❌ No ve RAC</td>
+          </tr>
+          <tr>
+            <td>Ver Registro Anual de Calificaciones (RAC)</td>
+            <td>✔ Sí</td>
+            <td>✔ Sí</td>
+            <td>✔ Sí</td>
+            <td>✔ Sí</td>
+            <td>❌ No</td>
+          </tr>
+          <tr>
+            <td>Importar Viejo Excel (Archivos o Carpeta)</td>
+            <td>✔ Sí (Su CUE)</td>
+            <td>❌ No</td>
+            <td>✔ Sí (Todas)</td>
+            <td>❌ No</td>
+            <td>❌ No</td>
+          </tr>
+          <tr>
+            <td>Enviar Solicitudes de Certificados a Títulos</td>
+            <td>✔ Sí</td>
+            <td>❌ No</td>
+            <td>✔ Sí</td>
+            <td>—</td>
+            <td>❌ No</td>
+          </tr>
+          <tr>
+            <td>Aprobar / Observar Certificados y Emitir QR</td>
+            <td>❌ No</td>
+            <td>❌ No</td>
+            <td>✔ Sí</td>
+            <td>✔ Sí</td>
+            <td>❌ Solo Consulta Pendientes</td>
+          </tr>
+          <tr>
+            <td>Ver Planilla de Nómina de Egresados y Analítico</td>
+            <td>✔ Sí</td>
+            <td>✔ Sí</td>
+            <td>✔ Sí</td>
+            <td>✔ Sí</td>
+            <td>✔ Sí</td>
+          </tr>
+          <tr>
+            <td>Ver 📊 Dashboard de Estadísticas + Consultas QR + Nivel Acreditación</td>
+            <td>❌ No</td>
+            <td style="color:#137333;font-weight:700">✔ SÍ (Solo su Escuela)</td>
+            <td>✔ SÍ (Todas)</td>
+            <td>✔ SÍ (Todas)</td>
+            <td style="color:#137333;font-weight:700">✔ SÍ (Todas)</td>
+          </tr>
+          <tr>
+            <td>Crear / Modificar / Dar de Baja Usuarios (`👤 Usuarios`)</td>
+            <td>❌ No</td>
+            <td>❌ No</td>
+            <td>✔ Sí</td>
+            <td>✔ Sí</td>
+            <td>❌ No</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ROL 1: ADMINISTRATIVO DE LA ESCUELA -->
+    <section class="seccion-rol" id="rol-administrativo">
+      <div class="rol-header">
+        <div>
+          <h3>1. Rol: Administrativo de la Escuela</h3>
+          <div style="font-size:13px;color:var(--gris)">Ejemplos de cuentas: <code>admin.cfp1@jujuy.edu.ar</code> (CFP N° 1) · <code>admin.ep6@jujuy.edu.ar</code> (EP N° 6)</div>
+        </div>
+        <span class="rol-badge">Único Rol con Carga y Modificación del RAC</span>
+      </div>
+
+      <div class="alerta-importante">
+        <strong>Regla de Seguridad Institucional:</strong> Únicamente el <strong>Administrativo de la Escuela</strong> puede cargar o modificar calificaciones en el Registro Anual de Calificaciones (RAC), editar el Acta de Examen o agregar estudiantes en los cursos de su establecimiento (CUE).
+      </div>
+
+      <div class="pasos">
+        <strong>Funciones principales paso a paso:</strong>
+        <ol>
+          <li><strong>Mis Cursos y Filtro por Año:</strong> Al ingresar, visualiza exclusivamente las ofertas formativas de su propio CUE. Puede filtrar por <strong>Año / Ciclo Lectivo</strong> con el desplegable superior, crear un <code>+ Nuevo curso</code> (indicando fechas de finalización de 1° y 2° cuatrimestre) o usar <code>📥 Importar Viejo Excel</code> para subir archivos o carpetas completas de su escuela.</li>
+          <li><strong>Carga del Registro Anual de Calificaciones (RAC):</strong>
+            <ul>
+              <li>Selecciona el nivel en la columna <strong>Acredita con</strong> (<em>Primaria Completa, Ciclo Básico Secundario, Secundaria Completa, Nivel Superior</em>).</li>
+              <li>Carga las notas de cada módulo (<code>1</code> a <code>10</code> o <code>AUS</code>). Si todos los módulos y la Calificación Final son <code>&ge; 7</code>, el estado muestra automáticamente <strong style="color:#137333">APROBADO</strong> (en letras verdes y negrita). Si alguna nota es <code>&lt; 7</code>, muestra <strong style="color:#b3261e">DESAPROBADO</strong> (en letras rojas y negrita). Si no rindió examen final o figura sin nota/AUS, muestra <strong>AUSENTE</strong>.</li>
+              <li>Al presionar <code>🖨️ Imprimir Registro Anual</code>, el sistema ajusta automáticamente toda la planilla en una sola hoja horizontal con las notas en color negro oficial y el pie de firmas (<em>Director/a del Establecimiento</em> y <em>Sello Institucional</em> a la misma altura).</li>
+            </ul>
+          </li>
+          <li><strong>Acta de Examen, Certificado, Nómina de Egresados y Circuito de Certificados:</strong> Completa Libro, Folio y Fecha del Acta de Examen, imprime la <strong>Nómina de Egresados</strong> y envía con un clic (<code>📤 Enviar todos los aprobados a Dirección de Títulos</code>) los certificados para su aprobación centralizada.</li>
+        </ol>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 1.1 — Panel de Cursos de la Institución (Filtro por Año, Nuevo Curso e Importador Excel)</span>
+          <span>Rol: Administrativo</span>
+        </div>
+        <img src="/img/manual/01_admin_cursos.png" alt="Cursos del Administrativo de la Escuela">
+        <div class="pantalla-pie">El Administrativo visualiza únicamente las ofertas formativas de su CUE, con buscador instantáneo y selector desplegable por Ciclo Lectivo.</div>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 1.2 — Registro Anual de Calificaciones (RAC) Editable</span>
+          <span>Rol: Administrativo</span>
+        </div>
+        <img src="/img/manual/02_admin_rac.png" alt="RAC Editable del Administrativo">
+        <div class="pantalla-pie">Carga de datos filiatorios, selección de "Acredita con", notas por módulo y estado automático (APROBADO en verde / DESAPROBADO en rojo / AUSENTE).</div>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 1.3 — Acta de Examen con Resumen en 4 Líneas</span>
+          <span>Rol: Administrativo</span>
+        </div>
+        <img src="/img/manual/03_admin_acta.png" alt="Acta de Examen">
+        <div class="pantalla-pie">Generación automática del Acta de Examen con nota en número y letras, condición (Aprobado / Desaprobado / Ausente) y resumen inferior en 4 renglones.</div>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 1.4 — Vista de Certificado Oficial y Analítico con Código QR</span>
+          <span>Rol: Administrativo</span>
+        </div>
+        <img src="/img/manual/04_admin_certificado.png" alt="Certificado Oficial">
+        <div class="pantalla-pie">Anverso del Certificado Oficial y Reverso del Certificado Analítico con Nota de la Trayectoria y Calificación Final en negro oficial y QR de verificación.</div>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 1.5 — Nómina de Egresados del Curso</span>
+          <span>Rol: Administrativo</span>
+        </div>
+        <img src="/img/manual/05_admin_nomina.png" alt="Nómina de Egresados">
+        <div class="pantalla-pie">Planilla oficial de Nómina de Egresados lista para imprimir en hoja A4 horizontal con firmas al pie.</div>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 1.6 — Circuito de Certificados (Envío a Dirección de Títulos)</span>
+          <span>Rol: Administrativo</span>
+        </div>
+        <img src="/img/manual/06_admin_circuito.png" alt="Circuito de Certificados">
+        <div class="pantalla-pie">Desde esta pestaña el Administrativo envía los egresados aprobados a la Dirección de Títulos y consulta si fueron Aprobados u Observados.</div>
+      </div>
+    </section>
+
+    <!-- ROL 2: DIRECTIVO DE LA ESCUELA -->
+    <section class="seccion-rol" id="rol-directivo">
+      <div class="rol-header">
+        <div>
+          <h3>2. Rol: Directivo de la Escuela</h3>
+          <div style="font-size:13px;color:var(--gris)">Ejemplos de cuentas: <code>directivo.cfp1@jujuy.edu.ar</code> (CFP N° 1) · <code>directivo.ep6@jujuy.edu.ar</code> (EP N° 6)</div>
+        </div>
+        <span class="rol-badge">Supervisión e Impresión Institucional (Solo Lectura)</span>
+      </div>
+
+      <div class="pasos">
+        <strong>Funciones principales:</strong>
+        <ol>
+          <li>Accede exclusivamente a los cursos de su establecimiento educativo (CUE).</li>
+          <li>Visualiza el <strong>Registro Anual de Calificaciones (RAC)</strong>, el <strong>Acta de Examen</strong>, la <strong>Nómina de Egresados</strong> y el estado del <strong>Circuito de Certificados</strong> en <strong>modo solo lectura</strong> (los campos de notas están bloqueados para garantizar que solo el Administrativo realice la carga).</li>
+          <li>Puede imprimir todos los documentos oficiales de su escuela (RAC en una hoja horizontal, Acta de Examen, Nómina de Egresados y Certificados aprobados).</li>
+          <li><strong>📊 Dashboard de Estadísticas de su Escuela Únicamente:</strong> El Directivo cuenta con acceso exclusivo al Dashboard de Estadísticas filtrado automáticamente por el CUE de su institución (matrícula, aprobados, desaprobados, ausentes, egresados según nivel de acreditación —Primaria, Ciclo Básico, Secundaria, Superior—, consultas por QR y observaciones de Títulos de su escuela).</li>
+        </ol>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 2.1 — Vista del Directivo de la Escuela (RAC en Modo Consulta e Impresión)</span>
+          <span>Rol: Directivo</span>
+        </div>
+        <img src="/img/manual/07_directivo_rac_lectura.png" alt="Vista Directivo de la Escuela">
+        <div class="pantalla-pie">El Directivo supervisa las calificaciones y estados académicos de su institución e imprime la documentación oficial sin riesgo de alterar notas por error.</div>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 2.2 — 📊 Dashboard de Estadísticas Exclusivo de la Escuela del Directivo</span>
+          <span>Rol: Directivo</span>
+        </div>
+        <img src="/img/manual/07b_directivo_dashboard.png" alt="Dashboard del Directivo de la Escuela">
+        <div class="pantalla-pie">El Directivo visualiza el Dashboard de Estadísticas acotado únicamente a los cursos y egresados de su propio establecimiento educativo (CUE).</div>
+      </div>
+    </section>
+
+    <!-- ROL 3: COORDINACIÓN ÁREA PEDAGÓGICA DETP -->
+    <section class="seccion-rol" id="rol-detp">
+      <div class="rol-header">
+        <div>
+          <h3>3. Rol: Coordinación Área Pedagógica DETP (`Dirección DETP`)</h3>
+          <div style="font-size:13px;color:var(--gris)">Cuenta oficial: <code>sge.detp.areapedagogica@jujuy.edu.ar</code></div>
+        </div>
+        <span class="rol-badge">Gestión Provincial · Dashboard · Aprobación · Usuarios</span>
+      </div>
+
+      <div class="pasos">
+        <strong>Funciones principales:</strong>
+        <ol>
+          <li><strong>Alcance Provincial Completo:</strong> Visualiza todas las instituciones educativas de Formación Profesional de la provincia, filtrando por CUE, nombre de escuela, oferta formativa o Ciclo Lectivo.</li>
+          <li><strong>Consulta de RAC y Aprobación de Certificados:</strong> Puede inspeccionar el RAC de cualquier escuela (en modo lectura para preservar la autoría del Administrativo escolar), aprobar u observar certificados individualmente o por lote y emitir la <strong>📋 Planilla por Escuela (Nómina de Egresados)</strong>.</li>
+          <li><strong>📊 Dashboard de Estadísticas:</strong> Visualiza los indicadores provinciales:
+            <ul>
+              <li>Total de Cursos, Matriculados, Egresados Aprobados, Desaprobados, Ausentes, Certificados Emitidos y <strong>📱 Consultas por QR</strong>.</li>
+              <li><strong>🎓 Egresados (Recibidos) según Nivel de Acreditación:</strong> Cuántos egresados se recibieron habiendo acreditado ingreso por <strong>Primaria</strong>, <strong>Ciclo Básico</strong>, <strong>Secundaria</strong> o <strong>Superior</strong> (con tarjetas de resumen, porcentaje de egreso y tabla exportable a Excel CSV).</li>
+              <li>Desglose detallado por Institución Educativa y por Perfil Profesional / Oferta Formativa.</li>
+            </ul>
+          </li>
+          <li><strong>👤 Administración de Usuarios:</strong> Da de alta, modifica o da de baja cuentas de usuario asignando su Rol y CUE.</li>
+        </ol>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 3.1 — Panel Provincial de Cursos y Accesos Superiores de Coordinación DETP</span>
+          <span>Rol: Dirección DETP</span>
+        </div>
+        <img src="/img/manual/08_detp_inicio.png" alt="Inicio Coordinación DETP">
+        <div class="pantalla-pie">Vista de todos los cursos de la provincia con acceso superior a Dashboard de Estadísticas, Importar Viejo Excel y Gestión de Usuarios.</div>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 3.2 — 📊 Dashboard de Estadísticas: KPIs Provinciales, Consultas QR y Egresados por Nivel de Acreditación</span>
+          <span>Rol: Dirección DETP y Directora de Títulos</span>
+        </div>
+        <img src="/img/manual/09_detp_dashboard_1.png" alt="Dashboard Estadísticas Parte 1">
+        <div class="pantalla-pie">Indicadores generales, contador de Consultas por QR y desglose de cuántos se recibieron acreditando Primaria, Ciclo Básico, Secundaria o Superior.</div>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 3.3 — 📊 Dashboard de Estadísticas: Tablas por Escuela y por Oferta Formativa</span>
+          <span>Rol: Dirección DETP y Directora de Títulos</span>
+        </div>
+        <img src="/img/manual/10_detp_dashboard_2.png" alt="Dashboard Estadísticas Parte 2">
+        <div class="pantalla-pie">Tablas comparativas por establecimiento educativo y por oferta formativa, listas para imprimir o exportar a Excel (CSV).</div>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 3.4 — 👤 Administración Centralizada de Usuarios y Roles</span>
+          <span>Rol: Dirección DETP</span>
+        </div>
+        <img src="/img/manual/11_detp_usuarios.png" alt="Administración de Usuarios">
+        <div class="pantalla-pie">Alta, edición y baja de usuarios asignando correo oficial, rol institucional y CUE de la escuela.</div>
+      </div>
+    </section>
+
+    <!-- ROL 4: DIRECCIÓN DE TÍTULOS OPERATIVO -->
+    <section class="seccion-rol" id="rol-titulos">
+      <div class="rol-header">
+        <div>
+          <h3>4. Rol: Dirección de Títulos (Operativo)</h3>
+          <div style="font-size:13px;color:var(--gris)">Cuenta oficial: <code>titulos@jujuy.edu.ar</code></div>
+        </div>
+        <span class="rol-badge">Revisión, Aprobación y Emisión de Certificados con QR</span>
+      </div>
+
+      <div class="pasos">
+        <strong>Funciones principales:</strong>
+        <ol>
+          <li><strong>Bandeja Central de Solicitudes de Certificados:</strong> Filtra las solicitudes enviadas por las escuelas según su estado: <strong>Pendientes de revisión</strong>, <strong>Observadas / Devueltas</strong>, <strong>Aprobadas y emitidas</strong> o <strong>Todas</strong>.</li>
+          <li><strong>Verificación contra el RAC y Analítico:</strong> Dispone del botón <code>📊 Ver RAC</code> en cada curso para contrastar las notas del estudiante y del botón <code>Ver Analítico</code> para previsualizar el certificado antes de aprobarlo.</li>
+          <li><strong>Aprobación Individual o Masiva:</strong> Al presionar <code>✅ Aprobar y Emitir</code> (o <code>✅ Aprobar todos los pendientes</code>), el sistema asigna número de serie oficial y habilita el Código QR de validación pública. Si detecta un error, presiona <code>⚠️ Observar / Devolver</code> indicando el motivo para que el Administrativo de la escuela lo corrija.</li>
+          <li><strong>📋 Planilla por Escuela (Nómina de Egresados):</strong> Genera e imprime la Nómina Oficial de Egresados de cualquier establecimiento y ciclo lectivo.</li>
+        </ol>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 4.1 — Bandeja Operativa de la Dirección de Títulos (con Autor de Aprobación / Observación)</span>
+          <span>Rol: Dirección de Títulos</span>
+        </div>
+        <img src="/img/manual/12_titulos_bandeja.png" alt="Bandeja Operativa de Dirección de Títulos">
+        <div class="pantalla-pie">En cada fila se muestra quién solicitó, quién observó o quién aprobó el certificado, junto con el botón <b>🕒 Historial</b>.</div>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 4.2 — 🕒 Historial de Revisión y Auditoría de Títulos (Quién Observó o Aprobó)</span>
+          <span>Trazabilidad Completa</span>
+        </div>
+        <img src="/img/manual/12b_titulos_historial.png" alt="Historial de Revisión de Títulos">
+        <div class="pantalla-pie">Al hacer clic en <b>🕒 Historial</b> (tanto en la Bandeja de Títulos como en el Circuito de Certificados del curso), se despliega el registro cronológico con Fecha/Hora, Acción, Usuario/Rol y Detalle/Motivo.</div>
+      </div>
+    </section>
+
+    <!-- ROL 5: DIRECTORA DE TÍTULOS (TATIANA) -->
+    <section class="seccion-rol" id="rol-directora-titulos">
+      <div class="rol-header">
+        <div>
+          <h3>5. Rol: Directora de Títulos (REINOSO TORRES Tatiana Marisel)</h3>
+          <div style="font-size:13px;color:var(--gris)">Cuenta exclusiva: <code>tatiana.reinoso@jujuy.edu.ar</code></div>
+        </div>
+        <span class="rol-badge">Rol Ejecutivo · Dashboard · Seguimiento de Pendientes · Consultas QR</span>
+      </div>
+
+      <div class="pasos">
+        <strong>Características exclusivas diseñadas para la Directora de Títulos:</strong>
+        <ol>
+          <li><strong>📊 Acceso directo al Dashboard de Estadísticas Completo:</strong> Visualiza en tiempo real la matrícula provincial, tasas de aprobación, certificados emitidos, el contador de <strong>📱 Consultas por QR</strong> (con fecha y hora de última consulta) y el cuadro de <strong>🎓 Egresados según Nivel de Acreditación (Primaria, Ciclo Básico, Secundaria y Superior)</strong> (ver Pantallas 3.2 y 3.3).</li>
+          <li><strong>Seguimiento de Pendientes de Títulos (Modo Supervisión):</strong> En la Bandeja de Solicitudes puede ver exactamente qué certificados tiene <strong>Pendientes</strong>, <strong>Observados</strong> o <strong>Aprobados</strong> el área de Títulos, consultar el <strong>Analítico</strong> de cada alumno y emitir la <strong>📋 Planilla por Escuela (Nómina)</strong>.</li>
+          <li><strong>Restricciones de Seguridad del Rol:</strong>
+            <ul>
+              <li><strong>No crea ni modifica usuarios</strong> (no aparece el botón <code>👤 Usuarios</code>).</li>
+              <li><strong>No aprueba ni observa certificados</strong> (los botones de acción operativa están ocultos; en su lugar visualiza el estado actual de cada trámite).</li>
+              <li><strong>No accede al RAC</strong> (no aparece el botón <code>📊 Ver RAC</code> ni el listado de edición de cursos).</li>
+            </ul>
+          </li>
+        </ol>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 5.1 — Vista de Supervisión de la Directora de Títulos (Tatiana Reinoso Torres)</span>
+          <span>Rol: Directora de Títulos</span>
+        </div>
+        <img src="/img/manual/13_directora_titulos_bandeja.png" alt="Vista Directora de Títulos Tatiana">
+        <div class="pantalla-pie">Vista ejecutiva de la Directora de Títulos: monitorea pendientes, consulta Analíticos, Nóminas por Escuela y el Dashboard de Estadísticas, sin botones de aprobar ni acceso al RAC.</div>
+      </div>
+    </section>
+
+    <!-- ANEXO: VALIDACIÓN PÚBLICA POR QR -->
+    <section class="seccion-rol" id="anexo-qr">
+      <div class="rol-header">
+        <div>
+          <h3>6. Verificación Pública de Certificados por Código QR</h3>
+          <div style="font-size:13px;color:var(--gris)">Acceso público sin necesidad de iniciar sesión al escanear el QR impreso en el certificado</div>
+        </div>
+        <span class="rol-badge">Validación Oficial + Estadística de Escaneos QR</span>
+      </div>
+
+      <div class="pasos">
+        <strong>Funcionamiento de la consulta por QR:</strong>
+        <ol>
+          <li>Cada certificado aprobado incluye un <strong>Código QR oficial</strong> en el reverso que dirige a la URL pública de validación (<code>/?validar=NUMERO_DE_SERIE</code>).</li>
+          <li>Al escanearlo con cualquier teléfono celular, muestra en pantalla la constancia oficial de validez con los datos del egresado, establecimiento, oferta formativa, normas jurisdiccionales, calificación final y fecha de emisión.</li>
+          <li>Cada vez que se consulta un certificado por QR, el sistema <strong>incrementa automáticamente el contador de Consultas por QR</strong> y registra la fecha y hora de la última consulta, información que visualizan la <strong>Coordinación Pedagógica (DETP)</strong> y la <strong>Directora de Títulos (Tatiana)</strong> en el Dashboard de Estadísticas.</li>
+        </ol>
+      </div>
+
+      <div class="pantalla-card">
+        <div class="pantalla-titulo">
+          <span>Pantalla 6.1 — Constancia Pública de Validación Oficial por Código QR</span>
+          <span>Acceso Público</span>
+        </div>
+        <img src="/img/manual/14_validacion_qr.png" alt="Validación Pública por QR">
+        <div class="pantalla-pie">Pantalla que visualiza cualquier persona o empleador al escanear el código QR de un Certificado Oficial emitido por el sistema.</div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
