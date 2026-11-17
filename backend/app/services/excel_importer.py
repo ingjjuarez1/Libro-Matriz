@@ -9,11 +9,25 @@ import io
 import os
 import re
 import time
+import uuid
+import threading
 import zipfile
 import datetime
 import unicodedata
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Any, Tuple, Optional
+
+_IMPORT_ID_LOCK = threading.Lock()
+_IMPORT_ID_SEQ = 0
+
+
+def _generar_id_curso_excel() -> str:
+    """Genera un ID único libre de colisiones incluso en importaciones consecutivas en el mismo milisegundo."""
+    global _IMPORT_ID_SEQ
+    with _IMPORT_ID_LOCK:
+        _IMPORT_ID_SEQ += 1
+        seq = _IMPORT_ID_SEQ
+    return f"excel-{int(time.time() * 1000)}-{seq}-{uuid.uuid4().hex[:4]}"
 
 NS = {
     "main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
@@ -304,8 +318,10 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
     division = f"{curso_num} {div_letra}".strip()
 
     # Determinar si la oferta es de 1 cuatrimestre o de 2/3 cuatrimestres
-    duracion_rn = str(_celda(rn, "AD8") or _celda(po, "A18") or "").strip().lower()
+    duracion_rn_raw = str(_celda(rn, "AD8") or _celda(po, "A18") or "").strip()
+    duracion_rn = duracion_rn_raw.lower()
     es_cuat_unico = "1 cuatrimestre" in duracion_rn
+    docente_po = str(_celda(po, "A24") or _celda(rn, "G6") or "").strip()
 
     # Extraer módulos desde 'Reg Notas' fila 12 (1° Cuatrimestre, 2° Cuatrimestre, 3° Cuatrimestre)
     # En Reg Notas:
@@ -539,6 +555,10 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
             est["libroActa"] = libro_nro
             est["folio"] = folio_acta_str
             est["fechaEgreso"] = fecha_acta_str
+            if def_s == "AUS":
+                est["situacion"] = "Ausente examen final"
+            elif def_s.isdigit() and int(def_s) < 7:
+                est["situacion"] = "Desaprobó examen final"
         acta_estudiantes.append({
             "filaActa": 13 + idx_e,
             "filaRac": est["fila"],
@@ -552,7 +572,11 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
             "definitivaLetras": letras_nf
         })
 
-    id_curso = f"excel-{int(time.time())}"
+    id_curso = _generar_id_curso_excel()
+    duracion_final = duracion_rn_raw if duracion_rn_raw and not re.match(r"^\d+$", duracion_rn_raw) else (
+        "1 Cuatrimestre" if es_cuat_unico else (f"{hs_cat_total} hs cátedra" if hs_cat_total else "Anual")
+    )
+    docente_final = docente_po or (presidente_acta if presidente_acta != "Presidente/a de Mesa" else "")
     return _armar_paquete_curso(
         id_curso=id_curso,
         cue=cue,
@@ -583,7 +607,9 @@ def _importar_viejo_excel(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_a
         referencial_ingreso=referencial_ingreso,
         familia_profesional=familia_profesional,
         curso_anio=curso_num,
-        division_letra=div_letra
+        division_letra=div_letra,
+        duracion=duracion_final,
+        docente=docente_final
     )
 
 def _importar_planilla_rac(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_archivo: str) -> Dict[str, Any]:
@@ -706,7 +732,15 @@ def _importar_planilla_rac(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_
             "definitivaLetras": letras_nf
         })
 
-    id_curso = f"excel-{int(time.time())}"
+    ac_hoja = hojas.get("Acta de Examen", {})
+    fecha_acta_rac = _excel_serial_a_fecha(_celda(ac_hoja, "C5")) if ac_hoja else ""
+    pres_rac = str(_celda(ac_hoja, "C7") or "").strip() if ac_hoja else ""
+    voc1_rac = str(_celda(ac_hoja, "G7") or "").strip() if ac_hoja else ""
+    voc2_rac = str(_celda(ac_hoja, "C8") or "").strip() if ac_hoja else ""
+    cuats_unicos = {m.get("cuatrimestre", 1) for m in modulos}
+    duracion_rac = "1 Cuatrimestre" if cuats_unicos == {1} else f"{max(cuats_unicos, default=2)} Cuatrimestres"
+
+    id_curso = _generar_id_curso_excel()
     return _armar_paquete_curso(
         id_curso=id_curso,
         cue=cue,
@@ -721,7 +755,13 @@ def _importar_planilla_rac(hojas: Dict[str, Dict[Tuple[int, int], Any]], nombre_
         modulos=modulos,
         estudiantes=estudiantes,
         acta_estudiantes=acta_estudiantes,
-        libro=libro
+        libro=libro,
+        fecha_acta=fecha_acta_rac,
+        presidente_acta=pres_rac or "Presidente/a de Mesa",
+        vocal1_acta=voc1_rac or "Vocal 1°",
+        vocal2_acta=voc2_rac or "Vocal 2°",
+        duracion=duracion_rac,
+        docente=pres_rac
     )
 
 def _importar_hoja_generica(hoja: Dict[Tuple[int, int], Any], nombre_archivo: str) -> Dict[str, Any]:
@@ -753,7 +793,7 @@ def _importar_hoja_generica(hoja: Dict[Tuple[int, int], Any], nombre_archivo: st
             "situacion": situacion
         })
 
-    id_curso = f"excel-{int(time.time())}"
+    id_curso = _generar_id_curso_excel()
     return _armar_paquete_curso(
         id_curso=id_curso,
         cue="3800006",
@@ -800,9 +840,14 @@ def _armar_paquete_curso(
     referencial_ingreso: str = "Primaria Completa",
     familia_profesional: str = "—",
     curso_anio: str = "1°",
-    division_letra: str = '"U"'
+    division_letra: str = '"U"',
+    duracion: str = "",
+    docente: str = "",
+    fecha_fin_1c: str = "",
+    fecha_fin_2c: str = ""
 ) -> Dict[str, Any]:
     fecha_mesa_final = fecha_acta or datetime.datetime.now().strftime("%d/%m/%Y")
+    duracion_val = duracion or (f"{hs_cat_total} hs cátedra" if hs_cat_total else "Anual")
     return {
         "resumenCurso": {
             "cue": cue,
@@ -813,7 +858,9 @@ def _armar_paquete_curso(
             "turno": turno,
             "division": division,
             "id": id_curso,
-            "estado": "Abierto"
+            "estado": "Abierto",
+            "fechaFin1C": fecha_fin_1c,
+            "fechaFin2C": fecha_fin_2c
         },
         "datosCurso": {
             "encabezado": {
@@ -832,6 +879,10 @@ def _armar_paquete_curso(
                 "divisionLetra": division_letra,
                 "matriculados": str(len(estudiantes)),
                 "division": division,
+                "duracion": duracion_val,
+                "docente": docente,
+                "fechaFin1C": fecha_fin_1c,
+                "fechaFin2C": fecha_fin_2c,
                 "disenio": disenio,
                 "hsCatTotal": hs_cat_total,
                 "nivelCurso": nivel_curso,

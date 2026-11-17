@@ -3,16 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Registro Anual de Calificaciones · DETP - Dirección de Títulos</title>
-  <link rel="stylesheet" href="/css/estilos.css?v=20261113k">
+  <title>Secretaría de Gestión Educativa - Dirección de Educación Técnico Profesional · RAC</title>
+  <link rel="stylesheet" href="/css/estilos.css?v=20261117a">
 </head>
 <body>
   <header class="barra">
     <div class="marca">
-      <strong>Registro Anual de Calificaciones</strong>
-      <span class="sub" style="font-size:13px;font-weight:600;opacity:0.95">Dirección de Educación Técnico Profesional - Dirección de Títulos</span>
+      <strong id="barraTitulo">Secretaría de Gestión Educativa - Dirección de Educación Técnico Profesional</strong>
+      <span class="sub" id="barraEscuela">Escuela Profesional Nº 6</span>
     </div>
     <div class="usuario-panel">
+      <button class="boton" id="btnTopDashboard" hidden style="background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);padding:5px 10px;font-size:12px">📊 Dashboard de Estadísticas</button>
       <button class="boton" id="btnTopImportar" style="background:#137333;border:1px solid rgba(255,255,255,0.4);padding:5px 10px;font-size:12px">📥 Importar Viejo Excel</button>
       <button class="boton" id="btnTopUsuarios" style="background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.4);padding:5px 10px;font-size:12px">👤 Usuarios</button>
       <div class="usuario" id="usuario"></div>
@@ -30,6 +31,6 @@
 
   <div class="aviso" id="aviso" hidden></div>
 
-  <script src="/js/app.js?v=20261113k"></script>
+  <script src="/js/app.js?v=20261117a"></script>
 </body>
 </html>

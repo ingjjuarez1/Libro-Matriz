@@ -15,15 +15,18 @@ from backend.app.core.auth import (
 from backend.app.services.datos_service import (
     cursos_del_panel, buscar_curso, leer_curso, guardar_notas,
     guardar_estudiante, leer_acta, guardar_acta, obtener_analitico,
-    obtener_resumen, importar_excel_en_sistema, crear_curso_manual
+    obtener_resumen, obtener_estadisticas, importar_excel_en_sistema, crear_curso_manual,
+    sincronizar_cursos_locales, obtener_institucion_usuario,
+    obtener_nomina_egresados, actualizar_encabezado_curso,
+    _CURSOS_IMPORTADOS
 )
 from backend.app.services.instalador_service import instalar_panel, importar_cursos_de_carpeta
 from backend.app.core.config import PANEL_ID
 
 from backend.app.services.titulos_service import (
     listar_solicitudes, crear_o_reingresar_solicitud, aprobar_solicitud,
-    observar_solicitud, aprobar_en_lote, validar_certificado_por_numero,
-    registrar_impresion_certificado
+    observar_solicitud, aprobar_en_lote, aprobar_estudiantes_curso,
+    validar_certificado_por_numero, registrar_impresion_certificado
 )
 
 def get_current_user_email(request: Request) -> str:
@@ -54,7 +57,10 @@ async def api_inicio(request: Request) -> JSONResponse:
         email = get_current_user_email(request)
         s = sesion(email)
         todos_cursos = cursos_del_panel()
-        cursos_visibles = [c for c in todos_cursos if alcanza_cue(s, c.get("cue"))]
+        cursos_visibles = [
+            c for c in todos_cursos
+            if alcanza_cue(s, c.get("cue")) or c.get("id") in _CURSOS_IMPORTADOS
+        ]
         
         return JSONResponse({
             "ok": True,
@@ -62,16 +68,29 @@ async def api_inicio(request: Request) -> JSONResponse:
                 "nombre": s["nombre"],
                 "email": s["email"],
                 "rol": s["rol"],
+                "cues": s.get("cues", []),
                 "puedeCargar": s["puedeCargar"],
                 "verTodo": s["verTodo"],
-                "esTitulos": bool(s.get("esTitulos"))
+                "esTitulos": bool(s.get("esTitulos")),
+                "puedeAdministrarUsuarios": bool(s.get("puedeAdministrarUsuarios"))
             },
+            "institucionUsuario": obtener_institucion_usuario(s),
             "cursos": cursos_visibles
         })
     except (AuthException, PermissionDeniedException) as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+async def api_sincronizar_cursos(request: Request) -> JSONResponse:
+    """Sincroniza en el servidor los cursos importados o creados almacenados en el navegador."""
+    try:
+        body = await request.json()
+        paquetes = body.get("paquetes", {})
+        restaurados = sincronizar_cursos_locales(paquetes)
+        return JSONResponse({"ok": True, "restaurados": restaurados})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 async def api_curso(request: Request) -> JSONResponse:
     try:
@@ -82,14 +101,14 @@ async def api_curso(request: Request) -> JSONResponse:
         if not curso:
             return JSONResponse({"ok": False, "error": "Curso no encontrado."}, status_code=404)
         
-        if not alcanza_cue(s, curso.get("cue")):
+        if not (alcanza_cue(s, curso.get("cue")) or id_curso in _CURSOS_IMPORTADOS):
             return JSONResponse({"ok": False, "error": "Acceso denegado a esta institución."}, status_code=403)
         
         datos = leer_curso(curso["id"])
         datos["curso"] = curso
         datos["puedeCargar"] = bool(s["puedeCargar"] and str(curso.get("estado")).lower() != "cerrado")
         
-        return JSONResponse({"ok": True, "datos": datos})
+        return JSONResponse({"ok": True, "datos": datos, "paquete": _CURSOS_IMPORTADOS.get(id_curso)})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
@@ -102,7 +121,7 @@ async def api_guardar_notas(request: Request) -> JSONResponse:
         cambios = body.get("cambios", [])
         
         res = guardar_notas(id_curso, cambios, s)
-        return JSONResponse({"ok": True, "guardados": res["guardados"]})
+        return JSONResponse({"ok": True, "guardados": res["guardados"], "paquete": res.get("paquete")})
     except (AuthException, PermissionDeniedException) as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
@@ -116,7 +135,7 @@ async def api_guardar_estudiante(request: Request) -> JSONResponse:
         body = await request.json()
         
         res = guardar_estudiante(id_curso, body, s)
-        return JSONResponse({"ok": True, "fila": res["fila"], "estudiante": res.get("estudiante")})
+        return JSONResponse({"ok": True, "fila": res["fila"], "estudiante": res.get("estudiante"), "paquete": res.get("paquete")})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
@@ -126,7 +145,7 @@ async def api_crear_curso(request: Request) -> JSONResponse:
         s = sesion(email)
         body = await request.json()
         curso = crear_curso_manual(body, s)
-        return JSONResponse({"ok": True, "curso": curso})
+        return JSONResponse({"ok": True, "curso": curso, "paquete": _CURSOS_IMPORTADOS.get(curso["id"])})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
@@ -151,7 +170,7 @@ async def api_guardar_acta(request: Request) -> JSONResponse:
         mesa = body.get("mesa")
         cambios = body.get("cambios", [])
         res = guardar_acta(id_curso, mesa, cambios, s)
-        return JSONResponse({"ok": True, "guardados": res["guardados"]})
+        return JSONResponse({"ok": True, "guardados": res["guardados"], "paquete": res.get("paquete")})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
@@ -174,8 +193,15 @@ async def api_resumen(request: Request) -> JSONResponse:
     try:
         email = get_current_user_email(request)
         s = sesion(email)
-        resumen = obtener_resumen(s)
-        return JSONResponse({"ok": True, "resumen": resumen})
+        filtros = {
+            "escuela": request.query_params.get("escuela", ""),
+            "cue": request.query_params.get("cue", ""),
+            "desde": request.query_params.get("desde", ""),
+            "hasta": request.query_params.get("hasta", ""),
+            "estado": request.query_params.get("estado", "todos")
+        }
+        est = obtener_estadisticas(s, filtros=filtros)
+        return JSONResponse({"ok": True, "resumen": est["porEscuela"], "estadisticas": est})
     except (AuthException, PermissionDeniedException) as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:
@@ -346,6 +372,77 @@ async def api_aprobar_lote_solicitudes(request: Request) -> JSONResponse:
 
         aprobados = aprobar_en_lote(ids, s)
         return JSONResponse({"ok": True, "aprobados": aprobados, "cantidad": len(aprobados)})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
+async def api_aprobar_titulos_curso(request: Request) -> JSONResponse:
+    """El rol 'titulos' aprueba individualmente o en un clic todos los egresados de un curso."""
+    try:
+        id_curso = request.path_params.get("id_curso", "")
+        email = get_current_user_email(request)
+        s = sesion(email)
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
+
+        documentos = body.get("documentos")
+        if documentos is None and body.get("documento"):
+            documentos = [str(body.get("documento")).strip()]
+        elif isinstance(documentos, str):
+            documentos = [documentos.strip()] if documentos.strip() else None
+        elif isinstance(documentos, list) and len(documentos) == 0:
+            documentos = None
+
+        res = aprobar_estudiantes_curso(id_curso, documentos, s)
+        return JSONResponse({"ok": True, **res})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+async def api_nomina_egresados(request: Request) -> JSONResponse:
+    """Devuelve la planilla institucional 'NÓMINA DE EGRESADOS' filtrada por curso/CUE/ciclo."""
+    try:
+        email = get_current_user_email(request)
+        s = sesion(email)
+        cue = request.query_params.get("cue")
+        id_curso = request.query_params.get("id_curso")
+        ciclo = request.query_params.get("ciclo")
+        filtro = request.query_params.get("filtro") or "todos"
+        res = obtener_nomina_egresados(
+            cue=cue,
+            id_curso=id_curso,
+            ciclo=ciclo,
+            filtro=filtro,
+            sesion_usr=s
+        )
+        return JSONResponse({"ok": True, "nomina": res})
+    except (AuthException, PermissionDeniedException) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+async def api_actualizar_encabezado(request: Request) -> JSONResponse:
+    """Actualiza metadatos del encabezado del curso (fechas 1C/2C, domicilio, duración, docente, etc.)."""
+    try:
+        id_curso = request.path_params.get("id_curso", "")
+        email = get_current_user_email(request)
+        s = sesion(email)
+        body = await request.json()
+        res = actualizar_encabezado_curso(id_curso, body if isinstance(body, dict) else {}, s)
+        return JSONResponse({"ok": True, **res})
     except (AuthException, PermissionDeniedException) as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
     except Exception as e:

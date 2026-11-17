@@ -6,15 +6,101 @@
 
 var estado = {
   sesion: null,
+  institucionUsuario: null,
   cursos: [],
   curso: null,
   datos: null,
-  pestania: 'notas',
+  pestania: localStorage.getItem('lm_pestania') || 'notas',
   emailActual: localStorage.getItem('lm_email') || 'sge.detp.areapedagogica@jujuy.edu.ar',
-  filtroBandeja: 'Pendiente'
+  filtroBandeja: localStorage.getItem('lm_filtro_bandeja') || 'Pendiente',
+  filtroNomina: localStorage.getItem('lm_filtro_nomina') || 'todos',
+  vistaActual: localStorage.getItem('lm_vista') || ''
 };
 
 var $ = function (id) { return document.getElementById(id); };
+
+function _guardarRutaLocal(vista, cursoId, pestania) {
+  estado.vistaActual = vista || '';
+  try {
+    localStorage.setItem('lm_vista', vista || '');
+    localStorage.setItem('lm_curso_id', cursoId || '');
+    if (pestania !== undefined) {
+      localStorage.setItem('lm_pestania', pestania || 'notas');
+    }
+  } catch (e) {}
+}
+
+function _fmtFechaCorta(val) {
+  var s = String(val || '').trim();
+  if (!s) return '';
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return m[3] + '/' + m[2] + '/' + m[1];
+  return s;
+}
+
+function _esEstudianteElegibleTitulos(es) {
+  if (!es) return false;
+  var sit = String(es.situacion || '').trim();
+  if (sit.indexOf('Aprobó') !== 0) return false;
+  var nf = String(es.notaFinal || '').trim();
+  if (nf !== '') {
+    var num = parseFloat(nf.replace(',', '.'));
+    if (isNaN(num) || num < 7) return false;
+  }
+  return true;
+}
+
+function _obtenerPaquetesLocales() {
+  try {
+    var raw = localStorage.getItem('lm_paquetes_cursos_v1');
+    return raw ? (JSON.parse(raw) || {}) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function _guardarPaqueteLocal(paquete) {
+  if (!paquete || !paquete.resumenCurso || !paquete.resumenCurso.id) return;
+  try {
+    var paqs = _obtenerPaquetesLocales();
+    paqs[paquete.resumenCurso.id] = paquete;
+    localStorage.setItem('lm_paquetes_cursos_v1', JSON.stringify(paqs));
+  } catch (e) {
+    console.warn('No se pudo persistir el curso en localStorage:', e);
+  }
+}
+
+function _actualizarBarraEscuela(nombreEscuela) {
+  var el = $('barraEscuela');
+  if (!el) return;
+  if (nombreEscuela) {
+    el.textContent = nombreEscuela;
+    return;
+  }
+  if (estado.datos && estado.datos.encabezado && estado.datos.encabezado.establecimiento) {
+    var enc = estado.datos.encabezado;
+    el.textContent = enc.establecimiento + (enc.localidad ? ' · ' + enc.localidad + ', Jujuy' : '');
+    return;
+  }
+  if (estado.institucionUsuario && estado.institucionUsuario.nombre) {
+    el.textContent = estado.institucionUsuario.nombre + (estado.institucionUsuario.localidad ? ' · ' + estado.institucionUsuario.localidad + ', Jujuy' : '');
+    return;
+  }
+  if (estado.sesion && estado.sesion.esTitulos) {
+    el.textContent = 'Dirección de Títulos · Todas las Instituciones';
+    return;
+  }
+  if (estado.sesion && estado.sesion.verTodo) {
+    el.textContent = 'Dirección de Educación Técnico Profesional · Todas las Instituciones';
+    return;
+  }
+  if (estado.cursos && estado.cursos.length) {
+    var ult = estado.cursos[estado.cursos.length - 1];
+    el.textContent = ult.institucion || 'Escuela Profesional Nº 6';
+    return;
+  }
+  el.textContent = 'Escuela Profesional Nº 6';
+}
 
 // Helper para llamadas a la API REST del backend
 async function llamar(url, metodo, cuerpo) {
@@ -73,6 +159,13 @@ function problema(e) {
 
 // ---------- INICIALIZACIÓN ----------
 window.addEventListener('load', async function () {
+  if ($('btnTopDashboard')) {
+    $('btnTopDashboard').addEventListener('click', function () {
+      if (estado.sesion && (estado.sesion.verTodo || estado.sesion.esTitulos)) {
+        verResumen();
+      }
+    });
+  }
   if ($('btnTopImportar')) {
     $('btnTopImportar').addEventListener('click', mostrarModalImportarExcel);
   }
@@ -118,6 +211,7 @@ async function cargarUsuariosPrueba() {
       if (select.value) {
         estado.emailActual = select.value;
         localStorage.setItem('lm_email', select.value);
+        _guardarRutaLocal('', '', 'notas');
         iniciarSesion();
       }
     };
@@ -129,16 +223,58 @@ async function cargarUsuariosPrueba() {
 async function iniciarSesion() {
   $('main').innerHTML = '<div class="cargando">Iniciando sesión…</div>';
   try {
+    var paqsLocales = _obtenerPaquetesLocales();
+    if (Object.keys(paqsLocales).length > 0) {
+      try {
+        await llamar('/api/sincronizar-cursos', 'POST', { paquetes: paqsLocales });
+      } catch (errSync) {
+        console.warn('No se pudo sincronizar cursos locales:', errSync);
+      }
+    }
     var r = await llamar('/api/inicio');
     estado.sesion = r.sesion;
-    estado.cursos = r.cursos;
+    estado.institucionUsuario = r.institucionUsuario || null;
+    if ($('btnTopImportar')) {
+      $('btnTopImportar').hidden = !r.sesion.puedeCargar;
+    }
+    if ($('btnTopDashboard')) {
+      $('btnTopDashboard').hidden = !(r.sesion.verTodo || r.sesion.esTitulos);
+    }
+    var cursosServidor = r.cursos || [];
+    var idsPresentes = {};
+    cursosServidor.forEach(function (c) { if (c && c.id) idsPresentes[c.id] = true; });
+    Object.keys(paqsLocales).forEach(function (idLocal) {
+      var p = paqsLocales[idLocal];
+      if (p && p.resumenCurso && p.resumenCurso.id && !idsPresentes[p.resumenCurso.id]) {
+        cursosServidor.push(p.resumenCurso);
+        idsPresentes[p.resumenCurso.id] = true;
+      }
+    });
+    estado.cursos = cursosServidor;
     estado.emailActual = r.sesion.email;
+    _actualizarBarraEscuela();
 
     $('usuario').innerHTML = '<b>' + esc(r.sesion.nombre) + '</b>' +
       '<span class="rol">' + esc(r.sesion.rol) + '</span>';
 
-    // Si entra con rol 'titulos', llevarlo directamente a su bandeja de trabajo
-    if (r.sesion.esTitulos) {
+    var vistaGuardada = localStorage.getItem('lm_vista') || '';
+    var cursoGuardado = localStorage.getItem('lm_curso_id') || '';
+    var pestaniaGuardada = localStorage.getItem('lm_pestania') || 'notas';
+    var existeCursoGuardado = cursoGuardado && estado.cursos.some(function (c) { return c.id === cursoGuardado; });
+
+    if (vistaGuardada === 'curso' && existeCursoGuardado) {
+      abrirCurso(cursoGuardado, pestaniaGuardada);
+    } else if (vistaGuardada === 'nomina') {
+      verNominaEscuela(existeCursoGuardado ? cursoGuardado : '');
+    } else if (vistaGuardada === 'cursos') {
+      verCursos();
+    } else if (vistaGuardada === 'bandeja') {
+      verBandejaTitulos();
+    } else if (vistaGuardada === 'resumen' && (r.sesion.verTodo || r.sesion.esTitulos)) {
+      verResumen();
+    } else if (vistaGuardada === 'usuarios' && r.sesion.puedeAdministrarUsuarios) {
+      verAdminUsuarios();
+    } else if (r.sesion.esTitulos) {
       verBandejaTitulos();
     } else {
       verCursos();
@@ -150,7 +286,9 @@ async function iniciarSesion() {
 }
 
 $('volver').addEventListener('click', function () {
-  if (estado.sesion && estado.sesion.esTitulos) {
+  if (estado.curso) {
+    verCursos();
+  } else if (estado.sesion && estado.sesion.esTitulos && estado.vistaActual !== 'bandeja') {
     verBandejaTitulos();
   } else {
     verCursos();
@@ -160,20 +298,33 @@ $('volver').addEventListener('click', function () {
 // ---------- LISTA DE CURSOS (ESCUELAS Y DIRECCIÓN) ----------
 function verCursos() {
   estado.curso = null;
-  $('migas').hidden = true;
+  estado.datos = null;
+  _guardarRutaLocal('cursos', '', '');
+  _actualizarBarraEscuela();
+  if (estado.sesion && estado.sesion.esTitulos) {
+    $('migas').hidden = false;
+    $('volver').textContent = '← Volver a Bandeja de Títulos';
+  } else {
+    $('migas').hidden = true;
+    $('volver').textContent = '← Volver a los cursos';
+  }
   var m = $('main');
   var subtitulo = (estado.sesion && estado.sesion.verTodo)
     ? 'Acceso a todas las instituciones · ' + estado.cursos.length + ' curso(s).'
     : 'Acceso a tu institución · ' + estado.cursos.length + ' curso(s).';
 
+  var puedeCargar = Boolean(estado.sesion && estado.sesion.puedeCargar);
+  var esTitulos = Boolean(estado.sesion && estado.sesion.esTitulos);
+
   m.innerHTML =
-    '<h1>Cursos</h1>' +
+    '<h1>Cursos' + (esTitulos ? ' y RAC' : '') + '</h1>' +
     '<p style="color:var(--suave);margin:0 0 12px">' + subtitulo + '</p>' +
     '<div class="acciones">' +
-      '<button class="boton" id="btnNuevoCurso">+ Nuevo curso</button>' +
-      '<button class="boton" id="btnImportarExcel" style="background:#137333">📥 Importar Viejo Excel</button>' +
-      (estado.sesion.verTodo ? '<button class="boton suave" id="btnResumen">Resumen por institución</button>' : '') +
-      '<button class="boton suave" id="btnTitulos">Certificados de Títulos</button>' +
+      (puedeCargar ? '<button class="boton" id="btnNuevoCurso">+ Nuevo curso</button>' : '') +
+      (puedeCargar ? '<button class="boton" id="btnImportarExcel" style="background:#137333">📥 Importar Viejo Excel</button>' : '') +
+      (esTitulos ? '<button class="boton" id="btnTitulos">📥 Bandeja de Títulos</button>' : '<button class="boton suave" id="btnTitulos">Certificados de Títulos</button>') +
+      '<button class="boton suave" id="btnNominaEscuela">📋 Nómina de Egresados</button>' +
+      ((estado.sesion.verTodo || esTitulos) ? '<button class="boton suave" id="btnResumen">📊 Dashboard de Estadísticas</button>' : '') +
       (estado.sesion.puedeAdministrarUsuarios ? '<button class="boton suave" id="btnUsuarios">👤 Administrar Usuarios</button>' : '') +
     '</div>' +
     '<input class="buscar" id="buscar" placeholder="Buscar por institución, oferta o CUE…">' +
@@ -183,6 +334,7 @@ function verCursos() {
   if ($('btnImportarExcel')) $('btnImportarExcel').addEventListener('click', mostrarModalImportarExcel);
   if ($('btnResumen')) $('btnResumen').addEventListener('click', verResumen);
   if ($('btnTitulos')) $('btnTitulos').addEventListener('click', verBandejaTitulos);
+  if ($('btnNominaEscuela')) $('btnNominaEscuela').addEventListener('click', function () { verNominaEscuela(); });
   if ($('btnUsuarios')) $('btnUsuarios').addEventListener('click', verAdminUsuarios);
   $('buscar').addEventListener('input', pintarLista);
   pintarLista();
@@ -213,11 +365,14 @@ async function abrirCurso(id, pestaniaInicial) {
   $('main').innerHTML = '<div class="cargando">Abriendo el curso desde Google Drive…</div>';
   try {
     var r = await llamar('/api/curso/' + encodeURIComponent(id));
+    if (r.paquete) _guardarPaqueteLocal(r.paquete);
     var d = r.datos;
     estado.curso = d.curso;
     estado.datos = d;
     estado.pestania = pestaniaInicial || 'notas';
+    _guardarRutaLocal('curso', estado.curso.id, estado.pestania);
     $('migas').hidden = false;
+    $('volver').textContent = '← Volver a los cursos';
     pintarCurso();
   } catch (e) {
     problema(e);
@@ -227,6 +382,7 @@ async function abrirCurso(id, pestaniaInicial) {
 
 function pintarCurso() {
   var d = estado.datos, e = d.encabezado;
+  _actualizarBarraEscuela((e.establecimiento || (estado.curso && estado.curso.institucion) || 'Escuela Profesional') + (e.localidad ? ' · ' + e.localidad + ', Jujuy' : ''));
   var hsCatTotal = e.hsCatTotal || 510;
   var refIng = e.referencialIngreso || 'Primaria Completa';
   var famProf = e.familiaProfesional || '—';
@@ -238,13 +394,23 @@ function pintarCurso() {
   var disposicion = e.disposicion || '-';
   var cursoAnio = e.cursoAnio || '1°';
   var divLetra = e.divisionLetra || '"U"';
+  var fin1cFmt = _fmtFechaCorta(e.fechaFin1C);
+  var fin2cFmt = _fmtFechaCorta(e.fechaFin2C);
+  var fechasCuatHtml = (fin1cFmt || fin2cFmt)
+    ? '<dt>Finalización de Cuatrimestres</dt><dd>' +
+        (fin1cFmt ? '<b>1° Cuat.:</b> ' + esc(fin1cFmt) : '') +
+        (fin1cFmt && fin2cFmt ? ' &nbsp;·&nbsp; ' : '') +
+        (fin2cFmt ? '<b>2° Cuat.:</b> ' + esc(fin2cFmt) : '') +
+      '</dd>'
+    : '';
   $('main').innerHTML =
     '<h1>' + esc(e.oferta || estado.curso.oferta) + '</h1>' +
     '<dl class="ficha">' +
-      '<dt>Establecimiento</dt><dd>' + esc(e.establecimiento) + (e.cue ? ' · CUE ' + esc(e.cue) : '') + '</dd>' +
-      '<dt>Familia Profesional</dt><dd>' + esc(famProf) + '</dd>' +
+      '<dt>Establecimiento</dt><dd>' + esc(e.establecimiento) + (e.cue ? ' · CUE ' + esc(e.cue) : '') + (e.domicilio && e.domicilio !== 'S/D' ? ' · ' + esc(e.domicilio) : '') + '</dd>' +
+      '<dt>Familia Profesional</dt><dd>' + esc(famProf) + (e.duracion ? ' &nbsp;·&nbsp; <b>Duración:</b> ' + esc(e.duracion) : '') + (e.docente && e.docente !== '—' ? ' &nbsp;·&nbsp; <b>Docente:</b> ' + esc(e.docente) : '') + '</dd>' +
       '<dt>Turno / División</dt><dd><b>Turno:</b> ' + esc(e.turno) + ' &nbsp;·&nbsp; <b>Curso:</b> ' + esc(cursoAnio) + ' &nbsp;·&nbsp; <b>División:</b> ' + esc(divLetra) + ' &nbsp;·&nbsp; Ciclo ' + esc(e.ciclo) +
         ' · ' + d.estudiantes.length + ' estudiantes</dd>' +
+      fechasCuatHtml +
       '<dt>Referencial de ingreso</dt><dd><span id="ficha_ref_ingreso">' + esc(refIng) + '</span> &nbsp;·&nbsp; <b>Horas Cátedras:</b> <span id="ficha_hs_cat">' + esc(hsCatTotal) + '</span> &nbsp;·&nbsp; <b>Nivel:</b> ' + esc(nivelCurso) + ' &nbsp;·&nbsp; <b>Certificación:</b> ' + esc(certificacion) + '</dd>' +
       '<dt>Norma Jurisdiccional de Aprobación, Resolución N°</dt><dd>' + esc(normaAprob) + '</dd>' +
       '<dt>Resolución Diseño Curricular y/o Plan de Estudio Jurisdiccional N°</dt><dd>' + esc(resDisenio) + '</dd>' +
@@ -255,6 +421,7 @@ function pintarCurso() {
       '<button role="tab" data-p="notas">Registro Anual de Calificaciones</button>' +
       '<button role="tab" data-p="acta">Acta de Examen</button>' +
       '<button role="tab" data-p="analitico">Certificado</button>' +
+      '<button role="tab" data-p="nomina">Nómina de Egresados</button>' +
       '<button role="tab" data-p="solicitudes">Circuito de Certificados</button>' +
     '</div><div class="panel" id="panel"></div>';
 
@@ -275,19 +442,78 @@ function _configurarPaginaImpresion(modo) {
     document.head.appendChild(st);
   }
   if (modo === 'oficio-horizontal') {
-    st.textContent = '@media print { @page { size: 355.6mm 215.9mm; margin: 8mm 10mm; } }';
+    st.textContent = '@media print { @page { size: landscape; margin: 5mm 7mm; } }';
   } else {
-    st.textContent = '@media print { @page { size: A4 portrait; margin: 10mm 12mm; } }';
+    st.textContent = '@media print { @page { size: portrait; margin: 10mm 12mm; } }';
   }
 }
 
+var _elementoZoomActivo = null;
+function _limpiarZoomImpresion() {
+  document.body.classList.remove('modo-medicion-impresion');
+  if (_elementoZoomActivo) {
+    _elementoZoomActivo.style.zoom = '';
+    _elementoZoomActivo = null;
+  }
+}
+window.addEventListener('afterprint', _limpiarZoomImpresion);
+
+function _imprimirElementoEnUnaHoja(contenedor, orientacion) {
+  _configurarPaginaImpresion(orientacion || 'oficio-horizontal');
+  if (!contenedor) {
+    window.print();
+    return;
+  }
+  _limpiarZoomImpresion();
+  document.body.classList.add('modo-medicion-impresion');
+  var tablaWrap = contenedor.querySelector('.tabla-ancha');
+  var prevMaxH = tablaWrap ? tablaWrap.style.maxHeight : '';
+  var prevOverflow = tablaWrap ? tablaWrap.style.overflow : '';
+  if (tablaWrap) {
+    tablaWrap.style.maxHeight = 'none';
+    tablaWrap.style.overflow = 'visible';
+  }
+  var anchoReal = contenedor.scrollWidth || contenedor.offsetWidth || 1000;
+  var altoReal = contenedor.scrollHeight || contenedor.offsetHeight || 700;
+  if (tablaWrap) {
+    tablaWrap.style.maxHeight = prevMaxH;
+    tablaWrap.style.overflow = prevOverflow;
+  }
+  document.body.classList.remove('modo-medicion-impresion');
+
+  // Área imprimible A4 apaisado con márgenes 5mm 7mm (~1040x710 px a 96dpi)
+  var maxW = (orientacion === 'a4-vertical') ? 700 : 1040;
+  var maxH = (orientacion === 'a4-vertical') ? 1020 : 710;
+  var escala = Math.min(1, maxW / Math.max(1, anchoReal), maxH / Math.max(1, altoReal));
+  if (escala < 0.45) escala = 0.45;
+  if (escala < 0.995) {
+    contenedor.style.zoom = escala.toFixed(3);
+    _elementoZoomActivo = contenedor;
+  }
+  window.print();
+  setTimeout(_limpiarZoomImpresion, 500);
+}
+
+function imprimirRacActual() {
+  _imprimirElementoEnUnaHoja($('panel'), 'oficio-horizontal');
+}
+
+function imprimirNominaActual() {
+  var hoja = document.querySelector('.planilla-nomina') || $('panel') || $('main');
+  _imprimirElementoEnUnaHoja(hoja, 'oficio-horizontal');
+}
+
 function pintarPestania() {
+  if (estado.curso && estado.curso.id) {
+    _guardarRutaLocal('curso', estado.curso.id, estado.pestania);
+  }
   Array.prototype.forEach.call(document.querySelectorAll('[role=tab]'), function (b) {
     b.setAttribute('aria-selected', b.dataset.p === estado.pestania);
   });
   if (estado.pestania === 'notas') { _configurarPaginaImpresion('oficio-horizontal'); pintarNotas(); }
   else if (estado.pestania === 'acta') { _configurarPaginaImpresion('a4-vertical'); pintarActa(); }
   else if (estado.pestania === 'analitico') { _configurarPaginaImpresion('a4-vertical'); pintarAnalitico(); }
+  else if (estado.pestania === 'nomina') { _configurarPaginaImpresion('oficio-horizontal'); pintarNominaCurso(); }
   else if (estado.pestania === 'solicitudes') { _configurarPaginaImpresion('a4-vertical'); pintarSolicitudesCurso(); }
 }
 
@@ -346,6 +572,11 @@ function pintarNotas() {
     filtroCuat = 'Todos';
   }
 
+  var enc = d.encabezado || {};
+  var fin1C = _fmtFechaCorta(enc.fechaFin1C);
+  var fin2C = _fmtFechaCorta(enc.fechaFin2C);
+  var esTitulos = Boolean(estado.sesion && estado.sesion.esTitulos);
+
   // Agrupar módulos visibles por cuatrimestre para la fila superior del encabezado
   var gruposCuat = [];
   modulosVisibles.forEach(function (m) {
@@ -360,8 +591,10 @@ function pintarNotas() {
   var thGrupos = gruposCuat.map(function (g) {
     var bg = g.nombre.indexOf('2°') === 0 ? '#d9ead3' : (g.nombre.indexOf('3°') === 0 ? '#fce5cd' : '#cfe2f3');
     var colorTxt = g.nombre.indexOf('2°') === 0 ? '#135c2d' : '#1F4E78';
-    return '<th colspan="' + g.cantidad + '" style="text-align:center;background:' + bg + ';color:' + colorTxt + ';font-size:12px;letter-spacing:0.4px;border-bottom:2px solid ' + colorTxt + '">' +
-           esc(g.nombre) + '</th>';
+    var fechaSub = (g.nombre.indexOf('2°') === 0 || g.nombre.indexOf('3°') === 0) ? fin2C : fin1C;
+    var etiquetaGrupo = fechaSub ? (g.nombre + ' (Fin: ' + fechaSub + ')') : g.nombre;
+    return '<th colspan="' + g.cantidad + '" style="text-align:center;background:' + bg + ';color:' + colorTxt + ';font-size:11px;letter-spacing:0.3px;border-bottom:2px solid ' + colorTxt + '">' +
+           esc(etiquetaGrupo) + '</th>';
   }).join('');
 
   var totalHsCatCurso = 0;
@@ -379,7 +612,6 @@ function pintarNotas() {
            esc(m.nombre) + '</div></th>';
   }).join('');
 
-  var enc = d.encabezado || {};
   var refIngresoActual = enc.referencialIngreso || 'Primaria Completa';
   var acreditaConActual = enc.acreditaCon || 'Primaria Completa';
   var hsCatActual = enc.hsCatTotal || totalHsCatCurso || 510;
@@ -391,6 +623,7 @@ function pintarNotas() {
                      cuatrimestresDisponibles.indexOf('2° Cuatrimestre') !== -1;
 
   var hayCongelados = false;
+  var cantElegiblesSinAprobar = 0;
   var filas = d.estudiantes.map(function (es) {
     if (es.notasCongeladas) hayCongelados = true;
     var bloqueado = !editable || es.notasCongeladas;
@@ -441,7 +674,7 @@ function pintarNotas() {
       var opsEst = listaOpcionesAcred.slice();
       if (acreditaEst && opsEst.indexOf(acreditaEst) === -1) opsEst.unshift(acreditaEst);
       celdaAcreditaHtml =
-        '<select class="sel-acredita-est" data-fila="' + es.fila + '" style="font-size:11px;padding:2px 4px;max-width:145px">' +
+        '<select class="sel-acredita-est" data-fila="' + es.fila + '" style="font-size:11px;padding:2px 4px;max-width:130px">' +
           opsEst.map(function (op) {
             var sel = String(op).toLowerCase() === String(acreditaEst).toLowerCase() ? ' selected' : '';
             return '<option value="' + esc(op) + '"' + sel + '>' + esc(op) + '</option>';
@@ -452,8 +685,25 @@ function pintarNotas() {
     var folioEst = notaFinal ? (es.folio || enc.folio || '1') : '—';
     var fechaEst = notaFinal ? (es.fechaEgreso || enc.fechaActa || '—') : '—';
 
+    var celdaTitulosHtml = '';
+    if (esTitulos) {
+      var solEst = es.solicitudCertificado || {};
+      var estCert = solEst.estado || 'No solicitado';
+      var elegibleTit = _esEstudianteElegibleTitulos(es);
+      if (estCert === 'Aprobado') {
+        celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;white-space:nowrap">' +
+          '<span class="badge-estado badge-aprobado" title="Certificado Aprobado">🔒 ' + esc(solEst.numeroCertificado || 'Aprobado') + '</span></td>';
+      } else if (elegibleTit) {
+        cantElegiblesSinAprobar++;
+        celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;white-space:nowrap">' +
+          '<button type="button" class="boton" style="padding:3px 8px;font-size:11px;background:#137333" onclick="aprobarTitulosCurso([\'' + esc(es.documento) + '\'], \'notas\')">✅ Aprobar</button></td>';
+      } else {
+        celdaTitulosHtml = '<td class="no-imprimir" style="text-align:center;color:var(--suave);font-size:11px;white-space:nowrap">No elegible</td>';
+      }
+    }
+
     return '<tr><td style="text-align:center">' + esc(es.orden) + '</td>' +
-      '<td>' + esc(es.apellido) + ', ' + esc(es.nombres) + candado + '</td>' +
+      '<td class="col-nombre-est">' + esc(es.apellido) + ', ' + esc(es.nombres) + candado + '</td>' +
       '<td style="text-align:center">' + esc(es.documento) + '</td>' +
       '<td style="text-align:center">' + esc(es.fechaNac || '—') + '</td>' +
       '<td style="text-align:center">' + esc(es.provincia || 'Jujuy') + '</td>' +
@@ -465,6 +715,7 @@ function pintarNotas() {
       '<td style="text-align:center">' + esc(libroActaEst) + '</td>' +
       '<td style="text-align:center">' + esc(folioEst) + '</td>' +
       '<td style="text-align:center">' + esc(fechaEst) + '</td>' +
+      celdaTitulosHtml +
     '</tr>';
   }).join('');
 
@@ -507,43 +758,56 @@ function pintarNotas() {
   var provinciaEscuelaEnc = 'JUJUY';
 
   var encabezadoImpresionRac =
-    '<div class="solo-impresion" style="margin-bottom:12px;border-bottom:2px solid #222;padding-bottom:8px;font-family:\'Times New Roman\',serif">' +
-      '<div style="text-align:center;margin-bottom:8px">' +
-        '<div style="font-size:12px;font-weight:bold;letter-spacing:0.5px">' + esc(nombreEscuelaEnc) + '</div>' +
-        '<div style="font-size:11px;font-weight:bold;letter-spacing:0.5px">' + esc(localidadEscuelaEnc) + ' · PROVINCIA DE ' + esc(provinciaEscuelaEnc) + '</div>' +
-        '<h2 style="margin:6px 0 2px;font-size:16px;text-transform:uppercase;letter-spacing:1px">REGISTRO ANUAL DE CALIFICACIONES</h2>' +
+    '<div class="solo-impresion" style="margin-bottom:6px;border-bottom:2px solid #222;padding-bottom:4px;font-family:\'Times New Roman\',serif">' +
+      '<div style="text-align:center;margin-bottom:4px">' +
+        '<div style="font-size:15px;font-weight:bold;letter-spacing:0.5px">SECRETARÍA DE GESTIÓN EDUCATIVA - DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL</div>' +
+        '<div style="font-size:13px;font-weight:bold;letter-spacing:0.4px;margin-top:2px">' + esc(nombreEscuelaEnc) + ' · ' + esc(localidadEscuelaEnc) + ' · PROVINCIA DE ' + esc(provinciaEscuelaEnc) + '</div>' +
+        '<h2 style="margin:4px 0 2px;font-size:14px;text-transform:uppercase;letter-spacing:1px">REGISTRO ANUAL DE CALIFICACIONES</h2>' +
       '</div>' +
-      '<table style="width:100%;border-collapse:collapse;font-size:11px;border:none">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:10px;border:none">' +
         '<tr>' +
-          '<td style="border:none;padding:2px 4px"><b>Establecimiento:</b> ' + esc(enc.establecimiento || estado.curso.institucion || '—') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>CUE:</b> ' + esc(enc.cue || estado.curso.cue || '—') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>Familia Profesional:</b> ' + esc(enc.familiaProfesional || '—') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>Establecimiento:</b> ' + esc(enc.establecimiento || estado.curso.institucion || '—') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>CUE:</b> ' + esc(enc.cue || estado.curso.cue || '—') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>Familia Profesional:</b> ' + esc(enc.familiaProfesional || '—') + '</td>' +
         '</tr>' +
         '<tr>' +
-          '<td style="border:none;padding:2px 4px"><b>Oferta Formativa:</b> ' + esc(enc.oferta || estado.curso.oferta || '—') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>Ciclo Lectivo:</b> ' + esc(enc.ciclo || estado.curso.ciclo || '—') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>Turno / Curso / División:</b> ' + esc(enc.turno || estado.curso.turno || '—') + ' · ' + esc(enc.cursoAnio || '1°') + ' ' + esc(enc.divisionLetra || '"U"') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>Oferta Formativa:</b> ' + esc(enc.oferta || estado.curso.oferta || '—') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>Ciclo Lectivo:</b> ' + esc(enc.ciclo || estado.curso.ciclo || '—') + (enc.duracion ? ' · <b>Duración:</b> ' + esc(enc.duracion) : '') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>Turno / Curso / División:</b> ' + esc(enc.turno || estado.curso.turno || '—') + ' · ' + esc(enc.cursoAnio || '1°') + ' ' + esc(enc.divisionLetra || '"U"') + '</td>' +
         '</tr>' +
         '<tr>' +
-          '<td style="border:none;padding:2px 4px"><b>Referencial de ingreso:</b> <span id="imp_ref_ingreso">' + esc(refIngresoActual) + '</span></td>' +
-          '<td style="border:none;padding:2px 4px"><b>Horas Cátedras:</b> <span id="imp_hs_cat">' + esc(hsCatActual) + '</span> · <b>Nivel:</b> ' + esc(enc.nivelCurso || 'II') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>Certificación:</b> ' + esc(enc.certificacion || 'Diseño Curricular Jurisdiccional') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>Referencial de ingreso:</b> <span id="imp_ref_ingreso">' + esc(refIngresoActual) + '</span></td>' +
+          '<td style="border:none;padding:1px 4px"><b>Horas Cátedras:</b> <span id="imp_hs_cat">' + esc(hsCatActual) + '</span> · <b>Nivel:</b> ' + esc(enc.nivelCurso || 'II') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>Certificación:</b> ' + esc(enc.certificacion || 'Diseño Curricular Jurisdiccional') + '</td>' +
         '</tr>' +
         '<tr>' +
-          '<td style="border:none;padding:2px 4px"><b>Norma Jurisdiccional de Aprobación, Resolución N°:</b> ' + esc(enc.normaAprobacion || '—') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>Resolución Diseño Curricular y/o Plan de Estudio Jurisdiccional N°:</b> ' + esc(enc.resolucionDisenio || enc.disenio || '—') + '</td>' +
-          '<td style="border:none;padding:2px 4px"><b>Validez Nacional R.M.E N°:</b> ' + esc(enc.validezNacional || '—') + ' · <b>Disposición:</b> ' + esc(enc.disposicion || '-') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>Norma Jurisd. Aprobación, Res. N°:</b> ' + esc(enc.normaAprobacion || '—') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>Res. Diseño Curricular N°:</b> ' + esc(enc.resolucionDisenio || enc.disenio || '—') + '</td>' +
+          '<td style="border:none;padding:1px 4px"><b>Validez Nac. R.M.E N°:</b> ' + esc(enc.validezNacional || '—') + ' · <b>Disposición:</b> ' + esc(enc.disposicion || '-') + '</td>' +
         '</tr>' +
+        ((fin1C || fin2C || (enc.docente && enc.docente !== '—'))
+          ? '<tr>' +
+              '<td style="border:none;padding:1px 4px">' + (fin1C ? '<b>Fin 1° Cuatrimestre:</b> ' + esc(fin1C) : '') + '</td>' +
+              '<td style="border:none;padding:1px 4px">' + (fin2C ? '<b>Fin 2° Cuatrimestre:</b> ' + esc(fin2C) : '') + '</td>' +
+              '<td style="border:none;padding:1px 4px">' + (enc.docente && enc.docente !== '—' ? '<b>Docente:</b> ' + esc(enc.docente) : '') + '</td>' +
+            '</tr>'
+          : '') +
       '</table>' +
     '</div>';
 
   var pieImpresionRac =
-    '<div class="solo-impresion" style="margin-top:42px;font-family:\'Times New Roman\',serif;font-size:12px">' +
-      '<div style="display:flex;justify-content:space-around;text-align:center">' +
-        '<div style="width:220px;border-top:1px solid #000;padding-top:4px"><b>Secretario/a / Administrativo/a</b><br><small>Firma y Sello</small></div>' +
-        '<div style="width:220px;border-top:1px solid #000;padding-top:4px"><b>Director/a del Establecimiento</b><br><small>Firma y Sello</small></div>' +
+    '<div class="solo-impresion pie-firmas-rac" style="margin-top:30px;font-family:\'Times New Roman\',serif;font-size:11px;break-inside:avoid;page-break-inside:avoid">' +
+      '<div style="display:flex;justify-content:space-around;align-items:flex-start;text-align:center">' +
+        '<div style="width:220px;border-top:1px solid #000;padding-top:4px;margin:0"><b>Sello Institucional</b></div>' +
+        '<div style="width:220px;border-top:1px solid #000;padding-top:4px;margin:0"><b>Director/a del Establecimiento</b><br><small>Firma y Sello</small></div>' +
       '</div>' +
     '</div>';
+
+  var btnAprobarTodosRacHtml = esTitulos
+    ? '<button type="button" class="boton" style="background:#137333" id="btnAprobarTodosRac"' +
+        (cantElegiblesSinAprobar === 0 ? ' disabled title="No hay nuevos egresados pendientes de aprobación"' : '') +
+      '>✅ Aprobar Todos los Egresados' + (cantElegiblesSinAprobar ? ' (' + cantElegiblesSinAprobar + ')' : '') + '</button>'
+    : '';
 
   $('panel').innerHTML =
     '<h2 style="font-size:16px;margin:0 0 10px">Registro Anual de Calificaciones</h2>' +
@@ -556,12 +820,14 @@ function pintarNotas() {
       ? '<div class="acciones">' +
           '<button class="boton" id="guardar" disabled>Guardar cambios</button>' +
           '<button type="button" class="boton" style="background:#137333" onclick="mostrarModalNuevoEstudiante()">+ Agregar Alumno</button>' +
+          btnAprobarTodosRacHtml +
           '<button type="button" class="boton" style="background:#1F4E78" id="imprimirRac">🖨️ Imprimir Registro Anual</button>' +
           '<span style="color:var(--suave);font-size:12px">Nota de 1 a 10, o AUS si estuvo ausente. ≥7 Aprobado · <7 Desaprobado</span>' +
         '</div>'
       : '<div class="acciones">' +
+          btnAprobarTodosRacHtml +
           '<button type="button" class="boton" style="background:#1F4E78" id="imprimirRac">🖨️ Imprimir Registro Anual</button>' +
-          '<span style="color:var(--suave);font-size:12px">Tu rol es de consulta: puedes visualizar e imprimir, no modificar.</span>' +
+          '<span style="color:var(--suave);font-size:12px">' + (esTitulos ? 'Rol Dirección de Títulos: puedes visualizar el RAC, imprimir y aprobar certificados.' : 'Tu rol es de consulta: puedes visualizar e imprimir, no modificar.') + '</span>' +
         '</div>') +
     '<div class="tabla-ancha"><table><thead>' +
       '<tr>' +
@@ -570,20 +836,26 @@ function pintarNotas() {
         '<th style="text-align:center;background:#e9eef4">ESTUDIOS</th>' +
         thGrupos +
         thGrupoProm +
+        (esTitulos ? '<th class="no-imprimir" rowspan="2" style="width:125px;text-align:center;background:#e6f4ea;color:#135c2d">Certificado / Títulos</th>' : '') +
       '</tr>' +
       '<tr>' +
-        '<th style="width:36px">N°</th><th>Apellido y nombres</th><th style="width:92px">Documento</th>' +
-        '<th style="width:96px;text-align:center">Fecha de nacimiento</th>' +
-        '<th style="width:92px;text-align:center">Provincia</th>' +
-        '<th style="width:88px;text-align:center">País</th>' +
-        '<th style="width:110px;text-align:center">Acredita con</th>' +
+        '<th style="width:26px;text-align:center">N°</th><th class="col-nombre-est">Apellido y nombres</th><th style="width:72px;text-align:center">Documento</th>' +
+        '<th style="width:76px;text-align:center">Fecha nac.</th>' +
+        '<th style="width:66px;text-align:center">Provincia</th>' +
+        '<th style="width:62px;text-align:center">País</th>' +
+        '<th style="width:95px;text-align:center">Acredita con</th>' +
         th + thExtraFinal +
       '</tr>' +
     '</thead><tbody>' + filas + '</tbody></table></div>' +
     pieImpresionRac;
 
   if ($('imprimirRac')) {
-    $('imprimirRac').addEventListener('click', function () { window.print(); });
+    $('imprimirRac').addEventListener('click', imprimirRacActual);
+  }
+  if ($('btnAprobarTodosRac')) {
+    $('btnAprobarTodosRac').addEventListener('click', function () {
+      aprobarTitulosCurso(null, 'notas');
+    });
   }
   Array.prototype.forEach.call(document.querySelectorAll('.chk-ref-ingreso-rac'), function (chk) {
     chk.addEventListener('change', function () {
@@ -663,6 +935,7 @@ function pintarNotas() {
     avisar('Guardando notas en Google Sheets…');
     try {
       var r = await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/notas', 'POST', { cambios: cambios });
+      if (r.paquete) _guardarPaqueteLocal(r.paquete);
       avisar(r.guardados + ' nota(s) guardadas con éxito', 'ok');
       abrirCurso(estado.curso.id);
     } catch (e) {
@@ -722,7 +995,7 @@ async function pintarActa() {
       return '<tr>' +
         '<td style="text-align:center">' + esc(es.orden) + '</td>' +
         '<td style="text-align:center">' + esc(es.documento) + '</td>' +
-        '<td>' + esc(es.nombre) + '</td>' +
+        '<td class="col-nombre-est">' + esc(es.nombre) + '</td>' +
         campo('teorico', es.teorico) +
         '<td style="text-align:center">' + esc(teoLetras) + '</td>' +
         campo('practico', es.practico) +
@@ -753,11 +1026,11 @@ async function pintarActa() {
     var provEscActa = 'JUJUY';
 
     $('panel').innerHTML =
-      // ── Encabezado con Datos de la Escuela, Libro y Folio ──
+      // ── Encabezado con Secretaría, Datos de la Escuela, Libro y Folio ──
       '<div class="acta-encabezado">' +
-        '<div style="text-align:center;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:bold;letter-spacing:0.5px;margin-bottom:6px">' +
-          esc(nombreEscActa) + '<br>' +
-          '<span style="font-size:11px">' + esc(locEscActa) + ' · PROVINCIA DE ' + esc(provEscActa) + '</span>' +
+        '<div style="text-align:center;font-family:\'Times New Roman\',serif;letter-spacing:0.5px;margin-bottom:6px">' +
+          '<div style="font-size:15px;font-weight:bold">SECRETARÍA DE GESTIÓN EDUCATIVA - DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL</div>' +
+          '<div style="font-size:13px;font-weight:bold;margin-top:2px">' + esc(nombreEscActa) + ' · ' + esc(locEscActa) + ' · PROVINCIA DE ' + esc(provEscActa) + '</div>' +
         '</div>' +
         '<div class="acta-libro-folio">' +
           '<span>Libro de Actas N°: ' + inputMesa('m_libro', libroNro, 'N° Libro', '60px') + '</span>' +
@@ -791,22 +1064,22 @@ async function pintarActa() {
       '<div class="tabla-ancha"><table><thead><tr>' +
         '<th style="width:36px">N° de orden</th>' +
         '<th style="width:92px">N° doc. de identidad</th>' +
-        '<th>Apellido y nombre</th>' +
+        '<th class="col-nombre-est">Apellido y nombre</th>' +
         '<th style="width:60px">Teórico N°</th><th style="width:70px">Teórico Letras</th>' +
         '<th style="width:60px">Práctico N°</th><th style="width:70px">Práctico Letras</th>' +
         '<th style="width:60px">Definitiva N°</th><th style="width:90px">Definitiva Letras</th>' +
         '<th style="width:105px">Condición</th>' +
       '</tr></thead><tbody>' + (filas || '') + '</tbody></table></div>' +
 
-      // ── Resumen ──
+      // ── Resumen (sin tabla, solo contenido) ──
       '<div class="acta-resumen">' +
-        '<table class="acta-resumen-tabla">' +
-          '<tr><td>Aprobados</td><td><b>' + nApr + '</b></td></tr>' +
-          '<tr><td>Desaprobados</td><td><b>' + nDes + '</b></td></tr>' +
-          '<tr><td>Ausentes</td><td><b>' + nAus + '</b></td></tr>' +
-          '<tr style="border-top:2px solid #333"><td><b>Total</b></td><td><b>' + totalEst + '</b></td></tr>' +
-        '</table>' +
-        '<p class="acta-texto-intro" style="margin-top:14px">Se hace constar que sobre un total de ' + enLetras(totalEst) + ' (' + totalEst + ') alumnos/as, ' +
+        '<p class="acta-texto-intro" style="margin:6px 0">' +
+          '<b>Aprobados:</b> ' + nApr + ' &nbsp;·&nbsp; ' +
+          '<b>Desaprobados:</b> ' + nDes + ' &nbsp;·&nbsp; ' +
+          '<b>Ausentes:</b> ' + nAus + ' &nbsp;·&nbsp; ' +
+          '<b>Total:</b> ' + totalEst +
+        '</p>' +
+        '<p class="acta-texto-intro" style="margin-top:8px">Se hace constar que sobre un total de ' + enLetras(totalEst) + ' (' + totalEst + ') alumnos/as, ' +
           'resultaron ' + enLetras(nApr) + ' (' + nApr + ') aprobados/as, ' +
           enLetras(nDes) + ' (' + nDes + ') desaprobados/as y ' +
           enLetras(nAus) + ' (' + nAus + ') ausentes.</p>' +
@@ -867,11 +1140,13 @@ async function pintarActa() {
       $('guardarActa').disabled = true;
       avisar('Guardando acta y tribunal examinador…');
       try {
-        await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/acta', 'POST', {
+        var rActaSave = await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/acta', 'POST', {
           mesa: mesaPayload,
           cambios: cambios
         });
+        if (rActaSave && rActaSave.paquete) _guardarPaqueteLocal(rActaSave.paquete);
         var rCurso = await llamar('/api/curso/' + encodeURIComponent(estado.curso.id));
+        if (rCurso && rCurso.paquete) _guardarPaqueteLocal(rCurso.paquete);
         if (rCurso && rCurso.datos) {
           estado.datos = rCurso.datos;
         }
@@ -887,11 +1162,41 @@ async function pintarActa() {
   }
 }
 
-// ---------- PESTAÑA: CIRCUITO DE CERTIFICADOS (VISTA ESCUELA) ----------
+// ---------- PESTAÑA: CIRCUITO DE CERTIFICADOS (ESCUELA Y TÍTULOS) ----------
+async function aprobarTitulosCurso(documentos, pestaniaDestino) {
+  if (!estado.curso || !estado.curso.id) return;
+  var esMasivo = !documentos || !documentos.length;
+  if (esMasivo && !confirm('¿Aprobar en un clic a todos los egresados académicamente aprobados de este curso que aún no tienen certificado?')) {
+    return;
+  }
+  avisar(esMasivo ? 'Aprobando todos los egresados del curso…' : 'Aprobando certificado…');
+  try {
+    var r = await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/aprobar-titulos', 'POST', {
+      documentos: esMasivo ? null : documentos
+    });
+    var nApr = r.cantidadAprobados || 0;
+    var nYa = (r.yaAprobados || []).length;
+    var nOm = (r.omitidos || []).length;
+    if (nApr > 0) {
+      avisar('¡Se aprobaron ' + nApr + ' certificado(s) con éxito!' + (nOm ? ' (' + nOm + ' omitido(s) por no estar aprobados).' : ''), 'ok');
+    } else if (nYa > 0) {
+      avisar('Los egresados elegibles de este curso ya contaban con certificado aprobado.', 'ok');
+    } else {
+      avisar('No se encontraron estudiantes elegibles para aprobar en este curso.', 'error');
+    }
+    abrirCurso(estado.curso.id, pestaniaDestino || estado.pestania);
+  } catch (e) {
+    problema(e);
+  }
+}
+
 function pintarSolicitudesCurso() {
   var d = estado.datos;
+  var esTitulos = Boolean(estado.sesion && estado.sesion.esTitulos);
+  var cantElegiblesPend = 0;
+
   var filas = d.estudiantes.map(function (es) {
-    var aprobo = String(es.situacion || '').startsWith('Aprobó');
+    var aprobo = _esEstudianteElegibleTitulos(es);
     var sol = es.solicitudCertificado || {};
     var st = sol.estado || 'No solicitado';
 
@@ -903,6 +1208,15 @@ function pintarSolicitudesCurso() {
     var accionHtml = '';
     if (!aprobo) {
       accionHtml = '<button class="boton" disabled style="opacity:0.4;background:var(--suave)" title="Solo habilitado para estudiantes con situación Aprobó">No elegible (No aprobó)</button>';
+    } else if (st === 'Aprobado') {
+      accionHtml = '<span style="color:#137333;font-weight:600">🔒 Aprobado (' + esc(sol.numeroCertificado) + ')</span>';
+    } else if (esTitulos) {
+      cantElegiblesPend++;
+      var nombreEst = (es.apellido || '') + ', ' + (es.nombres || '');
+      accionHtml = '<button type="button" class="boton" style="background:#137333" onclick="aprobarTitulosCurso([\'' + esc(es.documento) + '\'], \'solicitudes\')">✅ Aprobar</button>';
+      if (st === 'Pendiente' && sol.idSolicitud) {
+        accionHtml += ' <button type="button" class="boton suave" style="color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(\'' + esc(sol.idSolicitud) + '\', \'' + esc(nombreEst) + '\', true)">Observar</button>';
+      }
     } else {
       if (st === 'No solicitado') {
         accionHtml = '<button class="boton" onclick="solicitarCertificadoEstudiante(\'' + esc(es.documento) + '\')">Solicitar Certificado</button>';
@@ -910,8 +1224,6 @@ function pintarSolicitudesCurso() {
         accionHtml = '<span style="color:#b06000;font-weight:600">⏳ En revisión por Títulos</span>';
       } else if (st === 'Observado') {
         accionHtml = '<button class="boton" style="background:#e37400" onclick="solicitarCertificadoEstudiante(\'' + esc(es.documento) + '\')">Reenviar a Títulos</button>';
-      } else if (st === 'Aprobado') {
-        accionHtml = '<span style="color:#137333;font-weight:600">🔒 Aprobado (' + esc(sol.numeroCertificado) + ')</span>';
       }
     }
 
@@ -934,16 +1246,221 @@ function pintarSolicitudesCurso() {
     '</tr>';
   }).join('');
 
+  var barraTitulosHtml = esTitulos
+    ? '<div class="acciones" style="background:#e6f4ea;padding:10px 14px;border:1px solid #34a853;border-radius:6px">' +
+        '<button type="button" class="boton" style="background:#137333" id="btnAprobarTodosSol"' +
+          (cantElegiblesPend === 0 ? ' disabled' : '') +
+        '>✅ Aprobar Todos los Egresados' + (cantElegiblesPend ? ' (' + cantElegiblesPend + ')' : '') + '</button>' +
+        '<span style="color:#135c2d;font-size:12px">Podés aprobar individualmente o en un clic a todos los egresados aprobados del curso (incluso sin solicitud previa).</span>' +
+      '</div>'
+    : '';
+
   $('panel').innerHTML =
     '<div class="ficha">' +
-      '<dt>Regla de solicitud:</dt>' +
-      '<dd>La escuela solo puede solicitar la emisión del certificado oficial para alumnos en estado <b>"Aprobó"</b>. Quienes no aprobaron no tienen la opción habilitada.</dd>' +
+      '<dt>Regla de certificación:</dt>' +
+      '<dd>Solo pueden recibir certificado oficial los alumnos académicamente aprobados (<b>"Aprobó"</b> y nota final ≥ 7). Quienes no aprobaron no tienen la opción habilitada.</dd>' +
     '</div>' +
+    barraTitulosHtml +
     '<div class="tabla-ancha"><table><thead><tr>' +
       '<th style="width:36px">N°</th><th>Estudiante</th><th style="width:90px">DNI</th>' +
       '<th style="width:130px">Situación</th><th style="width:110px">Estado Pedido</th>' +
-      '<th style="width:140px">N° Certificado</th><th style="width:230px">Acción</th>' +
+      '<th style="width:140px">N° Certificado</th><th style="width:260px">Acción</th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table></div>';
+
+  if ($('btnAprobarTodosSol')) {
+    $('btnAprobarTodosSol').addEventListener('click', function () {
+      aprobarTitulosCurso(null, 'solicitudes');
+    });
+  }
+}
+
+// ---------- PLANILLA POR ESCUELA · NÓMINA DE EGRESADOS ----------
+function _renderPlanillaNominaHTML(nomina, opcionesExtra) {
+  var enc = nomina.encabezado || {};
+  var tot = nomina.totales || {};
+  var filtroActual = nomina.filtro || estado.filtroNomina || 'todos';
+  var filas = nomina.filas || [];
+  var nombreEsc = (enc.establecimiento || 'ESTABLECIMIENTO EDUCATIVO').toUpperCase();
+  var locEsc = (enc.localidad || 'JUJUY').toUpperCase();
+
+  var filasHtml = filas.length
+    ? filas.map(function (f) {
+        return '<tr>' +
+          '<td style="text-align:center;width:48px">' + esc(f.orden) + '</td>' +
+          '<td class="col-nombre-est">' + esc(f.apellidoNombres) + '</td>' +
+          '<td style="text-align:center;width:95px">' + esc(f.documento) + '</td>' +
+          '<td style="text-align:center;width:90px">' + esc(f.fecha || '—') + '</td>' +
+          '<td>' + esc(f.observaciones || '—') + '</td>' +
+        '</tr>';
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--suave)">No hay estudiantes para el filtro seleccionado.</td></tr>';
+
+  return (opcionesExtra || '') +
+    '<div class="acciones no-imprimir" style="justify-content:space-between;flex-wrap:wrap">' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button type="button" class="boton ' + (filtroActual === 'con_certificados' ? '' : 'suave') + '" data-nomina-filtro="con_certificados">Con Certificados (' + (tot.con_certificados || 0) + ')</button>' +
+        '<button type="button" class="boton ' + (filtroActual === 'aprobados' ? '' : 'suave') + '" data-nomina-filtro="aprobados">Aprobados (' + (tot.aprobados || 0) + ')</button>' +
+        '<button type="button" class="boton ' + (filtroActual === 'pendientes' ? '' : 'suave') + '" data-nomina-filtro="pendientes">Pendientes (' + (tot.pendientes || 0) + ')</button>' +
+        '<button type="button" class="boton ' + (filtroActual === 'todos' ? '' : 'suave') + '" data-nomina-filtro="todos">Todos (' + (tot.todos || 0) + ')</button>' +
+      '</div>' +
+      '<button type="button" class="boton" id="btnImprimirNomina" style="background:#1F4E78">🖨️ Imprimir Nómina</button>' +
+    '</div>' +
+    '<div class="planilla-nomina" id="hojaNominaImpresion">' +
+      '<div style="text-align:center;margin-bottom:8px">' +
+        '<div style="font-size:13px;font-weight:700;letter-spacing:0.3px">SECRETARÍA DE GESTIÓN EDUCATIVA - DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL</div>' +
+        '<div style="font-size:12px;font-weight:700;margin-top:2px">' + esc(nombreEsc) + (locEsc ? ' · ' + esc(locEsc) : '') + ' · PROVINCIA DE JUJUY</div>' +
+      '</div>' +
+      '<div class="nomina-titulo">NOMINA DE EGRESADOS Ciclo Lectivo ' + esc(enc.ciclo || '2026') + '</div>' +
+      '<table class="nomina-meta-tabla">' +
+        '<tr>' +
+          '<td class="lbl">Establecimiento:</td><td>' + esc(enc.establecimiento || '—') + (enc.cue ? ' (CUE ' + esc(enc.cue) + ')' : '') + '</td>' +
+          '<td class="lbl">Domicilio:</td><td>' + esc(enc.domicilio || 'S/D') + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td class="lbl">Oferta Formativa:</td><td>' + esc(enc.oferta || '—') + '</td>' +
+          '<td class="lbl">Duración de los Estudios:</td><td>' + esc(enc.duracion || '—') + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td class="lbl">División:</td><td>' + esc(enc.division || '—') + '</td>' +
+          '<td class="lbl">Turno:</td><td>' + esc(enc.turno || '—') + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td class="lbl">Norma Jurisdiccional de Aprobación N°:</td><td>' + esc(enc.normaAprobacion || '—') + '</td>' +
+          '<td class="lbl">Resolución Jurisdiccional N°:</td><td>' + esc(enc.resolucionDisenio || '—') + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td class="lbl">Docente:</td><td colspan="3">' + esc(enc.docente || '—') + '</td>' +
+        '</tr>' +
+      '</table>' +
+      '<table class="tabla-nomina">' +
+        '<thead><tr>' +
+          '<th style="width:52px">Orden</th>' +
+          '<th class="col-nombre-est">Apellido y Nombres</th>' +
+          '<th style="width:100px">DNI</th>' +
+          '<th style="width:95px">Fecha</th>' +
+          '<th>Observaciones</th>' +
+        '</tr></thead>' +
+        '<tbody>' + filasHtml + '</tbody>' +
+      '</table>' +
+    '</div>';
+}
+
+async function pintarNominaCurso() {
+  if (!estado.curso || !estado.curso.id) return;
+  $('panel').innerHTML = '<div class="cargando">Cargando Nómina de Egresados…</div>';
+  var filtro = estado.filtroNomina || 'todos';
+  try {
+    var r = await llamar('/api/nomina?id_curso=' + encodeURIComponent(estado.curso.id) + '&filtro=' + encodeURIComponent(filtro));
+    var nomina = r.nomina;
+    $('panel').innerHTML = _renderPlanillaNominaHTML(nomina, '');
+    Array.prototype.forEach.call($('panel').querySelectorAll('[data-nomina-filtro]'), function (btn) {
+      btn.addEventListener('click', function () {
+        estado.filtroNomina = btn.dataset.nominaFiltro;
+        try { localStorage.setItem('lm_filtro_nomina', estado.filtroNomina); } catch (e) {}
+        pintarNominaCurso();
+      });
+    });
+    if ($('btnImprimirNomina')) {
+      $('btnImprimirNomina').addEventListener('click', imprimirNominaActual);
+    }
+  } catch (e) {
+    problema(e);
+  }
+}
+
+async function verNominaEscuela(idCursoPre, cuePre) {
+  estado.curso = null;
+  estado.datos = null;
+  _guardarRutaLocal('nomina', idCursoPre || '', '');
+  $('migas').hidden = false;
+  $('volver').textContent = (estado.sesion && estado.sesion.esTitulos) ? '← Volver a Bandeja de Títulos' : '← Volver a los cursos';
+
+  var cursosDisp = estado.cursos || [];
+  var mapaEscuelas = {};
+  cursosDisp.forEach(function (c) {
+    var k = String(c.cue || c.institucion || '').trim();
+    if (k && !mapaEscuelas[k]) mapaEscuelas[k] = c.institucion || ('CUE ' + k);
+  });
+
+  var cueSel = cuePre;
+  var cursoSel = idCursoPre || '';
+  if (!cueSel && !cursoSel && cursosDisp.length) {
+    cursoSel = cursosDisp[0].id;
+    cueSel = cursosDisp[0].cue || '';
+  }
+
+  $('main').innerHTML = '<div class="cargando">Cargando Nómina de Egresados por Escuela…</div>';
+  _configurarPaginaImpresion('oficio-horizontal');
+
+  async function _cargarYRenderNomina(cueActual, idCursoActual) {
+    var filtro = estado.filtroNomina || 'todos';
+    var qs = 'filtro=' + encodeURIComponent(filtro);
+    if (idCursoActual) qs += '&id_curso=' + encodeURIComponent(idCursoActual);
+    else if (cueActual) qs += '&cue=' + encodeURIComponent(cueActual);
+
+    try {
+      var r = await llamar('/api/nomina?' + qs);
+      var nomina = r.nomina;
+      if (nomina.encabezado && nomina.encabezado.establecimiento) {
+        _actualizarBarraEscuela(nomina.encabezado.establecimiento + (nomina.encabezado.localidad ? ' · ' + nomina.encabezado.localidad + ', Jujuy' : ''));
+      }
+
+      var opsEscuelas = '<option value="">Todas las escuelas</option>' +
+        Object.keys(mapaEscuelas).map(function (k) {
+          var sel = (String(cueActual || '') === k) ? ' selected' : '';
+          return '<option value="' + esc(k) + '"' + sel + '>' + esc(mapaEscuelas[k]) + ' (CUE ' + esc(k) + ')</option>';
+        }).join('');
+
+      var cursosFiltradosEsc = cursosDisp.filter(function (c) {
+        return !cueActual || String(c.cue || '') === String(cueActual);
+      });
+      var opsCursos = '<option value="">Todos los cursos de la escuela</option>' +
+        cursosFiltradosEsc.map(function (c) {
+          var sel = (String(idCursoActual || '') === String(c.id)) ? ' selected' : '';
+          return '<option value="' + esc(c.id) + '"' + sel + '>' + esc(c.oferta) + ' · ' + esc(c.division) + ' (' + esc(c.ciclo) + ')</option>';
+        }).join('');
+
+      var selectorBar =
+        '<div class="no-imprimir" style="background:#fff;border:1px solid var(--borde);border-radius:6px;padding:12px 14px;margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap;align-items:end">' +
+          '<div><label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Escuela / Establecimiento</label>' +
+            '<select id="selNominaEscuela" style="min-width:260px">' + opsEscuelas + '</select></div>' +
+          '<div><label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Curso / Oferta Formativa</label>' +
+            '<select id="selNominaCurso" style="min-width:260px">' + opsCursos + '</select></div>' +
+        '</div>';
+
+      $('main').innerHTML =
+        '<h1 class="no-imprimir">Planilla por Escuela · Nómina de Egresados</h1>' +
+        _renderPlanillaNominaHTML(nomina, selectorBar);
+
+      if ($('selNominaEscuela')) {
+        $('selNominaEscuela').addEventListener('change', function () {
+          var nuevaCue = $('selNominaEscuela').value;
+          _cargarYRenderNomina(nuevaCue, '');
+        });
+      }
+      if ($('selNominaCurso')) {
+        $('selNominaCurso').addEventListener('change', function () {
+          var nuevoId = $('selNominaCurso').value;
+          _guardarRutaLocal('nomina', nuevoId, '');
+          _cargarYRenderNomina($('selNominaEscuela') ? $('selNominaEscuela').value : cueActual, nuevoId);
+        });
+      }
+      Array.prototype.forEach.call($('main').querySelectorAll('[data-nomina-filtro]'), function (btn) {
+        btn.addEventListener('click', function () {
+          estado.filtroNomina = btn.dataset.nominaFiltro;
+          try { localStorage.setItem('lm_filtro_nomina', estado.filtroNomina); } catch (e) {}
+          _cargarYRenderNomina(cueActual, idCursoActual);
+        });
+      });
+      if ($('btnImprimirNomina')) {
+        $('btnImprimirNomina').addEventListener('click', imprimirNominaActual);
+      }
+    } catch (err) {
+      problema(err);
+    }
+  }
+
+  _cargarYRenderNomina(cueSel, cursoSel);
 }
 
 async function solicitarCertificadoEstudiante(doc) {
@@ -1087,9 +1604,9 @@ function armarAnalitico(r) {
   var escudoFondo = '<img src="/img/escudo_nacional.png?v=20261105b" class="hoja-fondo-escudo" alt="" aria-hidden="true">';
 
   var filasModulos = (d.trayecto || []).map(function (m) {
-    var tieneNota = Boolean(m.nota && m.nota !== 'AUS');
-    var mesAnioVal = m.mesAnio || (tieneNota ? ('12/' + (d.cohorte || anioDef)) : '');
-    var estabVal = m.establecimiento || (tieneNota ? (d.establecimiento || '') : '');
+    var modAprobado = m.condicion ? (m.condicion === 'Aprobado') : (Boolean(m.nota && m.nota !== 'AUS') && parseFloat(m.nota) >= 7);
+    var mesAnioVal = modAprobado ? (m.mesAnio || ('12/' + (d.cohorte || anioDef))) : '';
+    var estabVal = m.establecimiento || (modAprobado ? (d.establecimiento || '') : '');
     return '<tr>' +
       '<td style="text-align:center">'                  + esc(m.nro)        + '</td>' +
       '<td>'                                             + esc(m.modulo)     + '</td>' +
@@ -1137,16 +1654,6 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
   var cohorteStr = d.cohorte || anioOtorgado;
   var ofertaStr = d.oferta || (estado.curso && estado.curso.oferta) || 'FORMACIÓN PROFESIONAL';
   var normaStr = d.normaJurisdiccional || 'Res. Ministerial';
-  var firmaDigitalTexto = !d.esBorrador
-    ? '<div style="font-size:10px;line-height:1.35;color:#222;margin-bottom:6px">' +
-        'Firmado digitalmente por REINOSO TORRES Tatiana Marisel<br>' +
-        'Fecha: ' + esc(d.fechaAprobacion || (anioOtorgado + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + diaOtorgado)) + '<br>' +
-        'Ubicación: Jujuy' +
-      '</div>'
-    : '<div style="font-size:10px;line-height:1.35;color:#777;margin-bottom:6px">' +
-        'Pendiente de firma digital (Documento en Borrador)<br>' +
-        'Ubicación: Jujuy' +
-      '</div>';
 
   return '<div class="hoja-oficial">' +
     escudoFondo + watermark +
@@ -1226,7 +1733,6 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
           '<span>' + esc(d.establecimiento) + '</span>' +
         '</div>' +
         '<div style="font-size:11px;line-height:1.35">' +
-          firmaDigitalTexto +
           '<div style="font-size:12px;font-weight:bold;margin-bottom:1px">REINOSO TORRES Tatiana Marisel</div>' +
           '<b>Directora</b><br>' +
           '<span>Dirección de Títulos</span><br>' +
@@ -1273,7 +1779,14 @@ function armarAnaliticoCeldas(r) {
 // =========================================================================
 
 async function verBandejaTitulos() {
-  $('migas').hidden = false;
+  estado.curso = null;
+  estado.datos = null;
+  _guardarRutaLocal('bandeja', '', '');
+  _actualizarBarraEscuela();
+  $('migas').hidden = (estado.sesion && estado.sesion.esTitulos);
+  if (!$('migas').hidden) {
+    $('volver').textContent = '← Volver a los cursos';
+  }
   $('main').innerHTML = '<div class="cargando">Cargando bandeja de pedidos de títulos…</div>';
 
   try {
@@ -1313,6 +1826,9 @@ async function verBandejaTitulos() {
       } else {
         accionesHtml = '<span style="color:var(--suave);font-size:12px">Calificaciones congeladas</span>';
       }
+      var verRacBtn = s.idCurso
+        ? ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="abrirCurso(\'' + esc(s.idCurso) + '\', \'notas\')">Ver RAC</button>'
+        : '';
 
       return '<tr>' +
         '<td style="text-align:center">' + checkHtml + '</td>' +
@@ -1321,8 +1837,9 @@ async function verBandejaTitulos() {
         '<td><b>' + esc(s.estudiante) + '</b><br><small>DNI ' + esc(s.documento) + '</small></td>' +
         '<td style="text-align:center;font-size:12px">' + esc(s.fechaSolicitud) + '</td>' +
         '<td style="text-align:center"><span class="badge-estado ' + badgeClass + '">' + esc(s.estado) + '</span>' + detalleEstado + '</td>' +
-        '<td style="text-align:center">' +
+        '<td style="text-align:center;white-space:nowrap">' +
           accionesHtml +
+          verRacBtn +
           ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="inspeccionarAnaliticoModal(\'' + esc(s.idCurso) + '\', \'' + esc(s.documento) + '\')">Ver Analítico</button>' +
         '</td>' +
       '</tr>';
@@ -1331,6 +1848,12 @@ async function verBandejaTitulos() {
     $('main').innerHTML =
       '<h1>Bandeja de Entrada · Dirección de Títulos</h1>' +
       '<p style="color:var(--suave)">Gestión, revisión centralizada y emisión de certificados de Formación Profesional.</p>' +
+
+      '<div class="acciones" style="margin:12px 0">' +
+        '<button class="boton" id="btnVerCursosRac" style="background:#1F4E78">📚 Ver Cursos y RAC</button>' +
+        '<button class="boton suave" id="btnNominaTitulos">📋 Nómina de Egresados</button>' +
+        '<button class="boton suave" id="btnDashboardTitulos">📊 Dashboard de Estadísticas</button>' +
+      '</div>' +
 
       '<div style="display:flex;gap:12px;margin:16px 0;flex-wrap:wrap">' +
         '<button class="boton ' + (estado.filtroBandeja === 'Pendiente' ? '' : 'suave') + '" id="f_pen">Pendientes (' + nPendientes + ')</button>' +
@@ -1351,13 +1874,17 @@ async function verBandejaTitulos() {
         '<th>Institución</th><th>Curso</th><th>Estudiante</th>' +
         '<th style="width:130px;text-align:center">Fecha Pedido</th>' +
         '<th style="width:130px;text-align:center">Estado</th>' +
-        '<th style="width:230px;text-align:center">Acciones</th>' +
+        '<th style="width:290px;text-align:center">Acciones</th>' +
       '</tr></thead><tbody>' + (filasHtml || '<tr><td colspan="7" class="vacio">No hay pedidos en esta sección.</td></tr>') + '</tbody></table></div>';
 
-    $('f_pen').addEventListener('click', function () { estado.filtroBandeja = 'Pendiente'; verBandejaTitulos(); });
-    $('f_obs').addEventListener('click', function () { estado.filtroBandeja = 'Observado'; verBandejaTitulos(); });
-    $('f_apr').addEventListener('click', function () { estado.filtroBandeja = 'Aprobado'; verBandejaTitulos(); });
-    $('f_tod').addEventListener('click', function () { estado.filtroBandeja = 'Todos'; verBandejaTitulos(); });
+    if ($('btnVerCursosRac')) $('btnVerCursosRac').addEventListener('click', verCursos);
+    if ($('btnNominaTitulos')) $('btnNominaTitulos').addEventListener('click', function () { verNominaEscuela(); });
+    if ($('btnDashboardTitulos')) $('btnDashboardTitulos').addEventListener('click', verResumen);
+
+    $('f_pen').addEventListener('click', function () { estado.filtroBandeja = 'Pendiente'; try { localStorage.setItem('lm_filtro_bandeja', 'Pendiente'); } catch (e) {} verBandejaTitulos(); });
+    $('f_obs').addEventListener('click', function () { estado.filtroBandeja = 'Observado'; try { localStorage.setItem('lm_filtro_bandeja', 'Observado'); } catch (e) {} verBandejaTitulos(); });
+    $('f_apr').addEventListener('click', function () { estado.filtroBandeja = 'Aprobado'; try { localStorage.setItem('lm_filtro_bandeja', 'Aprobado'); } catch (e) {} verBandejaTitulos(); });
+    $('f_tod').addEventListener('click', function () { estado.filtroBandeja = 'Todos'; try { localStorage.setItem('lm_filtro_bandeja', 'Todos'); } catch (e) {} verBandejaTitulos(); });
 
     var chkTodos = $('chkTodos');
     var chks = document.querySelectorAll('.chk-sol');
@@ -1434,7 +1961,7 @@ function abrirModalAprobar(idSol, nombre) {
   });
 }
 
-function abrirModalObservar(idSol, nombre) {
+function abrirModalObservar(idSol, nombre, desdeCurso) {
   var modal = document.createElement('div');
   modal.className = 'modal-backdrop';
   modal.id = 'modalActivo';
@@ -1466,7 +1993,11 @@ function abrirModalObservar(idSol, nombre) {
     try {
       await llamar('/api/solicitudes/' + encodeURIComponent(idSol) + '/observar', 'POST', { motivo: motivo });
       avisar('Solicitud observada y devuelta a la escuela.', 'ok');
-      verBandejaTitulos();
+      if (desdeCurso && estado.curso && estado.curso.id) {
+        abrirCurso(estado.curso.id, 'solicitudes');
+      } else {
+        verBandejaTitulos();
+      }
     } catch (e) {
       problema(e);
     }
@@ -1588,7 +2119,7 @@ function mostrarModalNuevoEstudiante() {
     var acrVal = $('ne_acreditacon') ? $('ne_acreditacon').value : 'Primaria Completa';
     $('btnGuardarEstudiante').disabled = true;
     try {
-      await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/estudiante', 'POST', {
+      var rEst = await llamar('/api/curso/' + encodeURIComponent(estado.curso.id) + '/estudiante', 'POST', {
         apellido: ape,
         nombres: nom,
         tipoDoc: $('ne_tipodoc').value,
@@ -1600,6 +2131,7 @@ function mostrarModalNuevoEstudiante() {
         acreditaCon: acrVal,
         nivel: acrVal
       });
+      if (rEst && rEst.paquete) _guardarPaqueteLocal(rEst.paquete);
       cerrarModal();
       avisar('¡Alumno ' + ape.toUpperCase() + ', ' + nom + ' cargado con éxito!', 'ok');
       abrirCurso(estado.curso.id, 'notas');
@@ -1621,12 +2153,18 @@ function mostrarModalNuevoCurso() {
   modal.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)';
 
   var cueDef = (estado.sesion && estado.sesion.cues && estado.sesion.cues.length) ? estado.sesion.cues[0] : '';
+  var instDef = (estado.institucionUsuario && estado.institucionUsuario.nombre) ? estado.institucionUsuario.nombre : '';
+  var locDef = (estado.institucionUsuario && estado.institucionUsuario.localidad) ? estado.institucionUsuario.localidad : '';
 
   modal.innerHTML =
     '<h2>+ Registrar Nuevo Curso</h2>' +
     '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
-      '<label><b>Institución *</b> <input id="nc_inst" placeholder="Ej: Escuela Profesional Nº 6" value=""></label>' +
-      '<label><b>CUE *</b> <input id="nc_cue" placeholder="Ej: 3800006" value="' + esc(cueDef) + '"></label>' +
+      '<label><b>Institución *</b> <input id="nc_inst" placeholder="Ej: Escuela Profesional Nº 6" value="' + esc(instDef) + '"></label>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+        '<label><b>CUE *</b> <input id="nc_cue" placeholder="Ej: 3800006" value="' + esc(cueDef) + '"></label>' +
+        '<label><b>Localidad</b> <input id="nc_localidad" placeholder="Ej: San Salvador de Jujuy" value="' + esc(locDef) + '"></label>' +
+      '</div>' +
+      '<label><b>Domicilio</b> <input id="nc_domicilio" placeholder="Ej: Av. Fascio 1050" value=""></label>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
         '<label><b>Oferta Formativa *</b> <input id="nc_oferta" placeholder="Ej: Electricista en Inmueble / Peluquero" value=""></label>' +
         '<label><b>Familia Profesional</b> <input id="nc_familia" placeholder="Ej: Textil - Indumentaria / Estética Profesional" value=""></label>' +
@@ -1635,6 +2173,14 @@ function mostrarModalNuevoCurso() {
         '<label><b>Ciclo</b> <input id="nc_ciclo" placeholder="2026" value="2026"></label>' +
         '<label><b>Turno</b> <select id="nc_turno"><option value="Mañana">Mañana</option><option value="Tarde">Tarde</option><option value="Vespertino" selected>Vespertino</option></select></label>' +
         '<label><b>Curso / División</b> <input id="nc_division" placeholder=\'1° "U"\' value=\'1° "U"\'></label>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+        '<label><b>Duración de los Estudios</b> <input id="nc_duracion" placeholder="Ej: 2 Cuatrimestres / 1 Cuatrimestre" value="2 Cuatrimestres"></label>' +
+        '<label><b>Docente</b> <input id="nc_docente" placeholder="Apellido y Nombre del docente" value=""></label>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+        '<label><b>Fecha de finalización 1° Cuatrimestre</b> <input type="date" id="nc_fecha_fin_1c"></label>' +
+        '<label><b>Fecha de finalización 2° Cuatrimestre</b> <input type="date" id="nc_fecha_fin_2c"></label>' +
       '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:10px">' +
         '<label><b>Horas Cátedras</b> <input id="nc_hscat" placeholder="768" value="768"></label>' +
@@ -1696,11 +2242,17 @@ function mostrarModalNuevoCurso() {
     var payload = {
       cue: cueVal,
       institucion: instVal,
+      localidad: $('nc_localidad') ? $('nc_localidad').value.trim() : '',
+      domicilio: $('nc_domicilio') ? $('nc_domicilio').value.trim() : '',
       oferta: ofertaVal,
       familiaProfesional: $('nc_familia') ? $('nc_familia').value.trim() : '—',
       ciclo: $('nc_ciclo').value.trim() || '2026',
       turno: $('nc_turno').value,
       division: $('nc_division').value.trim() || '1° "U"',
+      duracion: $('nc_duracion') ? $('nc_duracion').value.trim() : '2 Cuatrimestres',
+      docente: $('nc_docente') ? $('nc_docente').value.trim() : '',
+      fechaFin1C: $('nc_fecha_fin_1c') ? $('nc_fecha_fin_1c').value.trim() : '',
+      fechaFin2C: $('nc_fecha_fin_2c') ? $('nc_fecha_fin_2c').value.trim() : '',
       disenio: $('nc_disenio').value.trim() || '661-E/2022',
       resolucionDisenio: $('nc_disenio').value.trim() || '661-E/2022',
       normaAprobacion: $('nc_norma') ? $('nc_norma').value.trim() : '4006-E/2023',
@@ -1710,11 +2262,12 @@ function mostrarModalNuevoCurso() {
       certificacion: $('nc_certificacion') ? $('nc_certificacion').value.trim() : 'Diseño Curricular Jurisdiccional',
       hsCatTotal: $('nc_hscat').value.trim() || '768',
       referencialIngreso: refs.join(' / '),
-      id: $('nc_id').value.trim() || ('curso-' + Date.now()),
+      id: $('nc_id').value.trim(),
       estado: 'Abierto'
     };
     try {
       var r = await llamar('/api/cursos', 'POST', payload);
+      if (r.paquete) _guardarPaqueteLocal(r.paquete);
       estado.cursos.push(r.curso);
       avisar('Curso registrado con éxito. Ahora podés cargar sus alumnos.', 'ok');
       abrirCurso(r.curso.id);
@@ -1775,6 +2328,7 @@ function mostrarModalImportarExcel() {
           nombreArchivo: archivo.name,
           contenidoBase64: b64
         });
+        if (res.paquete) _guardarPaqueteLocal(res.paquete);
         estado.cursos.push(res.curso);
         avisar('¡Excel importado con éxito! (' + res.cantidadEstudiantes + ' estudiantes y ' + res.cantidadModulos + ' módulos)', 'ok');
         abrirCurso(res.curso.id);
@@ -1788,32 +2342,272 @@ function mostrarModalImportarExcel() {
   });
 }
 
-// ---------- RESUMEN DIRECCIÓN DETP ----------
-async function verResumen() {
-  $('main').innerHTML = '<div class="cargando">Calculando el resumen por institución…</div>';
-  $('migas').hidden = false;
-  try {
-    var r = await llamar('/api/resumen');
-    var lista = r.resumen || [];
-    var tot = lista.reduce(function (a, i) {
-      return {
-        cursos: a.cursos + i.cursos,
-        estudiantes: a.estudiantes + i.estudiantes,
-        aprobados: a.aprobados + i.aprobados
-      };
-    }, { cursos: 0, estudiantes: 0, aprobados: 0 });
+// ---------- DASHBOARD DE ESTADÍSTICAS (DIRECCIÓN DETP Y TÍTULOS) ----------
+var _filtrosDashboard = { escuela: '', cue: '', desde: '', hasta: '', estado: 'todos' };
+var _ultimoDashboardData = null;
 
-    $('main').innerHTML = '<h1>Resumen por institución</h1>' +
-      '<p style="color:var(--suave)">' + tot.cursos + ' cursos · ' + tot.estudiantes +
-      ' estudiantes · ' + tot.aprobados + ' con todos los módulos aprobados.</p>' +
-      '<table><thead><tr><th>CUE</th><th>Institución</th><th>Cursos</th>' +
-      '<th>Estudiantes</th><th>Aprobaron todo</th></tr></thead><tbody>' +
-      lista.map(function (i) {
-        return '<tr><td>' + esc(i.cue) + '</td><td>' + esc(i.institucion) + '</td>' +
-          '<td style="text-align:center">' + i.cursos + '</td>' +
-          '<td style="text-align:center">' + i.estudiantes + '</td>' +
-          '<td style="text-align:center">' + i.aprobados + '</td></tr>';
-      }).join('') + '</tbody></table>';
+function _exportarDashboardCSV(est) {
+  if (!est) return;
+  var sep = ';';
+  function csvEsc(v) {
+    var s = String(v == null ? '' : v).replace(/"/g, '""');
+    return '"' + s + '"';
+  }
+  var lineas = [];
+  var k = est.kpis || {};
+  lineas.push(['INDICADOR', 'VALOR'].map(csvEsc).join(sep));
+  lineas.push(['Total Cursos', k.totalCursos].map(csvEsc).join(sep));
+  lineas.push(['Total Estudiantes Matriculados', k.totalMatriculados].map(csvEsc).join(sep));
+  lineas.push(['Total Aprobados', k.totalAprobados + ' (' + k.pctAprobacion + '%)'].map(csvEsc).join(sep));
+  lineas.push(['Total Desaprobados / Adeudan', k.totalDesaprobados + ' (' + k.pctDesaprobacion + '%)'].map(csvEsc).join(sep));
+  lineas.push(['Total Ausentes', k.totalAusentes].map(csvEsc).join(sep));
+  lineas.push(['Certificados Aprobados', k.totalCertificadosAprobados + ' (Tasa Titulación ' + k.tasaTitulacion + '%)'].map(csvEsc).join(sep));
+  lineas.push(['Pendientes en Títulos', k.totalPendientesTitulos].map(csvEsc).join(sep));
+  lineas.push(['Errores / Observaciones de Títulos', k.totalObservados].map(csvEsc).join(sep));
+  lineas.push('');
+  lineas.push(['DESGLOSE POR ESCUELA Y CUE'].map(csvEsc).join(sep));
+  lineas.push(['Escuela', 'CUE', 'Cursos', 'Matriculados', 'Aprobados', 'Desaprobados', 'Ausentes', 'Certificados Aprobados', 'Certificados Pendientes', 'Certificados Observados'].map(csvEsc).join(sep));
+  (est.porEscuela || []).forEach(function (r) {
+    lineas.push([
+      r.institucion, r.cue, r.cursos, r.matriculados, r.aprobados,
+      r.desaprobados, r.ausentes, r.certificadosAprobados,
+      r.certificadosPendientes, r.certificadosObservados
+    ].map(csvEsc).join(sep));
+  });
+  lineas.push('');
+  lineas.push(['SOLICITUDES OBSERVADAS (ERRORES / OBSERVACIONES DE TÍTULOS)'].map(csvEsc).join(sep));
+  lineas.push(['Escuela', 'CUE', 'Curso', 'Estudiante', 'DNI', 'Fecha', 'Motivo de Observación'].map(csvEsc).join(sep));
+  (est.observacionesDetalle || []).forEach(function (o) {
+    lineas.push([
+      o.institucion, o.cue, o.oferta, o.estudiante, o.documento, o.fechaSolicitud, o.motivoObservacion
+    ].map(csvEsc).join(sep));
+  });
+
+  var blob = new Blob(['\uFEFF' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'dashboard_estadisticas_detp.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function verResumen() {
+  estado.curso = null;
+  estado.datos = null;
+  _guardarRutaLocal('resumen', '', '');
+  _actualizarBarraEscuela();
+  $('main').innerHTML = '<div class="cargando">Calculando estadísticas institucionales…</div>';
+  $('migas').hidden = false;
+  $('volver').textContent = (estado.sesion && estado.sesion.esTitulos) ? '← Volver a Bandeja de Títulos' : '← Volver a los cursos';
+
+  var qs =
+    'escuela=' + encodeURIComponent(_filtrosDashboard.escuela || '') +
+    '&cue=' + encodeURIComponent(_filtrosDashboard.cue || '') +
+    '&desde=' + encodeURIComponent(_filtrosDashboard.desde || '') +
+    '&hasta=' + encodeURIComponent(_filtrosDashboard.hasta || '') +
+    '&estado=' + encodeURIComponent(_filtrosDashboard.estado || 'todos');
+
+  try {
+    var r = await llamar('/api/resumen?' + qs);
+    var est = r.estadisticas || {};
+    _ultimoDashboardData = est;
+    var k = est.kpis || {};
+    var porEscuela = est.porEscuela || r.resumen || [];
+    var porOferta = est.porOferta || [];
+    var porFamilia = est.porFamilia || [];
+    var porTurno = est.porTurno || [];
+    var obsPorEscuela = est.observacionesPorEscuela || [];
+    var obsDetalle = est.observacionesDetalle || [];
+    var escuelasDisp = est.escuelasDisponibles || [];
+    var cuesDisp = est.cuesDisponibles || [];
+
+    var opsEsc = '<option value="">Todas las escuelas</option>' +
+      escuelasDisp.map(function (nom) {
+        var sel = _filtrosDashboard.escuela === nom ? ' selected' : '';
+        return '<option value="' + esc(nom) + '"' + sel + '>' + esc(nom) + '</option>';
+      }).join('');
+
+    var opsCue = '<option value="">Todos los CUEs</option>' +
+      cuesDisp.map(function (c) {
+        var sel = _filtrosDashboard.cue === c ? ' selected' : '';
+        return '<option value="' + esc(c) + '"' + sel + '>' + esc(c) + '</option>';
+      }).join('');
+
+    var filasEscuela = porEscuela.length
+      ? porEscuela.map(function (i) {
+          return '<tr>' +
+            '<td><b>' + esc(i.institucion) + '</b></td>' +
+            '<td style="text-align:center">' + esc(i.cue || '—') + '</td>' +
+            '<td style="text-align:center">' + (i.cursos || 0) + '</td>' +
+            '<td style="text-align:center">' + (i.matriculados || i.estudiantes || 0) + '</td>' +
+            '<td style="text-align:center;color:#137333;font-weight:700">' + (i.aprobados || 0) + '</td>' +
+            '<td style="text-align:center;color:#b3261e">' + (i.desaprobados || 0) + '</td>' +
+            '<td style="text-align:center">' + (i.ausentes || 0) + '</td>' +
+            '<td style="text-align:center;color:#137333;font-weight:700">' + (i.certificadosAprobados || 0) + '</td>' +
+            '<td style="text-align:center;color:#b06000">' + (i.certificadosPendientes || 0) + '</td>' +
+            '<td style="text-align:center;color:#c5221f;font-weight:700">' + (i.certificadosObservados || 0) + '</td>' +
+          '</tr>';
+        }).join('')
+      : '<tr><td colspan="10" style="text-align:center;color:var(--suave);padding:16px">No hay datos para los filtros aplicados.</td></tr>';
+
+    function _renderMiniTabla(titulo, items, campoClave) {
+      var rows = items.length
+        ? items.map(function (it) {
+            return '<tr>' +
+              '<td>' + esc(it[campoClave]) + '</td>' +
+              '<td style="text-align:center">' + (it.cursos || 0) + '</td>' +
+              '<td style="text-align:center">' + (it.matriculados || 0) + '</td>' +
+              '<td style="text-align:center;color:#137333;font-weight:600">' + (it.aprobados || 0) + ' (' + (it.pctAprobacion || 0) + '%)</td>' +
+              '<td style="text-align:center">' + (it.certificadosAprobados || 0) + '</td>' +
+            '</tr>';
+          }).join('')
+        : '<tr><td colspan="5" style="text-align:center;color:var(--suave)">Sin datos</td></tr>';
+      return '<div class="dash-card">' +
+        '<h3>' + esc(titulo) + '</h3>' +
+        '<div class="tabla-ancha" style="max-height:280px"><table><thead><tr>' +
+          '<th>Categoría</th><th style="text-align:center">Cursos</th><th style="text-align:center">Matric.</th>' +
+          '<th style="text-align:center">Aprobados</th><th style="text-align:center">Cert.</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '</div>';
+    }
+
+    var obsBadgesHtml = obsPorEscuela.length
+      ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
+          obsPorEscuela.map(function (o) {
+            return '<span class="badge-estado badge-observado">' + esc(o.institucion) + ' (CUE ' + esc(o.cue || '—') + '): ' + o.cantidad + '</span>';
+          }).join('') +
+        '</div>'
+      : '';
+
+    var filasObs = obsDetalle.length
+      ? obsDetalle.map(function (o) {
+          return '<tr>' +
+            '<td><b>' + esc(o.institucion) + '</b><br><small style="color:var(--suave)">CUE ' + esc(o.cue || '—') + '</small></td>' +
+            '<td>' + esc(o.oferta) + '<br><small style="color:var(--suave)">' + esc(o.ciclo) + '</small></td>' +
+            '<td><b>' + esc(o.estudiante) + '</b><br><small>DNI ' + esc(o.documento) + '</small></td>' +
+            '<td style="text-align:center;font-size:12px">' + esc(o.fechaSolicitud || '—') + '</td>' +
+            '<td style="color:#b3261e">' + esc(o.motivoObservacion || 'Sin detalle') + '</td>' +
+          '</tr>';
+        }).join('')
+      : '<tr><td colspan="5" style="text-align:center;color:var(--suave);padding:14px">No se registran solicitudes observadas / errores para los filtros seleccionados.</td></tr>';
+
+    $('main').innerHTML =
+      '<div class="solo-impresion" style="text-align:center;margin-bottom:10px">' +
+        '<div style="font-size:15px;font-weight:bold">SECRETARÍA DE GESTIÓN EDUCATIVA - DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL</div>' +
+        '<div style="font-size:13px;font-weight:bold">DASHBOARD DE ESTADÍSTICAS · FORMACIÓN PROFESIONAL</div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">' +
+        '<div><h1>📊 Dashboard de Estadísticas</h1>' +
+        '<p style="color:var(--suave);margin:0">Indicadores académicos, certificación de Títulos y observaciones por escuela.</p></div>' +
+        '<div class="acciones no-imprimir" style="margin:0">' +
+          '<button type="button" class="boton suave" id="btnDashCsv">📥 Exportar CSV</button>' +
+          '<button type="button" class="boton" id="btnDashImprimir">🖨️ Imprimir Dashboard</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="dash-filtros no-imprimir">' +
+        '<label>Escuela / Institución<select id="dash_escuela">' + opsEsc + '</select></label>' +
+        '<label>CUE<select id="dash_cue">' + opsCue + '</select></label>' +
+        '<label>Fecha Desde<input type="date" id="dash_desde" value="' + esc(_filtrosDashboard.desde || '') + '"></label>' +
+        '<label>Fecha Hasta<input type="date" id="dash_hasta" value="' + esc(_filtrosDashboard.hasta || '') + '"></label>' +
+        '<label>Estado Académico / Certificación' +
+          '<select id="dash_estado">' +
+            '<option value="todos"' + (_filtrosDashboard.estado === 'todos' ? ' selected' : '') + '>Todos</option>' +
+            '<option value="aprobados"' + (_filtrosDashboard.estado === 'aprobados' ? ' selected' : '') + '>Aprobados</option>' +
+            '<option value="desaprobados"' + (_filtrosDashboard.estado === 'desaprobados' ? ' selected' : '') + '>Desaprobados / En curso</option>' +
+            '<option value="cert_aprobados"' + (_filtrosDashboard.estado === 'cert_aprobados' ? ' selected' : '') + '>Certificados Aprobados</option>' +
+            '<option value="observados"' + (_filtrosDashboard.estado === 'observados' ? ' selected' : '') + '>Certificados Observados / Con errores</option>' +
+          '</select>' +
+        '</label>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button type="button" class="boton" id="btnDashAplicar" style="flex:1">Aplicar</button>' +
+          '<button type="button" class="boton suave" id="btnDashLimpiar">Limpiar</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="dash-kpis">' +
+        '<div class="dash-kpi"><div class="dash-kpi-lbl">Total Cursos</div><div class="dash-kpi-val">' + (k.totalCursos || 0) + '</div><div class="dash-kpi-sub">Ofertas activas / relevadas</div></div>' +
+        '<div class="dash-kpi"><div class="dash-kpi-lbl">Matriculados</div><div class="dash-kpi-val">' + (k.totalMatriculados || 0) + '</div><div class="dash-kpi-sub">Total estudiantes</div></div>' +
+        '<div class="dash-kpi ok"><div class="dash-kpi-lbl">Aprobados</div><div class="dash-kpi-val" style="color:#137333">' + (k.totalAprobados || 0) + '</div><div class="dash-kpi-sub">' + (k.pctAprobacion || 0) + '% de aprobación</div></div>' +
+        '<div class="dash-kpi mal"><div class="dash-kpi-lbl">Desaprobados / Adeudan</div><div class="dash-kpi-val" style="color:#b3261e">' + (k.totalDesaprobados || 0) + '</div><div class="dash-kpi-sub">' + (k.pctDesaprobacion || 0) + '% del total</div></div>' +
+        '<div class="dash-kpi"><div class="dash-kpi-lbl">Ausentes</div><div class="dash-kpi-val">' + (k.totalAusentes || 0) + '</div><div class="dash-kpi-sub">Examen final / módulos</div></div>' +
+        '<div class="dash-kpi ok"><div class="dash-kpi-lbl">Certificados Aprobados</div><div class="dash-kpi-val" style="color:#137333">' + (k.totalCertificadosAprobados || 0) + '</div><div class="dash-kpi-sub">Tasa de titulación: ' + (k.tasaTitulacion || 0) + '%</div></div>' +
+        '<div class="dash-kpi warn"><div class="dash-kpi-lbl">Pendientes en Títulos</div><div class="dash-kpi-val" style="color:#b06000">' + (k.totalPendientesTitulos || 0) + '</div><div class="dash-kpi-sub">En revisión</div></div>' +
+        '<div class="dash-kpi mal"><div class="dash-kpi-lbl">Errores / Observaciones</div><div class="dash-kpi-val" style="color:#c5221f">' + (k.totalObservados || 0) + '</div><div class="dash-kpi-sub">Solicitudes observadas</div></div>' +
+      '</div>' +
+
+      '<div class="dash-card">' +
+        '<h3>Indicadores de Rendimiento y Titulación</h3>' +
+        '<div class="dash-barra-item">' +
+          '<div class="dash-barra-head"><span>Tasa de Aprobación Académica</span><span>' + (k.pctAprobacion || 0) + '%</span></div>' +
+          '<div class="dash-barra-track"><div class="dash-barra-fill" style="width:' + Math.min(100, k.pctAprobacion || 0) + '%;background:#1e7a4b"></div></div>' +
+        '</div>' +
+        '<div class="dash-barra-item">' +
+          '<div class="dash-barra-head"><span>Desaprobados / Adeudan Módulos</span><span>' + (k.pctDesaprobacion || 0) + '%</span></div>' +
+          '<div class="dash-barra-track"><div class="dash-barra-fill" style="width:' + Math.min(100, k.pctDesaprobacion || 0) + '%;background:#b3261e"></div></div>' +
+        '</div>' +
+        '<div class="dash-barra-item" style="margin-bottom:0">' +
+          '<div class="dash-barra-head"><span>Tasa de Egreso / Titulación (Egresados con Certificado Oficial)</span><span>' + (k.tasaTitulacion || 0) + '%</span></div>' +
+          '<div class="dash-barra-track"><div class="dash-barra-fill" style="width:' + Math.min(100, k.tasaTitulacion || 0) + '%;background:#1F4E78"></div></div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="dash-card">' +
+        '<h3>Desglose por Escuela y CUE</h3>' +
+        '<div class="tabla-ancha"><table><thead><tr>' +
+          '<th>Escuela</th><th style="text-align:center">CUE</th><th style="text-align:center">Cursos</th>' +
+          '<th style="text-align:center">Matriculados</th><th style="text-align:center">Aprobados</th>' +
+          '<th style="text-align:center">Desaprobados</th><th style="text-align:center">Ausentes</th>' +
+          '<th style="text-align:center">Cert. Aprobados</th><th style="text-align:center">Cert. Pendientes</th>' +
+          '<th style="text-align:center">Cert. Observados (Errores)</th>' +
+        '</tr></thead><tbody>' + filasEscuela + '</tbody></table></div>' +
+      '</div>' +
+
+      '<div class="dash-grid-sub">' +
+        _renderMiniTabla('Desglose por Oferta Formativa', porOferta, 'oferta') +
+        _renderMiniTabla('Desglose por Familia Profesional', porFamilia, 'familiaProfesional') +
+        _renderMiniTabla('Desglose por Turno', porTurno, 'turno') +
+      '</div>' +
+
+      '<div class="dash-card">' +
+        '<h3>Errores y Observaciones de Títulos (' + obsDetalle.length + ')</h3>' +
+        obsBadgesHtml +
+        '<div class="tabla-ancha"><table><thead><tr>' +
+          '<th>Escuela / CUE</th><th>Curso</th><th>Estudiante / DNI</th>' +
+          '<th style="width:130px;text-align:center">Fecha</th><th>Motivo de Error / Observación</th>' +
+        '</tr></thead><tbody>' + filasObs + '</tbody></table></div>' +
+      '</div>';
+
+    if ($('btnDashAplicar')) {
+      $('btnDashAplicar').addEventListener('click', function () {
+        _filtrosDashboard = {
+          escuela: $('dash_escuela') ? $('dash_escuela').value : '',
+          cue: $('dash_cue') ? $('dash_cue').value : '',
+          desde: $('dash_desde') ? $('dash_desde').value : '',
+          hasta: $('dash_hasta') ? $('dash_hasta').value : '',
+          estado: $('dash_estado') ? $('dash_estado').value : 'todos'
+        };
+        verResumen();
+      });
+    }
+    if ($('btnDashLimpiar')) {
+      $('btnDashLimpiar').addEventListener('click', function () {
+        _filtrosDashboard = { escuela: '', cue: '', desde: '', hasta: '', estado: 'todos' };
+        verResumen();
+      });
+    }
+    if ($('btnDashCsv')) {
+      $('btnDashCsv').addEventListener('click', function () { _exportarDashboardCSV(_ultimoDashboardData); });
+    }
+    if ($('btnDashImprimir')) {
+      $('btnDashImprimir').addEventListener('click', function () {
+        _configurarPaginaImpresion('oficio-horizontal');
+        window.print();
+      });
+    }
   } catch (err) {
     problema(err);
   }
@@ -1821,7 +2615,11 @@ async function verResumen() {
 
 // ---------- ADMINISTRACIÓN DE USUARIOS (EXCLUSIVO ROL DIRECCIÓN DETP) ----------
 async function verAdminUsuarios() {
+  estado.curso = null;
+  estado.datos = null;
+  _guardarRutaLocal('usuarios', '', '');
   $('migas').hidden = false;
+  $('volver').textContent = '← Volver a los cursos';
   $('main').innerHTML = '<div class="cargando">Cargando padrón de usuarios autorizados…</div>';
   try {
     var r = await llamar('/api/usuarios');

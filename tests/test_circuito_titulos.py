@@ -29,7 +29,7 @@ def test_circuito():
     print("=================================================================\n")
 
     # Sesiones de prueba
-    s_escuela = sesion("admin@ep6.jujuy.gob.ar")
+    s_escuela = sesion("admin.ep6@jujuy.edu.ar")
     s_titulos = sesion("titulos@educacion.jujuy.gob.ar")
 
     assert s_escuela["rol"] == Roles.ADMINISTRATIVO
@@ -95,8 +95,8 @@ def test_circuito():
     # Verificar que las notas estén congeladas
     assert esta_estudiante_congelado("curso-peluquero-ep6-demo", "39876543") == True
     try:
-        # Intentar modificar notas del estudiante aprobado (fila 10 es Benitez)
-        guardar_notas("curso-peluquero-ep6-demo", [{"fila": 10, "modulo": 0, "valor": "10"}], s_escuela)
+        # Intentar modificar notas del estudiante aprobado (fila 11 es Benitez)
+        guardar_notas("curso-peluquero-ep6-demo", [{"fila": 11, "modulo": 0, "valor": "10"}], s_escuela)
         assert False, "Debió impedir modificación de notas congeladas"
     except PermissionDeniedException as e:
         print(f"   [OK] Bloqueo exitoso de modificación de notas: {e}")

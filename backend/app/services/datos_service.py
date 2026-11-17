@@ -8,7 +8,15 @@ Preserva la lógica exacta de Libro Matriz FP:
 - Panel FP (Usuarios, Cursos, Registro)
 """
 
+import os
 import re
+import json
+import time
+import uuid
+import tempfile
+import datetime
+import threading
+from pathlib import Path
 from typing import Dict, List, Any, Optional
 from backend.app.core.config import (
     PANEL_ID, RAC, ACTA, ANALITICO, PANEL, AUSENTE,
@@ -16,16 +24,146 @@ from backend.app.core.config import (
 )
 from backend.app.services.google_service import google_client
 from backend.app.core.auth import (
-    normalizar_cue, exigir_lectura, exigir_carga, registrar, PermissionDeniedException
+    normalizar_cue, exigir_lectura, exigir_carga, registrar, alcanza_cue, PermissionDeniedException
 )
 from backend.app.services.titulos_service import (
     obtener_estado_estudiante, esta_estudiante_congelado, EstadoCertificado
 )
 from backend.app.services.excel_importer import (
-    procesar_archivo_excel, _calcular_situacion_y_promedio
+    procesar_archivo_excel, _calcular_situacion_y_promedio, _generar_id_curso_excel
 )
 
+_RUTA_CURSOS_DISCO = Path(__file__).resolve().parent.parent.parent / "data" / "cursos_importados.json"
+_RUTA_INSTITUCIONES = Path(__file__).resolve().parent.parent.parent.parent / "planillas" / "instituciones.json"
 _CURSOS_IMPORTADOS: Dict[str, Dict[str, Any]] = {}
+_INSTITUCIONES_CACHE: Optional[List[Dict[str, Any]]] = None
+_MANUAL_ID_LOCK = threading.Lock()
+_MANUAL_ID_SEQ = 0
+
+
+def _generar_id_curso_manual() -> str:
+    global _MANUAL_ID_SEQ
+    with _MANUAL_ID_LOCK:
+        _MANUAL_ID_SEQ += 1
+        seq = _MANUAL_ID_SEQ
+    cid = f"curso-{int(time.time() * 1000)}-{seq}-{uuid.uuid4().hex[:4]}"
+    while cid in _CURSOS_IMPORTADOS:
+        cid = f"curso-{int(time.time() * 1000)}-{seq}-{uuid.uuid4().hex[:6]}"
+    return cid
+
+
+def _cargar_instituciones() -> List[Dict[str, Any]]:
+    global _INSTITUCIONES_CACHE
+    if _INSTITUCIONES_CACHE is not None:
+        return _INSTITUCIONES_CACHE
+    try:
+        if _RUTA_INSTITUCIONES.exists():
+            data = json.loads(_RUTA_INSTITUCIONES.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                _INSTITUCIONES_CACHE = data
+                return _INSTITUCIONES_CACHE
+    except Exception:
+        pass
+    _INSTITUCIONES_CACHE = []
+    return _INSTITUCIONES_CACHE
+
+
+def _buscar_institucion_por_cue(cue: Any) -> Optional[Dict[str, Any]]:
+    cue_dig = normalizar_cue(cue)
+    if not cue_dig:
+        return None
+    candidatos = {cue_dig}
+    if len(cue_dig) == 7:
+        candidatos.add(cue_dig + "00")
+    elif len(cue_dig) == 9 and cue_dig.endswith("00"):
+        candidatos.add(cue_dig[:7])
+    for inst in _cargar_instituciones():
+        inst_cue = normalizar_cue(inst.get("cue"))
+        locs = [normalizar_cue(l) for l in (inst.get("localizaciones") or [])]
+        if inst_cue in candidatos or any(l in candidatos for l in locs if l):
+            return inst
+    return None
+
+
+def obtener_institucion_usuario(sesion_usr: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Resuelve el nombre completo de la escuela activa para la barra superior."""
+    cues = sesion_usr.get("cues") or []
+    if cues:
+        cue_u = normalizar_cue(cues[0])
+        inst = _buscar_institucion_por_cue(cue_u)
+        if inst:
+            return {
+                "cue": cue_u,
+                "nombre": inst.get("nombre", ""),
+                "localidad": inst.get("localidad", "")
+            }
+        # Fallback: buscar en cursos disponibles
+        for c in cursos_del_panel():
+            c_cue = normalizar_cue(c.get("cue"))
+            if c_cue == cue_u or (len(cue_u) == 7 and c_cue == cue_u + "00") or (len(c_cue) == 7 and cue_u == c_cue + "00"):
+                return {
+                    "cue": cue_u,
+                    "nombre": c.get("institucion", ""),
+                    "localidad": ""
+                }
+        if cue_u == "3800006":
+            return {
+                "cue": "3800006",
+                "nombre": "Escuela Profesional Nº 6",
+                "localidad": "San Salvador de Jujuy"
+            }
+    return None
+
+
+def _cargar_cursos_disco() -> None:
+    """Carga en memoria los cursos importados o creados previamente desde disco."""
+    global _CURSOS_IMPORTADOS
+    try:
+        if _RUTA_CURSOS_DISCO.exists():
+            contenido = json.loads(_RUTA_CURSOS_DISCO.read_text(encoding="utf-8"))
+            if isinstance(contenido, dict):
+                _CURSOS_IMPORTADOS.update(contenido)
+    except Exception:
+        pass
+
+
+def _guardar_cursos_disco() -> None:
+    """Persiste atómicamente en disco los cursos importados/creados para que no se pierdan al actualizar."""
+    try:
+        _RUTA_CURSOS_DISCO.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(
+            prefix="cursos_tmp_",
+            suffix=".json",
+            dir=str(_RUTA_CURSOS_DISCO.parent)
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(_CURSOS_IMPORTADOS, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, _RUTA_CURSOS_DISCO)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
+    except Exception:
+        pass
+
+
+def sincronizar_cursos_locales(paquetes: Dict[str, Any]) -> int:
+    """Restaura paquetes de cursos guardados en el navegador si el contenedor se reinició."""
+    if not isinstance(paquetes, dict):
+        return 0
+    restaurados = 0
+    for id_c, paq in paquetes.items():
+        if isinstance(paq, dict) and "resumenCurso" in paq and "datosCurso" in paq:
+            if id_c not in _CURSOS_IMPORTADOS:
+                _CURSOS_IMPORTADOS[id_c] = paq
+                restaurados += 1
+    if restaurados > 0:
+        _guardar_cursos_disco()
+    return restaurados
+
+
+_cargar_cursos_disco()
 
 def texto(v: Any) -> str:
     """Normaliza un valor de celda a string limpio."""
@@ -151,6 +289,10 @@ _ENCABEZADO_DEMO = {
     "cursoAnio": "1°",
     "divisionLetra": '"U"',
     "division": '1° "U"',
+    "duracion": "1 Cuatrimestre",
+    "docente": "Prof. Martín Gomez",
+    "fechaFin1C": "15/12/2026",
+    "fechaFin2C": "",
     "hsCatTotal": "510",
     "nivelCurso": "II",
     "certificacion": "Diseño Curricular Jurisdiccional",
@@ -218,16 +360,28 @@ _ACTA_DEMO_ESTUDIANTES = [
 
 # ==================== CURSOS DEL PANEL ====================
 
+def _mezclar_cursos_importados(base: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Agrega todos los cursos importados o creados manualmente sin duplicar IDs."""
+    resultado = list(base)
+    ids_existentes = {c.get("id") for c in resultado if c.get("id")}
+    for id_c, paq in _CURSOS_IMPORTADOS.items():
+        res_c = paq.get("resumenCurso")
+        if isinstance(res_c, dict) and res_c.get("id") and res_c["id"] not in ids_existentes:
+            resultado.append(dict(res_c))
+            ids_existentes.add(res_c["id"])
+    return resultado
+
+
 def cursos_del_panel() -> List[Dict[str, Any]]:
     """Lee y normaliza el índice de cursos desde la pestaña 'Cursos' del Panel FP."""
     if not PANEL_ID or not google_client.is_connected():
-        return list(_CURSOS_DEMO)
+        return _mezclar_cursos_importados(_CURSOS_DEMO)
 
     try:
         rango = f"{PANEL['CURSOS']['hoja']}!A1:H1000"
         valores = google_client.get_values(PANEL_ID, rango)
         if len(valores) < 2:
-            return list(_CURSOS_DEMO)
+            return _mezclar_cursos_importados(_CURSOS_DEMO)
 
         encabezados = [texto(col) for col in valores[0]]
         cursos = []
@@ -252,9 +406,10 @@ def cursos_del_panel() -> List[Dict[str, Any]]:
                 "id": file_id,
                 "estado": texto(item.get("Estado")) or "Abierto"
             })
-        return cursos if cursos else list(_CURSOS_DEMO)
+        base = cursos if cursos else list(_CURSOS_DEMO)
+        return _mezclar_cursos_importados(base)
     except Exception:
-        return list(_CURSOS_DEMO)
+        return _mezclar_cursos_importados(_CURSOS_DEMO)
 
 def buscar_curso(id_curso: str) -> Optional[Dict[str, Any]]:
     """Busca un curso por su ID de archivo en Drive."""
@@ -442,8 +597,15 @@ def guardar_notas(id_curso: str, cambios: List[Dict[str, Any]], sesion_usr: Dict
                     est["notas"][m] = str(v_norm)
                     nf, sit = _calcular_situacion_y_promedio(est["notas"])
                     est["promedioModulos"] = nf
-                    est["situacion"] = sit
-        return {"guardados": len(cambios)}
+                    nf_act = str(est.get("notaFinal", "")).strip().upper()
+                    if sit.startswith("Aprobó") and nf_act == "AUS":
+                        est["situacion"] = "Ausente examen final"
+                    elif sit.startswith("Aprobó") and nf_act.isdigit() and int(nf_act) < 7:
+                        est["situacion"] = "Desaprobó examen final"
+                    else:
+                        est["situacion"] = sit
+        _guardar_cursos_disco()
+        return {"guardados": len(cambios), "paquete": _CURSOS_IMPORTADOS.get(curso["id"])}
 
     if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
         for c in cambios:
@@ -462,8 +624,15 @@ def guardar_notas(id_curso: str, cambios: List[Dict[str, Any]], sesion_usr: Dict
                     est["notas"][m] = str(v_norm)
                     nf, sit = _calcular_situacion_y_promedio(est["notas"])
                     est["promedioModulos"] = nf
-                    est["situacion"] = sit
-        return {"guardados": len(cambios)}
+                    nf_act = str(est.get("notaFinal", "")).strip().upper()
+                    if sit.startswith("Aprobó") and nf_act == "AUS":
+                        est["situacion"] = "Ausente examen final"
+                    elif sit.startswith("Aprobó") and nf_act.isdigit() and int(nf_act) < 7:
+                        est["situacion"] = "Desaprobó examen final"
+                    else:
+                        est["situacion"] = sit
+        _guardar_cursos_disco()
+        return {"guardados": len(cambios), "paquete": _CURSOS_IMPORTADOS.get(curso["id"])}
 
     updates = []
     detalle = []
@@ -549,7 +718,8 @@ def guardar_estudiante(id_curso: str, est_data: Dict[str, Any], sesion_usr: Dict
             "definitivaLetras": ""
         })
         registrar(sesion_usr, "Alta Estudiante", f"{curso['oferta']} {curso['ciclo']}", f"{apellido}, {nombres} (DNI {documento_str})")
-        return {"fila": nueva_fila, "estudiante": nuevo_est}
+        _guardar_cursos_disco()
+        return {"fila": nueva_fila, "estudiante": nuevo_est, "paquete": paq}
 
     if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
         nueva_fila = (max([e["fila"] for e in _ESTUDIANTES_DEMO], default=8) + 1)
@@ -644,11 +814,13 @@ def leer_acta(id_curso: str, sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("Curso no encontrado en el Panel.")
     exigir_lectura(sesion_usr, curso)
 
+    puede_cargar_curso = bool(sesion_usr.get("puedeCargar") and str(curso.get("estado", "")).lower() != "cerrado")
+
     if curso["id"] in _CURSOS_IMPORTADOS:
         acta_imp = _CURSOS_IMPORTADOS[curso["id"]]["actaCurso"]
         return {
             "curso": curso,
-            "puedeCargar": bool(sesion_usr.get("puedeCargar") or sesion_usr.get("verTodo")),
+            "puedeCargar": puede_cargar_curso,
             "mesa": acta_imp["mesa"],
             "estudiantes": acta_imp["estudiantes"]
         }
@@ -656,7 +828,7 @@ def leer_acta(id_curso: str, sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
     if curso["id"] == "curso-peluquero-ep6-demo" or not google_client.is_connected():
         return {
             "curso": curso,
-            "puedeCargar": True,
+            "puedeCargar": puede_cargar_curso,
             "mesa": dict(_ACTA_DEMO_MESA),
             "estudiantes": [dict(x) for x in _ACTA_DEMO_ESTUDIANTES]
         }
@@ -793,14 +965,27 @@ def guardar_acta(id_curso: str, mesa: Optional[Dict[str, Any]], cambios: List[Di
                         est_rac["libroActa"] = libro_acta_actual
                         est_rac["folio"] = folio_acta_actual or est_rac.get("folio", "1")
                         est_rac["fechaEgreso"] = fecha_acta_actual
-                        if def_val.isdigit() and int(def_val) >= 7:
-                            est_rac["situacion"] = "Aprobó todo"
+                        if def_val == "AUS":
+                            est_rac["situacion"] = "Ausente examen final"
+                        elif def_val.isdigit():
+                            if int(def_val) >= 7:
+                                _, sit_mods = _calcular_situacion_y_promedio(est_rac.get("notas", []))
+                                if sit_mods.startswith("Aprobó") or not est_rac.get("notas"):
+                                    est_rac["situacion"] = "Aprobó todo"
+                                else:
+                                    est_rac["situacion"] = sit_mods
+                            else:
+                                est_rac["situacion"] = "Desaprobó examen final"
                     else:
                         est_rac["libroActa"] = ""
                         est_rac["fechaEgreso"] = ""
+                        _, sit_mods = _calcular_situacion_y_promedio(est_rac.get("notas", []))
+                        est_rac["situacion"] = sit_mods
                     break
 
-        return {"guardados": len(cambios or []) + (1 if mesa else 0)}
+        if curso["id"] in _CURSOS_IMPORTADOS:
+            _guardar_cursos_disco()
+        return {"guardados": len(cambios or []) + (1 if mesa else 0), "paquete": _CURSOS_IMPORTADOS.get(curso["id"])}
 
     updates = []
     if mesa:
@@ -917,8 +1102,28 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
             })
         carga_total = {"reloj": tot_reloj, "cat": tot_cat}
 
+    def _extraer_mes_anio(fecha_str: Any) -> str:
+        s_f = texto(fecha_str)
+        if not s_f:
+            return ""
+        m_iso = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", s_f)
+        if m_iso:
+            return f"{m_iso.group(2)}/{m_iso.group(1)}"
+        m_lat = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", s_f)
+        if m_lat:
+            return f"{int(m_lat.group(2)):02d}/{m_lat.group(3)}"
+        m_my = re.match(r"^(\d{1,2})/(\d{4})$", s_f)
+        if m_my:
+            return f"{int(m_my.group(1)):02d}/{m_my.group(2)}"
+        return ""
+
     notas_est = est_seleccionado.get("notas", []) if est_seleccionado else []
     trayecto_final = []
+    cohorte_mod = str(enc_curso.get("ciclo") or curso.get("ciclo") or "2026")
+    mes_anio_1c = _extraer_mes_anio(enc_curso.get("fechaFin1C"))
+    mes_anio_2c = _extraer_mes_anio(enc_curso.get("fechaFin2C"))
+    mes_anio_egr = _extraer_mes_anio(est_seleccionado.get("fechaEgreso") if est_seleccionado else "")
+
     for idx, mod in enumerate(trayecto_base):
         val_nota = notas_est[idx] if idx < len(notas_est) else ""
         if val_nota == "" or val_nota is None:
@@ -936,12 +1141,13 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
                 cond = "Pendiente"
                 en_letra = ""
 
-        cohorte_mod = str(enc_curso.get("ciclo") or curso.get("ciclo") or "2026")
-        mes_anio_mod = f"12/{cohorte_mod}" if val_nota and val_nota != "AUS" else ""
-        if est_seleccionado and est_seleccionado.get("fechaEgreso") and val_nota and val_nota != "AUS":
-            partes_fe = str(est_seleccionado.get("fechaEgreso")).split("/")
-            if len(partes_fe) == 3:
-                mes_anio_mod = f"{partes_fe[1]}/{partes_fe[2]}"
+        mes_anio_mod = ""
+        if cond == "Aprobado":
+            per_low = str(mod.get("periodo", "")).lower()
+            if "2" in per_low or "3" in per_low:
+                mes_anio_mod = mes_anio_2c or mes_anio_egr or f"12/{cohorte_mod}"
+            else:
+                mes_anio_mod = mes_anio_1c or mes_anio_egr or f"12/{cohorte_mod}"
 
         trayecto_final.append({
             **mod,
@@ -989,6 +1195,10 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
         "validezNacional": str(enc_curso.get("validezNacional") or "—"),
         "fechaEmision": fecha_emision or "",
         "fechaEgreso": fecha_egreso_rac,
+        "fechaFin1C": str(enc_curso.get("fechaFin1C") or ""),
+        "fechaFin2C": str(enc_curso.get("fechaFin2C") or ""),
+        "duracion": str(enc_curso.get("duracion") or ""),
+        "docente": str(enc_curso.get("docente") or ""),
         "fechaAprobacion": sol_info.get("fechaAprobacion") or "",
         "estudianteNombre": f"{est_seleccionado.get('apellido', '')}, {est_seleccionado.get('nombres', '')}".strip() if est_seleccionado else "AMANTE, SERGIO DAVID",
         "lugarNac": lugar_nac_str,
@@ -1072,38 +1282,317 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
         "solicitudCertificado": sol_info
     }
 
-# ==================== RESUMEN POR INSTITUCIÓN (DIRECCIÓN) ====================
+# ==================== RESUMEN Y DASHBOARD DE ESTADÍSTICAS (DIRECCIÓN Y TÍTULOS) ====================
 
-def obtener_resumen(sesion_usr: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Calcula y devuelve el resumen institucional para el rol Dirección DETP."""
-    if not sesion_usr.get("verTodo"):
-        raise PermissionDeniedException("Este resumen es exclusivo para la Dirección DETP.")
+def _parse_fecha_dt(val: Any) -> Optional[datetime.date]:
+    s = texto(val)
+    if not s:
+        return None
+    s_date = s.split(" ")[0].strip()
+    m_iso = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", s_date)
+    if m_iso:
+        try:
+            return datetime.date(int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3)))
+        except Exception:
+            return None
+    m_lat = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", s_date)
+    if m_lat:
+        try:
+            return datetime.date(int(m_lat.group(3)), int(m_lat.group(2)), int(m_lat.group(1)))
+        except Exception:
+            return None
+    return None
 
-    por_institucion = {}
-    for c in cursos_del_panel():
+
+def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Calcula y devuelve las estadísticas completas para el Dashboard de Gestión
+    (accesible tanto a Dirección DETP como a Dirección de Títulos).
+    """
+    if not (sesion_usr.get("verTodo") or sesion_usr.get("esTitulos")):
+        raise PermissionDeniedException("Este dashboard es exclusivo para la Dirección DETP y la Dirección de Títulos.")
+
+    filtros = filtros or {}
+    f_escuela = texto(filtros.get("escuela")).lower()
+    f_cue = normalizar_cue(filtros.get("cue"))
+    f_desde = _parse_fecha_dt(filtros.get("desde"))
+    f_hasta = _parse_fecha_dt(filtros.get("hasta"))
+    f_estado = texto(filtros.get("estado")).lower() or "todos"
+
+    def _mismo_cue_str(c1: Any, c2: Any) -> bool:
+        a = normalizar_cue(c1)
+        b = normalizar_cue(c2)
+        if not a or not b:
+            return False
+        if a == b:
+            return True
+        if len(a) == 7 and b == a + "00":
+            return True
+        if len(b) == 7 and a == b + "00":
+            return True
+        return False
+
+    from backend.app.services.titulos_service import listar_solicitudes
+
+    cursos_todos = cursos_del_panel()
+    escuelas_disp_map: Dict[str, str] = {}
+    cues_disp_set = set()
+    for c in cursos_todos:
+        inst_n = texto(c.get("institucion"))
+        cue_n = texto(c.get("cue"))
+        if inst_n:
+            escuelas_disp_map[inst_n] = inst_n
+        if cue_n:
+            cues_disp_set.add(cue_n)
+
+    por_institucion: Dict[str, Dict[str, Any]] = {}
+    por_oferta: Dict[str, Dict[str, Any]] = {}
+    por_familia: Dict[str, Dict[str, Any]] = {}
+    por_turno: Dict[str, Dict[str, Any]] = {}
+
+    tot_cursos = 0
+    tot_matriculados = 0
+    tot_aprobados = 0
+    tot_desaprobados = 0
+    tot_ausentes = 0
+    tot_cert_aprobados = 0
+    tot_cert_pendientes = 0
+    tot_cert_observados = 0
+
+    for c in cursos_todos:
         try:
             d = leer_curso(c["id"])
-            aprobados = sum(
-                1 for e in d.get("estudiantes", []) if str(e.get("situacion", "")).startswith("Aprobó")
-            )
-            k = c["cue"] or c["institucion"]
-            if k not in por_institucion:
-                por_institucion[k] = {
-                    "cue": c["cue"],
-                    "institucion": c["institucion"],
-                    "cursos": 0,
-                    "estudiantes": 0,
-                    "aprobados": 0
-                }
-            por_institucion[k]["cursos"] += 1
-            por_institucion[k]["estudiantes"] += len(d.get("estudiantes", []))
-            por_institucion[k]["aprobados"] += aprobados
         except Exception:
             continue
 
-    lista = list(por_institucion.values())
-    lista.sort(key=lambda x: x["institucion"])
-    return lista
+        enc = d.get("encabezado", {})
+        inst_c = texto(enc.get("establecimiento") or c.get("institucion") or "Sin Institución")
+        cue_c = texto(enc.get("cue") or c.get("cue") or "")
+        oferta_c = texto(enc.get("oferta") or c.get("oferta") or "Sin Oferta")
+        familia_c = texto(enc.get("familiaProfesional") or "Sin Familia")
+        if familia_c in ("", "—", "-"):
+            familia_c = "Sin especificar"
+        turno_c = texto(enc.get("turno") or c.get("turno") or "Sin especificar")
+        fecha_curso_dt = _parse_fecha_dt(enc.get("fechaActa")) or _parse_fecha_dt(enc.get("fechaFin2C")) or _parse_fecha_dt(enc.get("fechaFin1C"))
+
+        if f_escuela and f_escuela not in inst_c.lower():
+            continue
+        if f_cue and not _mismo_cue_str(cue_c, f_cue):
+            continue
+
+        estudiantes_filtrados = []
+        for e in d.get("estudiantes", []):
+            sol = e.get("solicitudCertificado") or {}
+            st_cert = texto(sol.get("estado") or EstadoCertificado.NO_SOLICITADO)
+            sit = texto(e.get("situacion"))
+            nf_str = texto(e.get("notaFinal")).upper()
+
+            nf_ok = True
+            if nf_str:
+                if nf_str == "AUS":
+                    nf_ok = False
+                else:
+                    try:
+                        nf_ok = float(nf_str.replace(",", ".")) >= 7
+                    except Exception:
+                        nf_ok = False
+
+            es_aprobado = sit.startswith("Aprobó") and nf_ok
+            es_ausente = (nf_str == "AUS") or ("ausente" in sit.lower())
+
+            # Filtro por fecha (usa fechaEgreso, fechaAprobacion, fechaSolicitud o fechaActa)
+            if f_desde or f_hasta:
+                dt_est = (
+                    _parse_fecha_dt(e.get("fechaEgreso"))
+                    or _parse_fecha_dt(sol.get("fechaAprobacion"))
+                    or _parse_fecha_dt(sol.get("fechaSolicitud"))
+                    or fecha_curso_dt
+                )
+                if dt_est is None:
+                    ciclo_str = texto(enc.get("ciclo") or c.get("ciclo"))
+                    if ciclo_str.isdigit():
+                        dt_est = datetime.date(int(ciclo_str), 12, 31)
+                if dt_est is not None:
+                    if f_desde and dt_est < f_desde:
+                        continue
+                    if f_hasta and dt_est > f_hasta:
+                        continue
+
+            # Filtro por estado académico / certificación
+            if f_estado == "aprobados" and not es_aprobado:
+                continue
+            elif f_estado in ("desaprobados", "desaprobados_en_curso") and es_aprobado:
+                continue
+            elif f_estado in ("cert_aprobados", "certificados_aprobados") and st_cert != EstadoCertificado.APROBADO:
+                continue
+            elif f_estado in ("observados", "certificados_observados") and st_cert != EstadoCertificado.OBSERVADO:
+                continue
+
+            estudiantes_filtrados.append((e, es_aprobado, es_ausente, st_cert))
+
+        if (f_desde or f_hasta or f_estado != "todos") and not estudiantes_filtrados and len(d.get("estudiantes", [])) > 0:
+            continue
+
+        tot_cursos += 1
+        k_inst = f"{cue_c}||{inst_c}"
+        if k_inst not in por_institucion:
+            por_institucion[k_inst] = {
+                "cue": cue_c,
+                "institucion": inst_c,
+                "cursos": 0,
+                "estudiantes": 0,
+                "matriculados": 0,
+                "aprobados": 0,
+                "desaprobados": 0,
+                "ausentes": 0,
+                "certificadosAprobados": 0,
+                "certificadosPendientes": 0,
+                "certificadosObservados": 0
+            }
+        por_institucion[k_inst]["cursos"] += 1
+
+        for grp_map, grp_key, grp_label in (
+            (por_oferta, oferta_c, "oferta"),
+            (por_familia, familia_c, "familiaProfesional"),
+            (por_turno, turno_c, "turno")
+        ):
+            if grp_key not in grp_map:
+                grp_map[grp_key] = {
+                    grp_label: grp_key,
+                    "cursos": 0,
+                    "matriculados": 0,
+                    "aprobados": 0,
+                    "desaprobados": 0,
+                    "ausentes": 0,
+                    "certificadosAprobados": 0,
+                    "certificadosObservados": 0
+                }
+            grp_map[grp_key]["cursos"] += 1
+
+        for e, es_aprobado, es_ausente, st_cert in estudiantes_filtrados:
+            tot_matriculados += 1
+            if es_aprobado:
+                tot_aprobados += 1
+            else:
+                tot_desaprobados += 1
+            if es_ausente:
+                tot_ausentes += 1
+            if st_cert == EstadoCertificado.APROBADO:
+                tot_cert_aprobados += 1
+            elif st_cert == EstadoCertificado.PENDIENTE:
+                tot_cert_pendientes += 1
+            elif st_cert == EstadoCertificado.OBSERVADO:
+                tot_cert_observados += 1
+
+            row_inst = por_institucion[k_inst]
+            row_inst["estudiantes"] += 1
+            row_inst["matriculados"] += 1
+            if es_aprobado:
+                row_inst["aprobados"] += 1
+            else:
+                row_inst["desaprobados"] += 1
+            if es_ausente:
+                row_inst["ausentes"] += 1
+            if st_cert == EstadoCertificado.APROBADO:
+                row_inst["certificadosAprobados"] += 1
+            elif st_cert == EstadoCertificado.PENDIENTE:
+                row_inst["certificadosPendientes"] += 1
+            elif st_cert == EstadoCertificado.OBSERVADO:
+                row_inst["certificadosObservados"] += 1
+
+            for grp_map, grp_key in ((por_oferta, oferta_c), (por_familia, familia_c), (por_turno, turno_c)):
+                g = grp_map[grp_key]
+                g["matriculados"] += 1
+                if es_aprobado:
+                    g["aprobados"] += 1
+                else:
+                    g["desaprobados"] += 1
+                if es_ausente:
+                    g["ausentes"] += 1
+                if st_cert == EstadoCertificado.APROBADO:
+                    g["certificadosAprobados"] += 1
+                elif st_cert == EstadoCertificado.OBSERVADO:
+                    g["certificadosObservados"] += 1
+
+    def _enriquecer_pct(lista_items: List[Dict[str, Any]], sort_key: str) -> List[Dict[str, Any]]:
+        for item in lista_items:
+            mat = item.get("matriculados", 0)
+            apr = item.get("aprobados", 0)
+            cert_a = item.get("certificadosAprobados", 0)
+            item["pctAprobacion"] = round((apr * 100.0) / mat, 1) if mat > 0 else 0.0
+            item["tasaTitulacion"] = round((cert_a * 100.0) / apr, 1) if apr > 0 else 0.0
+        lista_items.sort(key=lambda x: str(x.get(sort_key, "")))
+        return lista_items
+
+    # Solicitudes observadas (errores / observaciones de Títulos)
+    todas_obs = listar_solicitudes(sesion_usr, estado_filtro=EstadoCertificado.OBSERVADO)
+    obs_detalle: List[Dict[str, Any]] = []
+    obs_por_escuela_map: Dict[str, Dict[str, Any]] = {}
+    for sol in todas_obs:
+        inst_s = texto(sol.get("institucion") or "Sin Institución")
+        cue_s = texto(sol.get("cue") or "")
+        if f_escuela and f_escuela not in inst_s.lower():
+            continue
+        if f_cue and not _mismo_cue_str(cue_s, f_cue):
+            continue
+        if f_desde or f_hasta:
+            dt_s = _parse_fecha_dt(sol.get("fechaSolicitud"))
+            if dt_s is not None:
+                if f_desde and dt_s < f_desde:
+                    continue
+                if f_hasta and dt_s > f_hasta:
+                    continue
+        if f_estado in ("aprobados", "desaprobados", "desaprobados_en_curso", "cert_aprobados", "certificados_aprobados"):
+            continue
+        obs_detalle.append({
+            "id": sol.get("id", ""),
+            "idCurso": sol.get("idCurso", ""),
+            "cue": cue_s,
+            "institucion": inst_s,
+            "oferta": texto(sol.get("oferta")),
+            "ciclo": texto(sol.get("ciclo")),
+            "documento": texto(sol.get("documento")),
+            "estudiante": texto(sol.get("estudiante")),
+            "fechaSolicitud": texto(sol.get("fechaSolicitud")),
+            "motivoObservacion": texto(sol.get("motivoObservacion"))
+        })
+        k_o = f"{cue_s}||{inst_s}"
+        if k_o not in obs_por_escuela_map:
+            obs_por_escuela_map[k_o] = {"cue": cue_s, "institucion": inst_s, "cantidad": 0}
+        obs_por_escuela_map[k_o]["cantidad"] += 1
+
+    pct_aprobacion = round((tot_aprobados * 100.0) / tot_matriculados, 1) if tot_matriculados > 0 else 0.0
+    pct_desaprobacion = round((tot_desaprobados * 100.0) / tot_matriculados, 1) if tot_matriculados > 0 else 0.0
+    tasa_titulacion = round((tot_cert_aprobados * 100.0) / tot_aprobados, 1) if tot_aprobados > 0 else 0.0
+
+    return {
+        "kpis": {
+            "totalCursos": tot_cursos,
+            "totalMatriculados": tot_matriculados,
+            "totalAprobados": tot_aprobados,
+            "pctAprobacion": pct_aprobacion,
+            "totalDesaprobados": tot_desaprobados,
+            "pctDesaprobacion": pct_desaprobacion,
+            "totalAusentes": tot_ausentes,
+            "totalCertificadosAprobados": tot_cert_aprobados,
+            "tasaTitulacion": tasa_titulacion,
+            "totalPendientesTitulos": tot_cert_pendientes,
+            "totalObservados": len(obs_detalle) if obs_detalle else tot_cert_observados
+        },
+        "porEscuela": _enriquecer_pct(list(por_institucion.values()), "institucion"),
+        "porOferta": _enriquecer_pct(list(por_oferta.values()), "oferta"),
+        "porFamilia": _enriquecer_pct(list(por_familia.values()), "familiaProfesional"),
+        "porTurno": _enriquecer_pct(list(por_turno.values()), "turno"),
+        "observacionesPorEscuela": sorted(list(obs_por_escuela_map.values()), key=lambda x: x["institucion"]),
+        "observacionesDetalle": obs_detalle,
+        "escuelasDisponibles": sorted(list(escuelas_disp_map.keys())),
+        "cuesDisponibles": sorted(list(cues_disp_set))
+    }
+
+
+def obtener_resumen(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """Calcula y devuelve el resumen institucional para Dirección DETP y Dirección de Títulos."""
+    return obtener_estadisticas(sesion_usr, filtros=filtros)["porEscuela"]
 
 # ==================== IMPORTADOR DE VIEJO EXCEL (.XLSM / .XLSX) ====================
 
@@ -1114,15 +1603,27 @@ def importar_excel_en_sistema(contenido: bytes, nombre_archivo: str, sesion_usr:
     """
     paquete = procesar_archivo_excel(contenido, nombre_archivo)
     resumen = paquete["resumenCurso"]
+    enc_imp = paquete["datosCurso"]["encabezado"]
 
     # Si el usuario pertenece a una escuela con CUE específico, asignar su CUE si el Excel no tenía uno válido
     if not sesion_usr.get("verTodo") and sesion_usr.get("cues"):
         resumen["cue"] = sesion_usr["cues"][0]
-        paquete["datosCurso"]["encabezado"]["cue"] = sesion_usr["cues"][0]
+        enc_imp["cue"] = sesion_usr["cues"][0]
+
+    inst_info = _buscar_institucion_por_cue(resumen.get("cue"))
+    if inst_info:
+        if not enc_imp.get("establecimiento") or enc_imp.get("establecimiento") in ("Escuela Profesional", "Escuela Profesional Importada"):
+            enc_imp["establecimiento"] = inst_info.get("nombre") or enc_imp.get("establecimiento")
+            resumen["institucion"] = enc_imp["establecimiento"]
+        if not enc_imp.get("localidad") or enc_imp.get("localidad") == "Jujuy":
+            enc_imp["localidad"] = inst_info.get("localidad") or enc_imp.get("localidad")
 
     id_curso = resumen["id"]
+    while id_curso in _CURSOS_IMPORTADOS:
+        id_curso = _generar_id_curso_excel()
+    resumen["id"] = id_curso
     _CURSOS_IMPORTADOS[id_curso] = paquete
-    _CURSOS_DEMO.append(resumen)
+    _guardar_cursos_disco()
 
     registrar(
         sesion_usr,
@@ -1132,22 +1633,32 @@ def importar_excel_en_sistema(contenido: bytes, nombre_archivo: str, sesion_usr:
     )
     return {
         "curso": resumen,
+        "paquete": paquete,
         "cantidadEstudiantes": len(paquete["datosCurso"]["estudiantes"]),
         "cantidadModulos": len(paquete["datosCurso"]["modulos"])
     }
 
 def crear_curso_manual(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
     """Registra un nuevo curso en el sistema listo para que el Administrativo cargue alumnos."""
-    import time
-    import datetime
-    id_curso = texto(datos.get("id")) or f"curso-{int(time.time())}"
+    id_solicitado = texto(datos.get("id"))
+    if id_solicitado and id_solicitado not in _CURSOS_IMPORTADOS:
+        id_curso = id_solicitado
+    else:
+        id_curso = _generar_id_curso_manual()
     cue = texto(datos.get("cue")) or (sesion_usr["cues"][0] if sesion_usr.get("cues") else "3800006")
-    institucion = texto(datos.get("institucion")) or "Escuela Profesional"
+    inst_info = _buscar_institucion_por_cue(cue)
+    institucion = texto(datos.get("institucion")) or (inst_info.get("nombre") if inst_info else "") or "Escuela Profesional"
+    localidad = texto(datos.get("localidad")) or (inst_info.get("localidad") if inst_info else "") or "San Salvador de Jujuy"
+    domicilio = texto(datos.get("domicilio")) or (inst_info.get("domicilio") if inst_info else "") or "S/D"
     oferta = texto(datos.get("oferta")) or "Oferta Formativa"
     ciclo = texto(datos.get("ciclo")) or str(datetime.datetime.now().year)
     turno_raw = texto(datos.get("turno")) or "Vespertino"
     turno = "Vespertino" if turno_raw.lower() in ("noche", "nocturno", "vespertino") else turno_raw
     division = texto(datos.get("division")) or '1º "U"'
+    duracion = texto(datos.get("duracion")) or "2 Cuatrimestres"
+    docente = texto(datos.get("docente")) or "—"
+    fecha_fin_1c = texto(datos.get("fechaFin1C"))
+    fecha_fin_2c = texto(datos.get("fechaFin2C"))
 
     resumen = {
         "cue": cue,
@@ -1157,7 +1668,9 @@ def crear_curso_manual(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dic
         "turno": turno,
         "division": division,
         "id": id_curso,
-        "estado": "Abierto"
+        "estado": "Abierto",
+        "fechaFin1C": fecha_fin_1c,
+        "fechaFin2C": fecha_fin_2c
     }
     modulos = [
         {"i": 0, "nombre": "Relaciones Laborales y Orientación Profesional", "periodo": "1° Cuatrimestre", "periodoCorto": "1°C", "cuatrimestre": 1, "tipo": "Común"},
@@ -1172,9 +1685,9 @@ def crear_curso_manual(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dic
         "datosCurso": {
             "encabezado": {
                 "establecimiento": institucion,
-                "localidad": "San Salvador de Jujuy",
+                "localidad": localidad,
                 "cue": cue,
-                "domicilio": "S/D",
+                "domicilio": domicilio,
                 "oferta": oferta,
                 "familiaProfesional": texto(datos.get("familiaProfesional")) or "—",
                 "ciclo": ciclo,
@@ -1185,6 +1698,10 @@ def crear_curso_manual(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dic
                 "cursoAnio": texto(datos.get("cursoAnio")) or "1°",
                 "divisionLetra": texto(datos.get("divisionLetra")) or '"U"',
                 "division": division,
+                "duracion": duracion,
+                "docente": docente,
+                "fechaFin1C": fecha_fin_1c,
+                "fechaFin2C": fecha_fin_2c,
                 "disenio": texto(datos.get("resolucionDisenio")) or texto(datos.get("disenio")) or "661-E/2022",
                 "hsCatTotal": texto(datos.get("hsCatTotal")) or "510",
                 "nivelCurso": texto(datos.get("nivelCurso")) or "II",
@@ -1202,13 +1719,227 @@ def crear_curso_manual(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dic
         "actaCurso": {
             "mesa": {
                 "fecha": datetime.datetime.now().strftime("%d/%m/%Y"),
-                "presidente": "Presidente/a de Mesa",
+                "presidente": docente if docente and docente != "—" else "Presidente/a de Mesa",
                 "vocal1": "Vocal 1°",
                 "vocal2": "Vocal 2°"
             },
             "estudiantes": []
         }
     }
-    _CURSOS_DEMO.append(resumen)
+    _guardar_cursos_disco()
     registrar(sesion_usr, "Nuevo Curso", f"{oferta} ({cue})", f"Turno {turno}")
     return resumen
+
+
+def actualizar_encabezado_curso(id_curso: str, datos_enc: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
+    """Actualiza metadatos del encabezado del curso (fechaFin1C, fechaFin2C, domicilio, duracion, docente, etc.)."""
+    curso = buscar_curso(id_curso)
+    if not curso:
+        raise ValueError("Curso no encontrado en el Panel.")
+    exigir_carga(sesion_usr, curso)
+
+    campos_permitidos = (
+        "establecimiento", "domicilio", "localidad", "oferta", "duracion",
+        "division", "normaAprobacion", "resolucionDisenio", "validezNacional",
+        "disposicion", "docente", "turno", "ciclo", "fechaFin1C", "fechaFin2C",
+        "libro", "folio", "hsCatTotal", "nivelCurso", "certificacion", "familiaProfesional"
+    )
+
+    if curso["id"] in _CURSOS_IMPORTADOS:
+        paq = _CURSOS_IMPORTADOS[curso["id"]]
+        enc_dest = paq["datosCurso"]["encabezado"]
+        res_dest = paq["resumenCurso"]
+        for k in campos_permitidos:
+            if k in datos_enc and datos_enc[k] is not None:
+                val = texto(datos_enc[k])
+                enc_dest[k] = val
+                if k in ("oferta", "ciclo", "turno", "division", "fechaFin1C", "fechaFin2C"):
+                    res_dest[k] = val
+                elif k == "establecimiento":
+                    res_dest["institucion"] = val
+        _guardar_cursos_disco()
+        return {"encabezado": dict(enc_dest), "paquete": paq}
+
+    if curso["id"] == "curso-peluquero-ep6-demo":
+        for k in campos_permitidos:
+            if k in datos_enc and datos_enc[k] is not None:
+                _ENCABEZADO_DEMO[k] = texto(datos_enc[k])
+        return {"encabezado": dict(_ENCABEZADO_DEMO)}
+
+    raise ValueError("La actualización directa de encabezado solo está disponible para cursos locales o importados.")
+
+
+def obtener_nomina_egresados(
+    cue: Optional[str] = None,
+    id_curso: Optional[str] = None,
+    ciclo: Optional[str] = None,
+    filtro: str = "todos",
+    sesion_usr: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Construye la Planilla por Escuela ('NOMINA DE EGRESADOS Ciclo Lectivo ...')
+    con encabezado institucional y filas filtradas según estado académico / Títulos.
+    """
+    cue_norm = normalizar_cue(cue)
+    ciclo_norm = texto(ciclo)
+    filtro_norm = texto(filtro).lower() or "todos"
+    if filtro_norm not in ("con_certificados", "aprobados", "pendientes", "todos"):
+        filtro_norm = "todos"
+
+    if sesion_usr and not sesion_usr.get("verTodo"):
+        if cue_norm and not alcanza_cue(sesion_usr, cue_norm):
+            raise PermissionDeniedException("No tienes acceso a la nómina de otra institución.")
+
+    todos_cursos = cursos_del_panel()
+    if sesion_usr and not sesion_usr.get("verTodo"):
+        todos_cursos = [c for c in todos_cursos if alcanza_cue(sesion_usr, c.get("cue"))]
+
+    def _mismo_cue(c1: Any, c2: Any) -> bool:
+        a = normalizar_cue(c1)
+        b = normalizar_cue(c2)
+        if not a or not b:
+            return False
+        if a == b:
+            return True
+        if len(a) == 7 and b == a + "00":
+            return True
+        if len(b) == 7 and a == b + "00":
+            return True
+        return False
+
+    seleccionados: List[Dict[str, Any]] = []
+    if id_curso:
+        c_match = next((c for c in todos_cursos if c.get("id") == id_curso), None)
+        if not c_match:
+            raise ValueError(f"Curso '{id_curso}' no encontrado o sin acceso.")
+        seleccionados = [c_match]
+    else:
+        for c in todos_cursos:
+            if cue_norm and not _mismo_cue(c.get("cue"), cue_norm):
+                continue
+            if ciclo_norm and texto(c.get("ciclo")) != ciclo_norm:
+                continue
+            seleccionados.append(c)
+        if not seleccionados and not cue_norm and todos_cursos:
+            seleccionados = [todos_cursos[0]]
+
+    encabezado_nomina = {
+        "establecimiento": "",
+        "domicilio": "",
+        "localidad": "",
+        "cue": cue_norm or "",
+        "oferta": "",
+        "duracion": "",
+        "division": "",
+        "normaAprobacion": "",
+        "resolucionDisenio": "",
+        "docente": "",
+        "turno": "",
+        "ciclo": ciclo_norm or str(datetime.datetime.now().year)
+    }
+
+    todas_filas: List[Dict[str, Any]] = []
+    totales = {"todos": 0, "aprobados": 0, "con_certificados": 0, "pendientes": 0}
+
+    for idx_c, c in enumerate(seleccionados):
+        datos_c = leer_curso(c["id"])
+        enc_c = datos_c.get("encabezado", {})
+        inst_ref = _buscar_institucion_por_cue(enc_c.get("cue") or c.get("cue"))
+        docente_c = texto(enc_c.get("docente"))
+        if not docente_c:
+            try:
+                if c["id"] in _CURSOS_IMPORTADOS:
+                    pres = _CURSOS_IMPORTADOS[c["id"]]["actaCurso"]["mesa"].get("presidente", "")
+                    if pres and pres != "Presidente/a de Mesa":
+                        docente_c = pres
+                elif c["id"] == "curso-peluquero-ep6-demo":
+                    docente_c = _ACTA_DEMO_MESA.get("presidente", "")
+            except Exception:
+                pass
+
+        if idx_c == 0:
+            encabezado_nomina = {
+                "establecimiento": texto(enc_c.get("establecimiento") or c.get("institucion") or (inst_ref.get("nombre") if inst_ref else "")),
+                "domicilio": texto(enc_c.get("domicilio") or (inst_ref.get("domicilio") if inst_ref else "") or "S/D"),
+                "localidad": texto(enc_c.get("localidad") or (inst_ref.get("localidad") if inst_ref else "") or "Jujuy"),
+                "cue": texto(enc_c.get("cue") or c.get("cue") or ""),
+                "oferta": texto(enc_c.get("oferta") or c.get("oferta") or ""),
+                "duracion": texto(enc_c.get("duracion") or (f"{enc_c.get('hsCatTotal')} hs cátedra" if enc_c.get("hsCatTotal") else "") or "Anual"),
+                "division": texto(enc_c.get("division") or c.get("division") or ""),
+                "normaAprobacion": texto(enc_c.get("normaAprobacion") or "—"),
+                "resolucionDisenio": texto(enc_c.get("resolucionDisenio") or enc_c.get("disenio") or "—"),
+                "docente": docente_c or "—",
+                "turno": texto(enc_c.get("turno") or c.get("turno") or ""),
+                "ciclo": texto(enc_c.get("ciclo") or c.get("ciclo") or ciclo_norm or str(datetime.datetime.now().year))
+            }
+        elif len(seleccionados) > 1:
+            ofertas_prev = encabezado_nomina.get("oferta", "")
+            of_cur = texto(enc_c.get("oferta") or c.get("oferta"))
+            if of_cur and of_cur not in ofertas_prev:
+                encabezado_nomina["oferta"] = f"{ofertas_prev} / {of_cur}".strip(" /")
+
+        for est in datos_c.get("estudiantes", []):
+            sol_info = est.get("solicitudCertificado") or obtener_estado_estudiante(c["id"], est.get("documento", ""))
+            situacion = texto(est.get("situacion"))
+            nf_str = texto(est.get("notaFinal"))
+            nf_ok = True
+            if nf_str:
+                try:
+                    nf_ok = float(nf_str.replace(",", ".")) >= 7
+                except Exception:
+                    nf_ok = False
+            es_egresado = situacion.startswith("Aprobó") and nf_ok
+            estado_cert = sol_info.get("estado") or EstadoCertificado.NO_SOLICITADO
+            num_cert = texto(sol_info.get("numeroCertificado"))
+
+            totales["todos"] += 1
+            if es_egresado:
+                totales["aprobados"] += 1
+            if estado_cert == EstadoCertificado.APROBADO:
+                totales["con_certificados"] += 1
+            else:
+                totales["pendientes"] += 1
+
+            incluir = (
+                filtro_norm == "todos"
+                or (filtro_norm == "con_certificados" and estado_cert == EstadoCertificado.APROBADO)
+                or (filtro_norm == "aprobados" and es_egresado)
+                or (filtro_norm == "pendientes" and estado_cert != EstadoCertificado.APROBADO)
+            )
+            if not incluir:
+                continue
+
+            apellido = texto(est.get("apellido")).upper()
+            nombres = texto(est.get("nombres"))
+            ape_nom = f"{apellido}, {nombres}".strip(", ")
+            fecha_fila = texto(est.get("fechaEgreso") or sol_info.get("fechaAprobacion") or enc_c.get("fechaActa"))
+            if num_cert:
+                obs_fila = f"Cert. N° {num_cert}"
+            elif estado_cert in (EstadoCertificado.PENDIENTE, EstadoCertificado.OBSERVADO):
+                obs_fila = estado_cert
+            else:
+                obs_fila = situacion or "En curso"
+
+            todas_filas.append({
+                "orden": str(len(todas_filas) + 1),
+                "apellido": apellido,
+                "nombres": nombres,
+                "apellidoNombres": ape_nom,
+                "documento": texto(est.get("documento")),
+                "fecha": fecha_fila,
+                "observaciones": obs_fila,
+                "situacion": situacion,
+                "estadoCertificado": estado_cert,
+                "numeroCertificado": num_cert,
+                "esEgresado": es_egresado,
+                "idCurso": c["id"],
+                "oferta": texto(enc_c.get("oferta") or c.get("oferta")),
+                "division": texto(enc_c.get("division") or c.get("division"))
+            })
+
+    return {
+        "encabezado": encabezado_nomina,
+        "filtro": filtro_norm,
+        "totales": totales,
+        "filas": todas_filas
+    }

@@ -35,15 +35,19 @@ body {
 }
 
 .marca strong {
-  font-size: 17px;
-  letter-spacing: -0.2px;
+  display: block;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+  line-height: 1.25;
 }
 
 .marca .sub {
   display: block;
-  font-size: 11px;
-  opacity: 0.85;
-  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0.95;
+  margin-top: 3px;
 }
 
 .usuario-panel {
@@ -252,9 +256,11 @@ thead tr:nth-child(2) th {
 }
 
 thead th.mod {
-  height: 185px;
-  min-width: 44px;
-  padding: 6px 4px;
+  height: 175px;
+  width: 30px;
+  min-width: 28px;
+  max-width: 34px;
+  padding: 5px 2px;
   vertical-align: bottom;
   text-align: center;
   overflow: hidden;
@@ -263,9 +269,9 @@ thead th.mod {
 thead th.mod .mod-txt {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  max-height: 172px;
-  font-size: 11px;
-  line-height: 1.22;
+  max-height: 164px;
+  font-size: 10.5px;
+  line-height: 1.18;
   white-space: normal;
   word-break: break-word;
   text-align: left;
@@ -273,11 +279,25 @@ thead th.mod .mod-txt {
   overflow: hidden;
 }
 
-td.nota input {
-  width: 48px;
+th.col-nombre-est,
+td.col-nombre-est {
+  white-space: nowrap !important;
+  width: 1%;
+}
+
+td.nota {
+  width: 30px;
+  min-width: 28px;
+  padding: 2px;
   text-align: center;
-  padding: 4px;
+}
+
+td.nota input {
+  width: 28px;
+  text-align: center;
+  padding: 3px 1px;
   font-weight: 600;
+  font-size: 12px;
 }
 
 td.nota input.baja {
@@ -793,21 +813,198 @@ td.nota input:disabled {
   font-family: "Times New Roman", serif;
 }
 
-.acta-resumen-tabla {
-  border-collapse: collapse;
-  float: right;
-  font-size: 12px;
-  margin-left: 24px;
-}
+/* ============================================================
+   PLANILLA POR ESCUELA · NÓMINA DE EGRESADOS
+   ============================================================ */
 
-.acta-resumen-tabla td {
+.planilla-nomina {
+  background: #ffffff;
   border: 1px solid #333;
-  padding: 3px 10px;
-  text-align: right;
+  border-radius: 4px;
+  padding: 18px 22px;
+  max-width: 980px;
+  margin: 10px auto;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #000;
 }
 
-.acta-resumen-tabla td:first-child {
-  text-align: left;
+.nomina-titulo {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 4px 0 12px;
+  border-bottom: 2px solid #000;
+  padding-bottom: 6px;
+}
+
+.nomina-meta-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.nomina-meta-tabla td {
+  border: 1px solid #444;
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+
+.nomina-meta-tabla .lbl {
+  font-weight: 700;
+  background: #f3f6fa;
+  width: 24%;
+}
+
+.tabla-nomina {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.tabla-nomina th,
+.tabla-nomina td {
+  border: 1px solid #222;
+  padding: 5px 8px;
+}
+
+.tabla-nomina thead th {
+  background: #92d050;
+  color: #000;
+  font-weight: 700;
+  text-align: center;
+  position: static;
+}
+
+.modo-medicion-impresion .solo-impresion {
+  display: block !important;
+}
+
+.modo-medicion-impresion .no-imprimir,
+.modo-medicion-impresion .acciones,
+.modo-medicion-impresion .alerta-congelado,
+.modo-medicion-impresion #panel > h2 {
+  display: none !important;
+}
+
+/* ============================================================
+   DASHBOARD DE ESTADÍSTICAS · DIRECCIÓN DETP Y TÍTULOS
+   ============================================================ */
+
+.dash-filtros {
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 12px 0 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 10px;
+  align-items: end;
+  box-shadow: var(--sombra);
+}
+
+.dash-filtros label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--suave);
+}
+
+.dash-filtros input,
+.dash-filtros select {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.dash-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dash-kpi {
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-left: 4px solid var(--azul);
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: var(--sombra);
+}
+
+.dash-kpi.ok { border-left-color: #137333; }
+.dash-kpi.mal { border-left-color: #b3261e; }
+.dash-kpi.warn { border-left-color: #e37400; }
+
+.dash-kpi-lbl {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--suave);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.dash-kpi-val {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--texto);
+  margin: 4px 0 2px;
+}
+
+.dash-kpi-sub {
+  font-size: 12px;
+  color: var(--suave);
+}
+
+.dash-card {
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--sombra);
+}
+
+.dash-card h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: var(--azul);
+}
+
+.dash-barra-item {
+  margin-bottom: 10px;
+}
+
+.dash-barra-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.dash-barra-track {
+  width: 100%;
+  height: 12px;
+  background: #e9eef4;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.dash-barra-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.dash-grid-sub {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
 .acta-firmas {
@@ -846,8 +1043,8 @@ td.nota input:disabled {
 
 @media print {
   @page {
-    size: legal landscape;
-    margin: 8mm 10mm;
+    size: landscape;
+    margin: 5mm 7mm;
   }
   body {
     background: #fff !important;
@@ -868,7 +1065,7 @@ td.nota input:disabled {
     appearance: none !important;
     -webkit-appearance: none !important;
     -moz-appearance: none !important;
-    font-size: 9.5px !important;
+    font-size: 8.5px !important;
   }
   .barra,
   .migas,
@@ -902,26 +1099,39 @@ td.nota input:disabled {
   .tabla-ancha table {
     width: 100% !important;
     border-collapse: collapse !important;
-    font-size: 9.5px !important;
+    font-size: 8.5px !important;
   }
   .tabla-ancha th,
   .tabla-ancha td,
   thead tr:nth-child(2) th {
     position: static !important;
     border: 1px solid #333 !important;
-    padding: 2px 3px !important;
+    padding: 1.5px 2.5px !important;
   }
   thead th.mod {
-    height: 135px !important;
-    min-width: 30px !important;
-    padding: 4px 2px !important;
+    height: 112px !important;
+    width: 26px !important;
+    min-width: 24px !important;
+    max-width: 28px !important;
+    padding: 3px 1px !important;
     vertical-align: bottom !important;
   }
   thead th.mod .mod-txt {
-    max-height: 126px !important;
-    font-size: 9.5px !important;
-    line-height: 1.15 !important;
+    max-height: 105px !important;
+    font-size: 8.5px !important;
+    line-height: 1.1 !important;
     white-space: normal !important;
+  }
+  th.col-nombre-est,
+  td.col-nombre-est {
+    white-space: nowrap !important;
+    width: 1% !important;
+  }
+  td.nota {
+    width: 26px !important;
+    min-width: 24px !important;
+    max-width: 28px !important;
+    padding: 1px !important;
   }
   td.nota input {
     border: none !important;
@@ -930,7 +1140,34 @@ td.nota input:disabled {
     padding: 0 !important;
     text-align: center !important;
     font-weight: bold !important;
+    font-size: 8.5px !important;
     color: inherit !important;
+  }
+  .pie-firmas-rac {
+    margin-top: 22px !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .planilla-nomina {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  .tabla-nomina th,
+  .tabla-nomina td {
+    position: static !important;
+    border: 1px solid #222 !important;
+    padding: 3px 5px !important;
+    font-size: 10px !important;
+  }
+  .tabla-nomina thead th {
+    background: #92d050 !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .hoja-oficial {
     border: none !important;
@@ -945,7 +1182,6 @@ td.nota input:disabled {
   .impresion-bloqueada {
     display: none !important;
   }
-  .acta-resumen-tabla { float: none; margin: 0 auto; }
 }
 
 

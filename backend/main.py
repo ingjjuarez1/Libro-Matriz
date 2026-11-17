@@ -30,11 +30,12 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
         return response
 
 from backend.app.routers.api import (
-    api_inicio, api_curso, api_crear_curso, api_guardar_notas, api_guardar_estudiante,
+    api_inicio, api_sincronizar_cursos, api_curso, api_crear_curso, api_guardar_notas, api_guardar_estudiante,
     api_acta, api_guardar_acta, api_analitico, api_imprimir_analitico, api_resumen,
     api_usuarios, api_instalar_panel, api_importar_cursos, api_importar_excel,
     api_listar_solicitudes, api_crear_solicitud, api_aprobar_solicitud,
     api_observar_solicitud, api_aprobar_lote_solicitudes,
+    api_aprobar_titulos_curso, api_nomina_egresados, api_actualizar_encabezado,
     api_validar_certificado, pagina_validar_certificado
 )
 from backend.app.services.google_service import google_client
@@ -58,6 +59,7 @@ routes = [
     
     # Endpoints de la API
     Route("/api/inicio", endpoint=api_inicio, methods=["GET"]),
+    Route("/api/sincronizar-cursos", endpoint=api_sincronizar_cursos, methods=["POST"]),
     Route("/api/cursos", endpoint=api_crear_curso, methods=["POST"]),
     Route("/api/curso/{id_curso}", endpoint=api_curso, methods=["GET"]),
     Route("/api/curso/{id_curso}/notas", endpoint=api_guardar_notas, methods=["POST"]),
@@ -67,6 +69,7 @@ routes = [
     Route("/api/curso/{id_curso}/analitico", endpoint=api_analitico, methods=["GET"]),
     Route("/api/curso/{id_curso}/analitico/imprimir", endpoint=api_imprimir_analitico, methods=["POST"]),
     Route("/api/resumen", endpoint=api_resumen, methods=["GET"]),
+    Route("/api/estadisticas", endpoint=api_resumen, methods=["GET"]),
     Route("/api/usuarios", endpoint=api_usuarios, methods=["GET", "POST", "DELETE"]),
     Route("/api/instalar-panel", endpoint=api_instalar_panel, methods=["POST"]),
     Route("/api/importar-cursos", endpoint=api_importar_cursos, methods=["POST"]),
@@ -78,6 +81,9 @@ routes = [
     Route("/api/solicitudes/aprobar-lote", endpoint=api_aprobar_lote_solicitudes, methods=["POST"]),
     Route("/api/solicitudes/{id_solicitud}/aprobar", endpoint=api_aprobar_solicitud, methods=["POST"]),
     Route("/api/solicitudes/{id_solicitud}/observar", endpoint=api_observar_solicitud, methods=["POST"]),
+    Route("/api/curso/{id_curso}/aprobar-titulos", endpoint=api_aprobar_titulos_curso, methods=["POST"]),
+    Route("/api/curso/{id_curso}/encabezado", endpoint=api_actualizar_encabezado, methods=["POST"]),
+    Route("/api/nomina", endpoint=api_nomina_egresados, methods=["GET"]),
     Route("/api/validar-certificado", endpoint=api_validar_certificado, methods=["GET"]),
     Route("/validar", endpoint=pagina_validar_certificado, methods=["GET"]),
     
