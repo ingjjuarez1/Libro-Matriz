@@ -1426,8 +1426,33 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
     por_oferta: Dict[str, Dict[str, Any]] = {}
     por_familia: Dict[str, Dict[str, Any]] = {}
     por_turno: Dict[str, Dict[str, Any]] = {}
+    niveles_base_orden = ["Primaria", "Secundaria", "Ciclo Básico", "Superior"]
+    por_acreditacion: Dict[str, Dict[str, Any]] = {
+        niv: {
+            "acreditacion": niv,
+            "matriculados": 0,
+            "aprobados": 0,
+            "desaprobados": 0,
+            "ausentes": 0,
+            "certificadosAprobados": 0,
+            "certificadosObservados": 0
+        }
+        for niv in niveles_base_orden
+    }
     obs_detalle: List[Dict[str, Any]] = []
     obs_por_escuela_map: Dict[str, Dict[str, Any]] = {}
+
+    def _categorizar_acreditacion(val_acr: Any) -> str:
+        s_a = texto(val_acr).lower()
+        if "secundar" in s_a:
+            return "Secundaria"
+        if "ciclo" in s_a or "cb" in s_a or "básico" in s_a or "basico" in s_a:
+            return "Ciclo Básico"
+        if "superior" in s_a or "terciar" in s_a or "universitar" in s_a:
+            return "Superior"
+        if "primar" in s_a or not s_a:
+            return "Primaria"
+        return texto(val_acr)
 
     tot_cursos = 0
     tot_matriculados = 0
@@ -1639,6 +1664,31 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
                 elif st_cert == EstadoCertificado.OBSERVADO:
                     g["certificadosObservados"] += 1
 
+            raw_acr = e.get("acreditaCon") or e.get("nivel") or enc.get("acreditaCon") or enc.get("referencialIngreso") or "Primaria Completa"
+            cat_acr = _categorizar_acreditacion(raw_acr)
+            if cat_acr not in por_acreditacion:
+                por_acreditacion[cat_acr] = {
+                    "acreditacion": cat_acr,
+                    "matriculados": 0,
+                    "aprobados": 0,
+                    "desaprobados": 0,
+                    "ausentes": 0,
+                    "certificadosAprobados": 0,
+                    "certificadosObservados": 0
+                }
+            g_acr = por_acreditacion[cat_acr]
+            g_acr["matriculados"] += 1
+            if es_aprobado:
+                g_acr["aprobados"] += 1
+            else:
+                g_acr["desaprobados"] += 1
+            if es_ausente:
+                g_acr["ausentes"] += 1
+            if st_cert == EstadoCertificado.APROBADO:
+                g_acr["certificadosAprobados"] += 1
+            elif st_cert == EstadoCertificado.OBSERVADO:
+                g_acr["certificadosObservados"] += 1
+
     def _enriquecer_pct(lista_items: List[Dict[str, Any]], sort_key: str) -> List[Dict[str, Any]]:
         for item in lista_items:
             mat = item.get("matriculados", 0)
@@ -1654,6 +1704,16 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
     pct_aprobacion = round((tot_aprobados * 100.0) / tot_matriculados, 1) if tot_matriculados > 0 else 0.0
     pct_desaprobacion = round((tot_desaprobados * 100.0) / tot_matriculados, 1) if tot_matriculados > 0 else 0.0
     tasa_titulacion = round((tot_cert_aprobados * 100.0) / tot_aprobados, 1) if tot_aprobados > 0 else 0.0
+
+    lista_acreditacion = []
+    for k_acr in niveles_base_orden + [k for k in por_acreditacion.keys() if k not in niveles_base_orden]:
+        it_a = dict(por_acreditacion[k_acr])
+        mat_a = it_a.get("matriculados", 0)
+        apr_a = it_a.get("aprobados", 0)
+        cert_a = it_a.get("certificadosAprobados", 0)
+        it_a["pctAprobacion"] = round((apr_a * 100.0) / mat_a, 1) if mat_a > 0 else 0.0
+        it_a["tasaTitulacion"] = round((cert_a * 100.0) / apr_a, 1) if apr_a > 0 else 0.0
+        lista_acreditacion.append(it_a)
 
     return {
         "kpis": {
@@ -1672,6 +1732,7 @@ def obtener_estadisticas(sesion_usr: Dict[str, Any], filtros: Optional[Dict[str,
             "certificadosConsultadosQr": tot_cert_consultados_qr
         },
         "porEscuela": _enriquecer_pct(list(por_institucion.values()), "institucion"),
+        "porAcreditacion": lista_acreditacion,
         "porOferta": _enriquecer_pct(list(por_oferta.values()), "oferta"),
         "porFamilia": _enriquecer_pct(list(por_familia.values()), "familiaProfesional"),
         "porTurno": _enriquecer_pct(list(por_turno.values()), "turno"),

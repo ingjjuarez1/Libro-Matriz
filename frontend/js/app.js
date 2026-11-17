@@ -2623,6 +2623,15 @@ function _exportarDashboardCSV(est) {
   lineas.push(['Pendientes en Títulos', k.totalPendientesTitulos].map(csvEsc).join(sep));
   lineas.push(['Errores / Observaciones de Títulos', k.totalObservados].map(csvEsc).join(sep));
   lineas.push('');
+  lineas.push(['EGRESADOS SEGUN NIVEL DE ACREDITACION (ACREDITA CON)'].map(csvEsc).join(sep));
+  lineas.push(['Nivel de Acreditación', 'Matriculados', 'Se Recibieron (Egresados)', '% Egreso', 'Desaprobados', 'Ausentes', 'Certificados Aprobados'].map(csvEsc).join(sep));
+  (est.porAcreditacion || []).forEach(function (a) {
+    lineas.push([
+      a.acreditacion, a.matriculados, a.aprobados, (a.pctAprobacion || 0) + '%',
+      a.desaprobados, a.ausentes, a.certificadosAprobados
+    ].map(csvEsc).join(sep));
+  });
+  lineas.push('');
   lineas.push(['DESGLOSE POR ESCUELA Y CUE'].map(csvEsc).join(sep));
   lineas.push(['Escuela', 'CUE', 'Cursos', 'Matriculados', 'Aprobados', 'Desaprobados', 'Ausentes', 'Certificados Aprobados', 'Certificados Pendientes', 'Certificados Observados'].map(csvEsc).join(sep));
   (est.porEscuela || []).forEach(function (r) {
@@ -2674,6 +2683,7 @@ async function verResumen() {
     _ultimoDashboardData = est;
     var k = est.kpis || {};
     var porEscuela = est.porEscuela || r.resumen || [];
+    var porAcreditacion = est.porAcreditacion || [];
     var porOferta = est.porOferta || [];
     var porFamilia = est.porFamilia || [];
     var porTurno = est.porTurno || [];
@@ -2767,6 +2777,28 @@ async function verResumen() {
         }).join('')
       : '<tr><td colspan="6" style="text-align:center;color:var(--suave);padding:14px">Todavía no se registraron consultas externas mediante código QR.</td></tr>';
 
+    var tarjetasAcreditacionHtml = porAcreditacion.map(function (ac) {
+      return '<div class="dash-kpi ok" style="border-left-color:#1F4E78">' +
+        '<div class="dash-kpi-lbl">Acredita con: ' + esc(ac.acreditacion) + '</div>' +
+        '<div class="dash-kpi-val" style="color:#137333">' + (ac.aprobados || 0) + ' <span style="font-size:13px;font-weight:600;color:var(--suave)">recibidos</span></div>' +
+        '<div class="dash-kpi-sub">De ' + (ac.matriculados || 0) + ' matriculados (' + (ac.pctAprobacion || 0) + '%) · ' + (ac.certificadosAprobados || 0) + ' con cert.</div>' +
+      '</div>';
+    }).join('');
+
+    var filasAcreditacion = porAcreditacion.length
+      ? porAcreditacion.map(function (ac) {
+          return '<tr>' +
+            '<td><b>' + esc(ac.acreditacion) + '</b></td>' +
+            '<td style="text-align:center">' + (ac.matriculados || 0) + '</td>' +
+            '<td style="text-align:center;color:#137333;font-weight:700">' + (ac.aprobados || 0) + '</td>' +
+            '<td style="text-align:center;font-weight:600">' + (ac.pctAprobacion || 0) + '%</td>' +
+            '<td style="text-align:center;color:#b3261e;font-weight:700">' + (ac.desaprobados || 0) + '</td>' +
+            '<td style="text-align:center">' + (ac.ausentes || 0) + '</td>' +
+            '<td style="text-align:center;color:#137333;font-weight:700">' + (ac.certificadosAprobados || 0) + '</td>' +
+          '</tr>';
+        }).join('')
+      : '<tr><td colspan="7" style="text-align:center;color:var(--suave)">Sin datos</td></tr>';
+
     $('main').innerHTML =
       '<div class="solo-impresion" style="text-align:center;margin-bottom:10px">' +
         '<div style="font-size:15px;font-weight:bold">SECRETARÍA DE GESTIÓN EDUCATIVA - DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL</div>' +
@@ -2828,6 +2860,20 @@ async function verResumen() {
           '<div class="dash-barra-head"><span>Tasa de Egreso / Titulación (Egresados con Certificado Oficial)</span><span>' + (k.tasaTitulacion || 0) + '%</span></div>' +
           '<div class="dash-barra-track"><div class="dash-barra-fill" style="width:' + Math.min(100, k.tasaTitulacion || 0) + '%;background:#1F4E78"></div></div>' +
         '</div>' +
+      '</div>' +
+
+      '<div class="dash-card">' +
+        '<h3>🎓 Egresados (Recibidos) según Nivel de Acreditación (Primaria · Secundaria · Ciclo Básico · Superior)</h3>' +
+        '<div class="dash-kpis" style="margin-bottom:14px">' + tarjetasAcreditacionHtml + '</div>' +
+        '<div class="tabla-ancha"><table><thead><tr>' +
+          '<th>Nivel de Acreditación (Acredita con)</th>' +
+          '<th style="text-align:center">Matriculados</th>' +
+          '<th style="text-align:center">Se Recibieron (Aprobados)</th>' +
+          '<th style="text-align:center">% de Egreso</th>' +
+          '<th style="text-align:center">Desaprobados</th>' +
+          '<th style="text-align:center">Ausentes</th>' +
+          '<th style="text-align:center">Con Certificado Emitido</th>' +
+        '</tr></thead><tbody>' + filasAcreditacion + '</tbody></table></div>' +
       '</div>' +
 
       '<div class="dash-card">' +
