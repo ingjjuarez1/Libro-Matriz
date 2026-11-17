@@ -2292,68 +2292,172 @@ function mostrarModalNuevoCurso() {
   });
 }
 
-// ---------- MODAL IMPORTAR VIEJO EXCEL (.XLSM / .XLSX) ----------
+// ---------- MODAL IMPORTAR VIEJO EXCEL (.XLSM / .XLSX) (MÚLTIPLES ARCHIVOS O CARPETAS) ----------
 function mostrarModalImportarExcel() {
   $('migas').hidden = false;
   var modal = document.createElement('div');
   modal.style.background = '#fff';
   modal.style.padding = '24px';
-  modal.style.maxWidth = '540px';
+  modal.style.maxWidth = '620px';
   modal.style.margin = '20px auto';
   modal.style.border = '1px solid var(--borde)';
   modal.style.borderRadius = '8px';
   modal.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)';
 
   modal.innerHTML =
-    '<h2>📥 Importar Viejo Excel (.xlsm / .xlsx)</h2>' +
+    '<h2>📥 Importar Viejo Excel (.xlsm / .xlsx) · Archivos o Carpetas</h2>' +
     '<p style="color:var(--suave);font-size:13px;line-height:1.5;margin-top:4px">' +
-      'Seleccioná el archivo histórico de Excel con macros (<b>.xlsm</b>) o planilla (<b>.xlsx</b>) de la escuela. ' +
-      'El conversor automático migrará la nómina de estudiantes, los módulos, las calificaciones y el Acta de Examen sin necesidad de volver a tipear.' +
+      'Podés seleccionar <b>uno o varios archivos Excel (.xlsm / .xlsx)</b> al mismo tiempo, o elegir una <b>carpeta completa</b> con planillas de distintas ofertas o escuelas. ' +
+      'El conversor migrará automáticamente cada curso con su nómina de estudiantes, módulos, calificaciones y Acta de Examen.' +
     '</p>' +
-    '<div style="border:2px dashed var(--azul);background:var(--celeste);padding:20px;border-radius:8px;text-align:center;margin:16px 0">' +
-      '<input type="file" id="inp_excel_file" accept=".xlsm,.xlsx" style="font-size:13px;width:100%">' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0">' +
+      '<div style="border:2px dashed var(--azul);background:var(--celeste);padding:16px;border-radius:8px;text-align:center">' +
+        '<div style="font-weight:700;font-size:13px;color:var(--azul);margin-bottom:8px">📄 Seleccionar uno o más archivos</div>' +
+        '<input type="file" id="inp_excel_file" accept=".xlsm,.xlsx" multiple style="font-size:12px;width:100%">' +
+        '<div style="font-size:11px;color:var(--suave);margin-top:6px">Podés marcar varios archivos con Ctrl o Shift</div>' +
+      '</div>' +
+      '<div style="border:2px dashed #137333;background:#e6f4ea;padding:16px;border-radius:8px;text-align:center">' +
+        '<div style="font-weight:700;font-size:13px;color:#137333;margin-bottom:8px">📁 Seleccionar carpeta completa</div>' +
+        '<input type="file" id="inp_excel_folder" webkitdirectory directory multiple style="font-size:12px;width:100%">' +
+        '<div style="font-size:11px;color:var(--suave);margin-top:6px">Detecta todos los .xlsm y .xlsx de la carpeta</div>' +
+      '</div>' +
     '</div>' +
+    '<div id="resumen_archivos_excel" style="font-size:12px;color:var(--texto);margin:8px 0"></div>' +
     '<div id="estado_importacion" style="font-size:13px;color:var(--azul);margin:8px 0"></div>' +
     '<div class="acciones" style="justify-content:flex-end;margin-top:14px">' +
       '<button class="boton suave" id="imp_cancelar">Cancelar</button>' +
-      '<button class="boton" id="imp_procesar" style="background:#137333">Convertir e Importar Curso</button>' +
+      '<button class="boton" id="imp_procesar" style="background:#137333">Convertir e Importar Curso(s)</button>' +
     '</div>';
 
   $('main').innerHTML = '';
   $('main').appendChild(modal);
 
-  $('imp_cancelar').addEventListener('click', verCursos);
-  $('imp_procesar').addEventListener('click', function () {
-    var input = $('inp_excel_file');
-    if (!input.files || !input.files.length) {
-      $('estado_importacion').innerHTML = '<div style="background:#fce8e6;border:1px solid #ea4335;color:#c5221f;padding:10px;border-radius:6px;font-weight:bold">⚠️ No subió ningún archivo. Seleccione primero un archivo Excel (.xlsm o .xlsx).</div>';
-      alert('⚠️ No subió ningún archivo.\n\nPor favor seleccione un archivo Excel (.xlsm o .xlsx) antes de presionar "Convertir e Importar Curso".');
-      avisar('No subió ningún archivo. Seleccioná un archivo Excel (.xlsm o .xlsx).', 'error');
+  var archivosSeleccionados = [];
+
+  function _esArchivoExcelValido(f) {
+    if (!f || !f.name) return false;
+    var nom = f.name.toLowerCase();
+    if (nom.indexOf('~$') === 0) return false;
+    return nom.endsWith('.xlsm') || nom.endsWith('.xlsx');
+  }
+
+  function _actualizarListaArchivos(listaFileList) {
+    var nuevos = Array.prototype.slice.call(listaFileList || []).filter(_esArchivoExcelValido);
+    var mapaUnico = {};
+    archivosSeleccionados.concat(nuevos).forEach(function (f) {
+      var clave = (f.webkitRelativePath || f.name) + ':' + f.size;
+      mapaUnico[clave] = f;
+    });
+    archivosSeleccionados = Object.keys(mapaUnico).map(function (k) { return mapaUnico[k]; });
+    var caja = $('resumen_archivos_excel');
+    if (!archivosSeleccionados.length) {
+      caja.innerHTML = '';
       return;
     }
-    var archivo = input.files[0];
-    $('imp_procesar').disabled = true;
-    $('estado_importacion').textContent = '⏳ Leyendo y convirtiendo ' + archivo.name + '…';
+    var itemsHtml = archivosSeleccionados.slice(0, 15).map(function (f, i) {
+      var ruta = f.webkitRelativePath || f.name;
+      return '<li><b>' + (i + 1) + '.</b> ' + esc(ruta) + '</li>';
+    }).join('');
+    if (archivosSeleccionados.length > 15) {
+      itemsHtml += '<li><i>… y ' + (archivosSeleccionados.length - 15) + ' archivo(s) más.</i></li>';
+    }
+    caja.innerHTML =
+      '<div style="background:#f8fafc;border:1px solid var(--borde);border-radius:6px;padding:10px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+          '<b>✅ ' + archivosSeleccionados.length + ' archivo(s) Excel listos para importar:</b>' +
+          '<button type="button" class="boton suave" id="btnLimpiarSeleccionExcel" style="padding:2px 8px;font-size:11px">Limpiar selección</button>' +
+        '</div>' +
+        '<ul style="margin:0;padding-left:18px;max-height:140px;overflow:auto">' + itemsHtml + '</ul>' +
+      '</div>';
+    if ($('btnLimpiarSeleccionExcel')) {
+      $('btnLimpiarSeleccionExcel').addEventListener('click', function () {
+        archivosSeleccionados = [];
+        if ($('inp_excel_file')) $('inp_excel_file').value = '';
+        if ($('inp_excel_folder')) $('inp_excel_folder').value = '';
+        caja.innerHTML = '';
+      });
+    }
+  }
 
-    var reader = new FileReader();
-    reader.onload = async function (ev) {
+  $('inp_excel_file').addEventListener('change', function () {
+    _actualizarListaArchivos($('inp_excel_file').files);
+  });
+  $('inp_excel_folder').addEventListener('change', function () {
+    _actualizarListaArchivos($('inp_excel_folder').files);
+  });
+
+  function _leerArchivoComoBase64(fileObj) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function (ev) { resolve(ev.target.result); };
+      reader.onerror = function () { reject(new Error('No se pudo leer el archivo ' + fileObj.name)); };
+      reader.readAsDataURL(fileObj);
+    });
+  }
+
+  $('imp_cancelar').addEventListener('click', verCursos);
+  $('imp_procesar').addEventListener('click', async function () {
+    if (!archivosSeleccionados.length) {
+      if ($('inp_excel_file') && $('inp_excel_file').files && $('inp_excel_file').files.length) {
+        _actualizarListaArchivos($('inp_excel_file').files);
+      }
+      if ($('inp_excel_folder') && $('inp_excel_folder').files && $('inp_excel_folder').files.length) {
+        _actualizarListaArchivos($('inp_excel_folder').files);
+      }
+    }
+    if (!archivosSeleccionados.length) {
+      $('estado_importacion').innerHTML = '<div style="background:#fce8e6;border:1px solid #ea4335;color:#c5221f;padding:10px;border-radius:6px;font-weight:bold">⚠️ No subió ningún archivo Excel (.xlsm o .xlsx). Seleccione uno o más archivos o una carpeta.</div>';
+      alert('⚠️ No subió ningún archivo.\n\nPor favor seleccione uno o más archivos Excel (.xlsm o .xlsx) o una carpeta antes de presionar "Convertir e Importar Curso(s)".');
+      avisar('No subió ningún archivo. Seleccioná archivos Excel (.xlsm o .xlsx) o una carpeta.', 'error');
+      return;
+    }
+
+    $('imp_procesar').disabled = true;
+    var total = archivosSeleccionados.length;
+    var importados = [];
+    var errores = [];
+    var totalEstudiantes = 0;
+
+    for (var i = 0; i < total; i++) {
+      var archivo = archivosSeleccionados[i];
+      $('estado_importacion').innerHTML =
+        '<div style="background:#e8f1fa;border:1px solid var(--azul);padding:10px;border-radius:6px;font-weight:600">' +
+          '⏳ Importando (' + (i + 1) + ' de ' + total + '): <b>' + esc(archivo.name) + '</b>…' +
+        '</div>';
       try {
-        var b64 = ev.target.result;
+        var b64 = await _leerArchivoComoBase64(archivo);
         var res = await llamar('/api/importar-excel', 'POST', {
           nombreArchivo: archivo.name,
           contenidoBase64: b64
         });
         if (res.paquete) _guardarPaqueteLocal(res.paquete);
-        estado.cursos.push(res.curso);
-        avisar('¡Excel importado con éxito! (' + res.cantidadEstudiantes + ' estudiantes y ' + res.cantidadModulos + ' módulos)', 'ok');
-        abrirCurso(res.curso.id);
-      } catch (e) {
-        problema(e);
-        $('imp_procesar').disabled = false;
-        $('estado_importacion').textContent = '';
+        var yaEstaba = estado.cursos.some(function (c) { return c.id === res.curso.id; });
+        if (!yaEstaba) estado.cursos.push(res.curso);
+        importados.push(res.curso);
+        totalEstudiantes += (res.cantidadEstudiantes || 0);
+      } catch (errArchivo) {
+        errores.push(archivo.name + ': ' + ((errArchivo && errArchivo.message) ? errArchivo.message : String(errArchivo)));
       }
-    };
-    reader.readAsDataURL(archivo);
+    }
+
+    if (!importados.length) {
+      $('imp_procesar').disabled = false;
+      $('estado_importacion').innerHTML =
+        '<div style="background:#fce8e6;border:1px solid #ea4335;color:#c5221f;padding:10px;border-radius:6px">' +
+          '<b>❌ No se pudo importar ningún archivo:</b><br>' + errores.map(esc).join('<br>') +
+        '</div>';
+      avisar('Error al importar los archivos seleccionados.', 'error');
+      return;
+    }
+
+    if (importados.length === 1 && !errores.length) {
+      avisar('¡Excel importado con éxito! (' + totalEstudiantes + ' estudiantes)', 'ok');
+      abrirCurso(importados[0].id);
+      return;
+    }
+
+    avisar('¡Se importaron ' + importados.length + ' curso(s) con ' + totalEstudiantes + ' estudiantes en total!' + (errores.length ? ' (' + errores.length + ' con error)' : ''), 'ok');
+    verCursos();
   });
 }
 
