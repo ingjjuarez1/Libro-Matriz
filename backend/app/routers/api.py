@@ -59,7 +59,7 @@ async def api_inicio(request: Request) -> JSONResponse:
         todos_cursos = cursos_del_panel()
         cursos_visibles = [
             c for c in todos_cursos
-            if alcanza_cue(s, c.get("cue")) or c.get("id") in _CURSOS_IMPORTADOS
+            if alcanza_cue(s, c.get("cue"))
         ]
         
         return JSONResponse({
@@ -101,7 +101,7 @@ async def api_curso(request: Request) -> JSONResponse:
         if not curso:
             return JSONResponse({"ok": False, "error": "Curso no encontrado."}, status_code=404)
         
-        if not (alcanza_cue(s, curso.get("cue")) or id_curso in _CURSOS_IMPORTADOS):
+        if not alcanza_cue(s, curso.get("cue")):
             return JSONResponse({"ok": False, "error": "Acceso denegado a esta institución."}, status_code=403)
         
         datos = leer_curso(curso["id"])

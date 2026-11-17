@@ -124,10 +124,10 @@ def obtener_usuarios_panel() -> List[Dict[str, Any]]:
 def guardar_usuario_panel(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> Dict[str, Any]:
     """
     Crea o actualiza un usuario en la administración centralizada.
-    EXCLUSIVO para el rol 'Dirección DETP' (Coordinación).
+    EXCLUSIVO para el rol 'Dirección DETP' / 'titulos' (Coordinación y Dirección de Títulos).
     """
-    if sesion_usr.get("rol") != Roles.DIRECCION:
-        raise PermissionDeniedException("Solo los usuarios con rol 'Dirección DETP' pueden crear o modificar usuarios.")
+    if not (sesion_usr.get("puedeAdministrarUsuarios") or sesion_usr.get("rol") == Roles.DIRECCION or sesion_usr.get("esTitulos")):
+        raise PermissionDeniedException("Solo Dirección DETP / Coordinación / Dirección de Títulos pueden crear o modificar usuarios.")
 
     email = str(datos.get("Email", "")).strip().lower()
     if not email or "@" not in email:
@@ -184,9 +184,9 @@ def guardar_usuario_panel(datos: Dict[str, Any], sesion_usr: Dict[str, Any]) -> 
     return nuevo_item
 
 def eliminar_usuario_panel(email_objetivo: str, sesion_usr: Dict[str, Any]) -> bool:
-    """Elimina un usuario del registro (EXCLUSIVO para rol Dirección DETP)."""
-    if sesion_usr.get("rol") != Roles.DIRECCION:
-        raise PermissionDeniedException("Solo los usuarios con rol 'Dirección DETP' pueden borrar usuarios.")
+    """Elimina un usuario del registro (EXCLUSIVO para rol Dirección DETP / Dirección de Títulos)."""
+    if not (sesion_usr.get("puedeAdministrarUsuarios") or sesion_usr.get("rol") == Roles.DIRECCION or sesion_usr.get("esTitulos")):
+        raise PermissionDeniedException("Solo Dirección DETP / Coordinación / Dirección de Títulos pueden borrar usuarios.")
 
     email_norm = str(email_objetivo or "").strip().lower()
     if email_norm == "sge.detp.areapedagogica@jujuy.edu.ar":
@@ -239,8 +239,9 @@ def sesion(email: Optional[str] = None) -> Dict[str, Any]:
     raw_cues = str(usuario_encontrado.get("CUE", "")).split(",")
     cues = [normalizar_cue(c) for c in raw_cues if normalizar_cue(c)]
 
-    es_titulos = (rol.lower() in ["titulos", "títulos"])
-    ver_todo = (rol == Roles.DIRECCION or es_titulos)
+    es_nivel_central = (rol == Roles.DIRECCION or rol.lower() in ["titulos", "títulos"])
+    es_titulos = es_nivel_central
+    ver_todo = es_nivel_central
     if not ver_todo and not cues:
         raise AuthException(
             "Tu usuario no tiene ninguna institución asignada. "
@@ -253,9 +254,9 @@ def sesion(email: Optional[str] = None) -> Dict[str, Any]:
         "rol": rol,
         "cues": cues,
         "verTodo": ver_todo,
-        "puedeCargar": (rol in [Roles.ADMINISTRATIVO, Roles.DIRECCION]),
+        "puedeCargar": (rol in [Roles.ADMINISTRATIVO, Roles.DIRECCION] or es_nivel_central),
         "esTitulos": es_titulos,
-        "puedeAdministrarUsuarios": (rol == Roles.DIRECCION)
+        "puedeAdministrarUsuarios": es_nivel_central
     }
 
 def alcanza_cue(s: Dict[str, Any], cue: Any) -> bool:
@@ -263,13 +264,18 @@ def alcanza_cue(s: Dict[str, Any], cue: Any) -> bool:
     if s.get("verTodo"):
         return True
     cue_limpio = normalizar_cue(cue)
-    return cue_limpio in s.get("cues", [])
+    if not cue_limpio:
+        return False
+    cue_base = cue_limpio[:7] if len(cue_limpio) >= 7 else cue_limpio
+    for c_usr in s.get("cues", []):
+        c_u = normalizar_cue(c_usr)
+        c_u_base = c_u[:7] if len(c_u) >= 7 else c_u
+        if cue_limpio == c_u or (cue_base and cue_base == c_u_base):
+            return True
+    return False
 
 def exigir_lectura(s: Dict[str, Any], curso: Dict[str, Any]):
     """Verifica permisos de lectura sobre el curso."""
-    id_c = str(curso.get("id", ""))
-    if id_c.startswith("excel-") or id_c.startswith("curso-"):
-        return
     if not alcanza_cue(s, curso.get("cue")):
         raise PermissionDeniedException("Ese curso es de otra institución y no tienes acceso.")
 

@@ -243,11 +243,25 @@ async function iniciarSesion() {
     var cursosServidor = r.cursos || [];
     var idsPresentes = {};
     cursosServidor.forEach(function (c) { if (c && c.id) idsPresentes[c.id] = true; });
+    var cuesUsuario = (r.sesion && r.sesion.cues) ? r.sesion.cues : [];
+    function _alcanzaCueCliente(cueCurso) {
+      if (r.sesion && (r.sesion.verTodo || r.sesion.esTitulos)) return true;
+      var cLimpio = String(cueCurso || '').replace(/\D/g, '');
+      if (!cLimpio) return false;
+      var cBase = cLimpio.length >= 7 ? cLimpio.slice(0, 7) : cLimpio;
+      return cuesUsuario.some(function (cu) {
+        var uLimpio = String(cu || '').replace(/\D/g, '');
+        var uBase = uLimpio.length >= 7 ? uLimpio.slice(0, 7) : uLimpio;
+        return cLimpio === uLimpio || (cBase && cBase === uBase);
+      });
+    }
     Object.keys(paqsLocales).forEach(function (idLocal) {
       var p = paqsLocales[idLocal];
       if (p && p.resumenCurso && p.resumenCurso.id && !idsPresentes[p.resumenCurso.id]) {
-        cursosServidor.push(p.resumenCurso);
-        idsPresentes[p.resumenCurso.id] = true;
+        if (_alcanzaCueCliente(p.resumenCurso.cue)) {
+          cursosServidor.push(p.resumenCurso);
+          idsPresentes[p.resumenCurso.id] = true;
+        }
       }
     });
     estado.cursos = cursosServidor;
@@ -1405,7 +1419,8 @@ async function verNominaEscuela(idCursoPre, cuePre) {
         _actualizarBarraEscuela(nomina.encabezado.establecimiento + (nomina.encabezado.localidad ? ' · ' + nomina.encabezado.localidad + ', Jujuy' : ''));
       }
 
-      var opsEscuelas = '<option value="">Todas las escuelas</option>' +
+      var esNivelCentral = Boolean(estado.sesion && (estado.sesion.verTodo || estado.sesion.esTitulos));
+      var opsEscuelas = (esNivelCentral ? '<option value="">Todas las escuelas</option>' : '') +
         Object.keys(mapaEscuelas).map(function (k) {
           var sel = (String(cueActual || '') === k) ? ' selected' : '';
           return '<option value="' + esc(k) + '"' + sel + '>' + esc(mapaEscuelas[k]) + ' (CUE ' + esc(k) + ')</option>';
