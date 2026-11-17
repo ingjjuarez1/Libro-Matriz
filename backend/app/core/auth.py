@@ -56,6 +56,22 @@ _USUARIOS_INICIALES: List[Dict[str, Any]] = [
         "Oficial": True
     },
     {
+        "Email": "admin.cfp1@jujuy.edu.ar",
+        "Nombre": "Administrativo Centro de Formación Profesional N° 1",
+        "Rol": Roles.ADMINISTRATIVO,
+        "CUE": "380059300",
+        "Activo": "Sí",
+        "Oficial": True
+    },
+    {
+        "Email": "directivo.cfp1@jujuy.edu.ar",
+        "Nombre": "Directivo Centro de Formación Profesional N° 1",
+        "Rol": Roles.DIRECTIVO,
+        "CUE": "380059300",
+        "Activo": "Sí",
+        "Oficial": True
+    },
+    {
         "Email": "titulos@educacion.jujuy.gob.ar",
         "Nombre": "Dirección de Títulos (Secundario)",
         "Rol": Roles.TITULOS,
@@ -71,14 +87,69 @@ def _cargar_usuarios_locales() -> List[Dict[str, Any]]:
             with open(USUARIOS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list) and len(data) > 0:
+                    emails_existentes = {str(u.get("Email", "")).strip().lower() for u in data}
+                    modificado = False
                     for u in data:
                         if "Departamento de Títulos" in str(u.get("Nombre", "")):
                             u["Nombre"] = str(u["Nombre"]).replace("Departamento de Títulos", "Dirección de Títulos")
+                            modificado = True
+                    for u_ini in _USUARIOS_INICIALES:
+                        em_ini = str(u_ini.get("Email", "")).strip().lower()
+                        if em_ini and em_ini not in emails_existentes:
+                            data.append(dict(u_ini))
+                            emails_existentes.add(em_ini)
+                            modificado = True
+                    if modificado:
+                        _guardar_usuarios_locales(data)
                     return data
         except Exception:
             pass
     _guardar_usuarios_locales(_USUARIOS_INICIALES)
     return list(_USUARIOS_INICIALES)
+
+
+def asegurar_usuarios_escuela(cue: str, institucion: str) -> None:
+    """Garantiza que exista un usuario Administrativo y Directivo de prueba para la escuela importada."""
+    cue_limpio = normalizar_cue(cue)
+    if not cue_limpio:
+        return
+    cue_base = cue_limpio[:7] if len(cue_limpio) >= 7 else cue_limpio
+    inst_nom = str(institucion or f"Escuela CUE {cue_limpio}").strip()
+    usuarios = _cargar_usuarios_locales()
+    tiene_admin = False
+    tiene_dir = False
+    for u in usuarios:
+        rol_u = str(u.get("Rol", "")).strip()
+        cues_u = [normalizar_cue(c) for c in str(u.get("CUE", "")).split(",") if normalizar_cue(c)]
+        match_cue = any(cu == cue_limpio or (len(cu) >= 7 and cu[:7] == cue_base) for cu in cues_u)
+        if match_cue:
+            if rol_u == Roles.ADMINISTRATIVO:
+                tiene_admin = True
+            elif rol_u == Roles.DIRECTIVO:
+                tiene_dir = True
+    modificado = False
+    if not tiene_admin:
+        usuarios.append({
+            "Email": f"admin.{cue_base}@jujuy.edu.ar",
+            "Nombre": f"Administrativo {inst_nom}",
+            "Rol": Roles.ADMINISTRATIVO,
+            "CUE": cue_limpio,
+            "Activo": "Sí",
+            "Oficial": True
+        })
+        modificado = True
+    if not tiene_dir:
+        usuarios.append({
+            "Email": f"directivo.{cue_base}@jujuy.edu.ar",
+            "Nombre": f"Directivo {inst_nom}",
+            "Rol": Roles.DIRECTIVO,
+            "CUE": cue_limpio,
+            "Activo": "Sí",
+            "Oficial": True
+        })
+        modificado = True
+    if modificado:
+        _guardar_usuarios_locales(usuarios)
 
 def _guardar_usuarios_locales(lista: List[Dict[str, Any]]):
     try:

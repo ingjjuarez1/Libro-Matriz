@@ -24,7 +24,8 @@ from backend.app.core.config import (
 )
 from backend.app.services.google_service import google_client
 from backend.app.core.auth import (
-    normalizar_cue, exigir_lectura, exigir_carga, registrar, alcanza_cue, PermissionDeniedException
+    normalizar_cue, exigir_lectura, exigir_carga, registrar, alcanza_cue, PermissionDeniedException,
+    asegurar_usuarios_escuela
 )
 from backend.app.services.titulos_service import (
     obtener_estado_estudiante, esta_estudiante_congelado, EstadoCertificado
@@ -1706,6 +1707,7 @@ def importar_excel_en_sistema(contenido: bytes, nombre_archivo: str, sesion_usr:
     resumen["id"] = id_curso
     _CURSOS_IMPORTADOS[id_curso] = paquete
     _guardar_cursos_disco()
+    asegurar_usuarios_escuela(resumen.get("cue", ""), resumen.get("institucion", ""))
 
     registrar(
         sesion_usr,

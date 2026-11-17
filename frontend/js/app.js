@@ -2560,6 +2560,7 @@ function mostrarModalImportarExcel() {
       return;
     }
 
+    await cargarUsuariosPrueba();
     if (importados.length === 1 && !errores.length) {
       avisar('¡Excel importado con éxito! (' + totalEstudiantes + ' estudiantes)', 'ok');
       abrirCurso(importados[0].id);
