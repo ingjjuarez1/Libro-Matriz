@@ -88,7 +88,7 @@ async def api_sincronizar_cursos(request: Request) -> JSONResponse:
     try:
         email = get_current_user_email(request, allow_default=False)
         s = sesion(email)
-        if not s.get("puedeCargar"):
+        if not (s.get("puedeCargar") or s.get("verTodo") or s.get("esTitulos")):
             raise PermissionDeniedException(
                 f"Tu rol ({s.get('rol')}) es de consulta: no puedes sincronizar cursos."
             )
@@ -297,7 +297,7 @@ async def api_importar_excel(request: Request) -> JSONResponse:
     try:
         email = get_current_user_email(request, allow_default=False)
         s = sesion(email)
-        if not s.get("puedeCargar"):
+        if not (s.get("puedeCargar") or s.get("verTodo") or s.get("esTitulos")):
             raise PermissionDeniedException(
                 f"Tu rol ({s.get('rol')}) es de consulta: no puedes importar cursos."
             )

@@ -284,7 +284,7 @@ async function iniciarSesion() {
       }
     });
 
-    if (r.sesion && r.sesion.puedeCargar && Object.keys(paqsPermitidos).length > 0) {
+    if (r.sesion && (r.sesion.puedeCargar || r.sesion.verTodo || r.sesion.esTitulos) && Object.keys(paqsPermitidos).length > 0) {
       try {
         var rSync = await llamar('/api/sincronizar-cursos', 'POST', { paquetes: paqsPermitidos });
         if (rSync && rSync.restaurados > 0) {
@@ -298,7 +298,7 @@ async function iniciarSesion() {
     estado.sesion = r.sesion;
     estado.institucionUsuario = r.institucionUsuario || null;
     if ($('btnTopImportar')) {
-      $('btnTopImportar').hidden = !r.sesion.puedeCargar;
+      $('btnTopImportar').hidden = !(r.sesion.puedeCargar || r.sesion.verTodo || r.sesion.esTitulos);
     }
     if ($('btnTopDashboard')) {
       $('btnTopDashboard').hidden = !(r.sesion.verTodo || r.sesion.esTitulos);
@@ -396,7 +396,7 @@ function verCursos() {
     '<p style="color:var(--suave);margin:0 0 12px">' + subtitulo + '</p>' +
     '<div class="acciones">' +
       (puedeCargar ? '<button class="boton" id="btnNuevoCurso">+ Nuevo curso</button>' : '') +
-      (puedeCargar ? '<button class="boton" id="btnImportarExcel" style="background:#137333">📥 Importar Viejo Excel</button>' : '') +
+      ((puedeCargar || estado.sesion.verTodo || esTitulos) ? '<button class="boton" id="btnImportarExcel" style="background:#137333">📥 Importar Viejo Excel</button>' : '') +
       (esTitulos ? '<button class="boton" id="btnTitulos">📥 Bandeja de Títulos</button>' : '<button class="boton suave" id="btnTitulos">Certificados de Títulos</button>') +
       '<button class="boton suave" id="btnNominaEscuela">📋 Nómina de Egresados</button>' +
       ((estado.sesion.verTodo || esTitulos) ? '<button class="boton suave" id="btnResumen">📊 Dashboard de Estadísticas</button>' : '') +

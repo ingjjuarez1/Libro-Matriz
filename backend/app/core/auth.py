@@ -325,7 +325,7 @@ def sesion(email: Optional[str] = None) -> Dict[str, Any]:
         "rol": rol,
         "cues": cues,
         "verTodo": ver_todo,
-        "puedeCargar": (rol in [Roles.ADMINISTRATIVO, Roles.DIRECCION] or es_nivel_central),
+        "puedeCargar": (rol == Roles.ADMINISTRATIVO),
         "esTitulos": es_titulos,
         "puedeAdministrarUsuarios": es_nivel_central
     }
