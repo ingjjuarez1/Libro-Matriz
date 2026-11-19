@@ -1429,10 +1429,17 @@ function pintarSolicitudesCurso() {
     : '';
 
   var puedeGenerarNotaElevacion = Boolean(estado.sesion && (estado.sesion.puedeCargar || estado.sesion.rol === 'Directivo' || estado.sesion.verTodo));
+  var egresadosAcadCurso = (d.estudiantes || []).filter(function (es) { return _estadoAcademicoEstudiante(es) === 'APROBADO'; });
+  var listosCertCurso = egresadosAcadCurso.filter(function (es) { return es.solicitudCertificado && es.solicitudCertificado.estado === 'Aprobado'; });
+  var todosEnCondicionesNota = (egresadosAcadCurso.length > 0 && listosCertCurso.length === egresadosAcadCurso.length);
+
   var barraNotaElevacionHtml = puedeGenerarNotaElevacion
-    ? '<div class="acciones no-imprimir" style="background:#eef4fa;padding:10px 14px;border:1px solid #0a8fd5;border-radius:6px;justify-content:space-between">' +
-        '<span style="color:#112a46;font-size:12.5px">📄 <b>Presentación en Soporte Papel ante Dirección de Títulos:</b> Una vez impresos los títulos, generá la <b>Nota de Elevación</b> con firma del Director/a del establecimiento para presentar los certificados en papel.</span>' +
-        '<button type="button" class="boton" style="background:#112a46;white-space:nowrap" id="btnGenerarNotaElevacion">📝 Generar Nota de Elevación (Firma Director/a)</button>' +
+    ? '<div class="acciones no-imprimir" style="background:#e8f6fd;padding:12px 16px;border:1px solid #0a8fd5;border-radius:8px;justify-content:space-between">' +
+        '<span style="color:#112a46;font-size:12.5px">📄 <b>Presentación en Soporte Papel ante Dirección de Títulos:</b> Se habilita cuando todos los egresados del mismo espacio formativo están en condiciones de imprimir su certificado (' + listosCertCurso.length + ' de ' + egresadosAcadCurso.length + ' listos).</span>' +
+        '<button type="button" class="boton" style="background:#0a8fd5;color:#ffffff;white-space:nowrap" id="btnGenerarNotaElevacion"' +
+          ' title="' + (todosEnCondicionesNota ? 'Generar e imprimir Nota de Elevación con firma del Director/a' : 'Se habilita cuando todos los egresados del espacio estén en condiciones de imprimir el certificado (' + listosCertCurso.length + '/' + egresadosAcadCurso.length + ')') + '">' +
+          '📝 Generar Nota de Elevación (Firma Director/a)' +
+        '</button>' +
       '</div>'
     : '';
 
@@ -1714,6 +1721,16 @@ function abrirModalNotaElevacionTitulos() {
   cerrarModal();
   if (!estado.datos) return;
   var d = estado.datos;
+  var egresadosLista = (d.estudiantes || []).filter(function (es) {
+    return _estadoAcademicoEstudiante(es) === 'APROBADO';
+  });
+  var listosCert = egresadosLista.filter(function (es) {
+    return es.solicitudCertificado && es.solicitudCertificado.estado === 'Aprobado';
+  });
+  if (!egresadosLista.length || listosCert.length < egresadosLista.length) {
+    avisar('La Nota de Elevación solo puede generarse cuando todos los egresados aprobados de este espacio formativo estén en condiciones de imprimir su certificado (' + listosCert.length + ' de ' + egresadosLista.length + ' con certificado aprobado por Títulos).', 'error');
+    return;
+  }
   var enc = d.encabezado || {};
   var cResumen = estado.curso || {};
   var establecimiento = enc.establecimiento || cResumen.institucion || 'Escuela Profesional';
@@ -1729,10 +1746,6 @@ function abrirModalNotaElevacionTitulos() {
   var meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var hoy = new Date();
   var fechaLarga = localidad + ', Jujuy, ' + hoy.getDate() + ' de ' + meses[hoy.getMonth()] + ' de ' + hoy.getFullYear();
-
-  var egresadosLista = (d.estudiantes || []).filter(function (es) {
-    return _estadoAcademicoEstudiante(es) === 'APROBADO';
-  });
 
   var filasTabla = egresadosLista.length
     ? egresadosLista.map(function (es, idx) {
@@ -1872,7 +1885,7 @@ function pintarAnalitico() {
       '<label style="display:flex;align-items:center;gap:6px">Emisión: <input type="date" id="fecha"></label>' +
       '<button class="boton" id="generar" style="background:#1F4E78">Ver el certificado</button>' +
       '<button class="boton suave" id="imprimir" disabled style="opacity:0.5;cursor:not-allowed">Imprimir</button>' +
-      '<button type="button" class="boton suave" onclick="abrirModalNotaElevacionTitulos()" title="Generar Nota de Elevación con firma del Director/a para llevar los certificados en papel a Títulos">📝 Nota de Elevación (Firma Director/a)</button>' +
+      '<button type="button" class="boton" style="background:#0a8fd5;color:#fff" onclick="abrirModalNotaElevacionTitulos()" title="Generar Nota de Elevación cuando todos los egresados del espacio estén en condiciones de imprimir el certificado">📝 Nota de Elevación (Firma Director/a)</button>' +
     '</div>' +
     '<div id="bannerEstadoAnalitico"></div>' +
     '<div id="salida"></div>';
