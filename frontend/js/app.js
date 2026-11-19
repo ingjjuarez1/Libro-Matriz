@@ -700,11 +700,9 @@ function pintarNotas() {
   });
 
   var thGrupos = gruposCuat.map(function (g) {
-    var bg = g.nombre.indexOf('2°') === 0 ? '#d9ead3' : (g.nombre.indexOf('3°') === 0 ? '#fce5cd' : '#cfe2f3');
-    var colorTxt = g.nombre.indexOf('2°') === 0 ? '#135c2d' : '#1F4E78';
     var fechaSub = (g.nombre.indexOf('2°') === 0 || g.nombre.indexOf('3°') === 0) ? fin2C : fin1C;
     var etiquetaGrupo = fechaSub ? (g.nombre + ' (Fin: ' + fechaSub + ')') : g.nombre;
-    return '<th colspan="' + g.cantidad + '" style="text-align:center;background:' + bg + ';color:' + colorTxt + ';font-size:11px;letter-spacing:0.3px;border-bottom:2px solid ' + colorTxt + '">' +
+    return '<th colspan="' + g.cantidad + '" style="text-align:center;background:#ffffff;color:#000000;font-size:11px;letter-spacing:0.3px;border-bottom:2px solid #000000">' +
            esc(etiquetaGrupo) + '</th>';
   }).join('');
 
@@ -775,8 +773,8 @@ function pintarNotas() {
     var celdasPromCuat = '';
     if (tieneDosCuat && filtroCuat === 'Todos') {
       celdasPromCuat =
-        '<td style="text-align:center;background:#f4f8fc;font-weight:600;color:#1F4E78">' + esc(prom1C) + '</td>' +
-        '<td style="text-align:center;background:#f3faf5;font-weight:600;color:#135c2d">' + esc(prom2C) + '</td>';
+        '<td style="text-align:center;background:#ffffff;font-weight:600;color:#000000">' + esc(prom1C) + '</td>' +
+        '<td style="text-align:center;background:#ffffff;font-weight:600;color:#000000">' + esc(prom2C) + '</td>';
     }
 
     var acreditaEst = es.acreditaCon || es.nivel || acreditaConActual;
@@ -824,7 +822,7 @@ function pintarNotas() {
       '<td class="celda-acredita-rac" style="text-align:center">' + celdaAcreditaHtml + '</td>' +
       celdas +
       celdasPromCuat +
-      '<td style="text-align:center;font-weight:bold;background:#fafafa">' + esc(notaFinal) + '</td>' +
+      '<td style="text-align:center;font-weight:bold;background:#ffffff">' + esc(notaFinal) + '</td>' +
       '<td style="text-align:center">' + esc(libroActaEst) + '</td>' +
       '<td style="text-align:center">' + esc(folioEst) + '</td>' +
       '<td style="text-align:center">' + esc(fechaEst) + '</td>' +
@@ -846,10 +844,10 @@ function pintarNotas() {
   }
 
   var colsExtraFinal = (tieneDosCuat && filtroCuat === 'Todos') ? 6 : 4;
-  var thGrupoProm = '<th colspan="' + colsExtraFinal + '" style="text-align:center;background:#e9eef4">CALIFICACIÓN Y CERTIFICACIÓN</th>';
+  var thGrupoProm = '<th colspan="' + colsExtraFinal + '" style="text-align:center;background:#ffffff;color:#000000">CALIFICACIÓN Y CERTIFICACIÓN</th>';
   var thExtraFinal = (tieneDosCuat && filtroCuat === 'Todos')
-    ? '<th class="mod" style="background:#e8f1fa"><div class="mod-txt">Prom. 1° Cuat.</div></th>' +
-      '<th class="mod" style="background:#e6f4ea"><div class="mod-txt">Prom. 2° Cuat.</div></th>' +
+    ? '<th class="mod" style="background:#ffffff"><div class="mod-txt">Prom. 1° Cuat.</div></th>' +
+      '<th class="mod" style="background:#ffffff"><div class="mod-txt">Prom. 2° Cuat.</div></th>' +
       '<th class="mod"><div class="mod-txt">Calificación Final</div></th>' +
       '<th class="mod"><div class="mod-txt">Libro Actas N°</div></th>' +
       '<th class="mod"><div class="mod-txt">Folio N°</div></th>' +
@@ -944,12 +942,12 @@ function pintarNotas() {
         '</div>') +
     '<div class="tabla-ancha"><table><thead>' +
       '<tr>' +
-        '<th colspan="4" style="text-align:center;background:#e9eef4">DATOS DEL ESTUDIANTE</th>' +
-        '<th colspan="2" style="text-align:center;background:#dce6f1">LUGAR DE NACIMIENTO</th>' +
-        '<th style="text-align:center;background:#e9eef4">ESTUDIOS</th>' +
+        '<th colspan="4" style="text-align:center;background:#ffffff;color:#000000">DATOS DEL ESTUDIANTE</th>' +
+        '<th colspan="2" style="text-align:center;background:#ffffff;color:#000000">LUGAR DE NACIMIENTO</th>' +
+        '<th style="text-align:center;background:#ffffff;color:#000000">ESTUDIOS</th>' +
         thGrupos +
         thGrupoProm +
-        (esTitulos ? '<th class="no-imprimir" rowspan="2" style="width:125px;text-align:center;background:#e6f4ea;color:#135c2d">Certificado / Títulos</th>' : '') +
+        (esTitulos ? '<th class="no-imprimir" rowspan="2" style="width:125px;text-align:center;background:#ffffff;color:#000000">Certificado / Títulos</th>' : '') +
       '</tr>' +
       '<tr>' +
         '<th class="col-meta-nro" style="width:26px;text-align:center">N°</th><th class="col-nombre-est">Apellido y nombres</th><th class="col-meta-doc" style="width:72px;text-align:center">Documento</th>' +
@@ -1420,11 +1418,11 @@ function pintarSolicitudesCurso() {
   }).join('');
 
   var barraTitulosHtml = esTitulos
-    ? '<div class="acciones" style="background:#e6f4ea;padding:10px 14px;border:1px solid #34a853;border-radius:6px">' +
+    ? '<div class="acciones" style="background:#ffffff;padding:10px 14px;border:1px solid var(--borde);border-radius:6px">' +
         '<button type="button" class="boton" style="background:#137333" id="btnAprobarTodosSol"' +
           (cantElegiblesPend === 0 ? ' disabled' : '') +
         '>✅ Aprobar Todos los Egresados' + (cantElegiblesPend ? ' (' + cantElegiblesPend + ')' : '') + '</button>' +
-        '<span style="color:#135c2d;font-size:12px">Podés aprobar individualmente o en un clic a todos los egresados aprobados del curso (incluso sin solicitud previa).</span>' +
+        '<span style="color:var(--texto);font-size:12px">Podés aprobar individualmente o en un clic a todos los egresados aprobados del curso (incluso sin solicitud previa).</span>' +
       '</div>'
     : '';
 
@@ -1434,7 +1432,7 @@ function pintarSolicitudesCurso() {
   var todosEnCondicionesNota = (egresadosAcadCurso.length > 0 && listosCertCurso.length === egresadosAcadCurso.length);
 
   var barraNotaElevacionHtml = puedeGenerarNotaElevacion
-    ? '<div class="acciones no-imprimir" style="background:#e8f6fd;padding:12px 16px;border:1px solid #0a8fd5;border-radius:8px;justify-content:space-between">' +
+    ? '<div class="acciones no-imprimir" style="background:#ffffff;padding:12px 16px;border:1px solid var(--borde);border-radius:8px;justify-content:space-between">' +
         '<span style="color:#112a46;font-size:12.5px">📄 <b>Presentación en Soporte Papel ante Dirección de Títulos:</b> Se habilita cuando todos los egresados del mismo espacio formativo están en condiciones de imprimir su certificado (' + listosCertCurso.length + ' de ' + egresadosAcadCurso.length + ' listos).</span>' +
         '<button type="button" class="boton" style="background:#0a8fd5;color:#ffffff;white-space:nowrap" id="btnGenerarNotaElevacion"' +
           ' title="' + (todosEnCondicionesNota ? 'Generar e imprimir Nota de Elevación con firma del Director/a' : 'Se habilita cuando todos los egresados del espacio estén en condiciones de imprimir el certificado (' + listosCertCurso.length + '/' + egresadosAcadCurso.length + ')') + '">' +
@@ -1444,9 +1442,9 @@ function pintarSolicitudesCurso() {
     : '';
 
   var barraNotaRetiroTitulosHtml = (esTitulos || estado.sesion.verTodo || todosEnCondicionesNota)
-    ? '<div class="acciones no-imprimir" style="background:#e6f4ea;padding:12px 16px;border:1px solid #34a853;border-radius:8px;justify-content:space-between">' +
-        '<span style="color:#135c2d;font-size:12.5px">🎓 <b>Entrega y Retiro de Cartones (Certificados) Firmados por Dirección de Títulos:</b> Una vez que la Directora de Títulos firmó los certificados de este espacio curricular, generá la <b>Nota / Acta de Entrega y Retiro</b> con el N° Único de Certificado de cada alumno para firma de quien entrega en Títulos y del Director/a o Administrativo/a que recibe.</span>' +
-        '<button type="button" class="boton" style="background:#137333;color:#ffffff;white-space:nowrap" id="btnGenerarNotaRetiroTitulos">' +
+    ? '<div class="acciones no-imprimir" style="background:#ffffff;padding:12px 16px;border:1px solid var(--borde);border-radius:8px;justify-content:space-between">' +
+        '<span style="color:#112a46;font-size:12.5px">🎓 <b>Entrega y Retiro de Cartones (Certificados) Firmados por Dirección de Títulos:</b> Una vez que la Directora de Títulos firmó los certificados de este espacio curricular, generá la <b>Nota / Acta de Entrega y Retiro</b> con el N° Único de Certificado de cada alumno para firma de quien entrega en Títulos y del Director/a o Administrativo/a que recibe.</span>' +
+        '<button type="button" class="boton" style="background:#0a8fd5;color:#ffffff;white-space:nowrap" id="btnGenerarNotaRetiroTitulos">' +
           '📋 Generar Nota de Retiro de Certificados (Títulos)' +
         '</button>' +
       '</div>'
@@ -1844,13 +1842,13 @@ function abrirModalNotaElevacionTitulos() {
 
         '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;color:#000">' +
           '<thead>' +
-            '<tr style="background:#f1f5f9">' +
-              '<th style="border:1px solid #000;padding:6px;width:36px;text-align:center">N°</th>' +
-              '<th style="border:1px solid #000;padding:6px;text-align:left">Apellido y Nombres del Egresado</th>' +
-              '<th style="border:1px solid #000;padding:6px;width:85px;text-align:center">DNI</th>' +
-              '<th style="border:1px solid #000;padding:6px;width:155px;text-align:center">N° Certificado Oficial</th>' +
-              '<th style="border:1px solid #000;padding:6px;width:90px;text-align:center">Ejemplar</th>' +
-              '<th style="border:1px solid #000;padding:6px;width:95px;text-align:center">Libro / Folio</th>' +
+            '<tr style="background:#ffffff">' +
+              '<th style="border:1px solid #000;padding:6px;width:36px;text-align:center;background:#ffffff;color:#000">N°</th>' +
+              '<th style="border:1px solid #000;padding:6px;text-align:left;background:#ffffff;color:#000">Apellido y Nombres del Egresado</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:85px;text-align:center;background:#ffffff;color:#000">DNI</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:155px;text-align:center;background:#ffffff;color:#000">N° Certificado Oficial</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:90px;text-align:center;background:#ffffff;color:#000">Ejemplar</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:95px;text-align:center;background:#ffffff;color:#000">Libro / Folio</th>' +
             '</tr>' +
           '</thead>' +
           '<tbody>' + filasTabla + '</tbody>' +
@@ -2024,13 +2022,13 @@ async function abrirModalNotaRetiroTitulos(idCursoParam) {
 
         '<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;color:#000">' +
           '<thead>' +
-            '<tr style="background:#f1f5f9">' +
-              '<th style="border:1px solid #000;padding:6px;width:36px;text-align:center">N°</th>' +
-              '<th style="border:1px solid #000;padding:6px;text-align:left">Apellido y Nombres Completo del Alumno</th>' +
-              '<th style="border:1px solid #000;padding:6px;width:85px;text-align:center">DNI</th>' +
-              '<th style="border:1px solid #000;padding:6px;width:165px;text-align:center">N° Único de Certificado</th>' +
-              '<th style="border:1px solid #000;padding:6px;width:85px;text-align:center">Ejemplar</th>' +
-              '<th style="border:1px solid #000;padding:6px;width:90px;text-align:center">Libro / Folio</th>' +
+            '<tr style="background:#ffffff">' +
+              '<th style="border:1px solid #000;padding:6px;width:36px;text-align:center;background:#ffffff;color:#000">N°</th>' +
+              '<th style="border:1px solid #000;padding:6px;text-align:left;background:#ffffff;color:#000">Apellido y Nombres Completo del Alumno</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:85px;text-align:center;background:#ffffff;color:#000">DNI</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:165px;text-align:center;background:#ffffff;color:#000">N° Único de Certificado</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:85px;text-align:center;background:#ffffff;color:#000">Ejemplar</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:90px;text-align:center;background:#ffffff;color:#000">Libro / Folio</th>' +
             '</tr>' +
           '</thead>' +
           '<tbody>' + filasTabla + '</tbody>' +
@@ -2152,7 +2150,7 @@ function pintarAnalitico() {
         $('salida').className = 'impresion-bloqueada';
       } else if (yaImpreso) {
         bannerBox.innerHTML =
-          '<div class="banner-aviso-analitico" style="background:#fce8e6;border-color:#d93025;color:#b3261e;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+          '<div class="banner-aviso-analitico" style="background:#ffffff;border-color:#d93025;color:#b3261e;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
             '<span>🔒 <b>CERTIFICADO IMPRESO Y BLOQUEADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
             'Impreso por única vez el <b>' + esc(solCert.fechaImpresion || '—') + '</b> (' + esc(solCert.impresoPor || '') + '). ' +
             'Para emitir un nuevo ejemplar con nuevo número, el Administrativo debe pedir un Duplicado a Títulos.</span>' +
@@ -2165,7 +2163,7 @@ function pintarAnalitico() {
         $('salida').className = 'impresion-bloqueada';
       } else if (!puedeImprimirRol) {
         bannerBox.innerHTML =
-          '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333">' +
+          '<div class="banner-aviso-analitico" style="background:#ffffff;border-color:#34a853;color:#137333">' +
             '✅ <b>Certificado Oficial APROBADO' + (docOf.esDuplicado ? ' (' + esc(docOf.etiquetaEjemplar || 'DUPLICADO') + ')' : '') + ':</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
             '(Solo el rol <b>Administrativo</b> o <b>Directivo</b> de la institución tiene habilitado el botón de impresión).' +
           '</div>';
@@ -2175,7 +2173,7 @@ function pintarAnalitico() {
         $('salida').className = 'impresion-bloqueada';
       } else {
         bannerBox.innerHTML =
-          '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+          '<div class="banner-aviso-analitico" style="background:#ffffff;border-color:#34a853;color:#137333;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
             '<span>✅ <b>Certificado Oficial APROBADO' + (docOf.esDuplicado ? ' (' + esc(docOf.etiquetaEjemplar || 'DUPLICADO') + ')' : '') + ':</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
             'Habilitado para <b>una única impresión</b> por parte del Administrativo / Directivo.</span>' +
             btnDuplicadoBanner +
@@ -2602,7 +2600,7 @@ function abrirModalAprobar(idSol, nombre, esDuplicado) {
           ? 'Al autorizar este pedido de Duplicado iniciado por el Administrativo de la escuela, el sistema generará un <b>Nuevo Título con un Nuevo Número oficial</b> y habilitará su impresión.'
           : 'Al aprobar, se genera el número oficial y las notas del estudiante quedan bloqueadas permanentemente.') +
       '</p>' +
-      '<div style="background:#eef4fa;border:1px solid #0a8fd5;padding:10px 12px;border-radius:6px;margin:12px 0;font-size:12.5px;color:#112a46">' +
+      '<div style="background:#ffffff;border:1px solid var(--borde);padding:10px 12px;border-radius:6px;margin:12px 0;font-size:12.5px;color:#112a46">' +
         '🔢 <b>Asignación Automática de Número Único:</b> Se asignará automáticamente el próximo número oficial con formato <b>AÑO_IMPRESIÓN-CUE-SIGUIENTE_NÚMERO</b> (este número es único y jamás se repite bajo ningún caso).' +
         '<input id="m_numCert" type="hidden" value="">' +
       '</div>' +

@@ -4,8 +4,8 @@
   --azul-banner: #132d4b;
   --azul-hover: #1b3d63;
   --acento-celeste: #0a8fd5;
-  --celeste: #e4eef7;
-  --gris: #EDEDED;
+  --celeste: #ffffff;
+  --gris: #ffffff;
   --borde: #d5dfe9;
   --texto: #112a46;
   --suave: #4a607a;
@@ -341,13 +341,15 @@ h2 {
 }
 
 .etiqueta.abierto {
-  background: #e6f4ea;
+  background: #ffffff;
   color: #137333;
+  border: 1px solid #137333;
 }
 
 .etiqueta.cerrado {
-  background: #fde7e5;
+  background: #ffffff;
   color: #b3261e;
+  border: 1px solid #b3261e;
 }
 
 input, select, button {
@@ -769,9 +771,9 @@ td.nota input.baja {
 }
 
 .banner-aviso-analitico {
-  background: #edf2f7;
-  border: 1px solid #d3dce6;
-  color: #2d3748;
+  background: #ffffff;
+  border: 1px solid var(--borde);
+  color: var(--texto);
   padding: 10px 16px;
   border-radius: 6px;
   font-size: 13px;
@@ -833,9 +835,10 @@ td.nota input.baja {
 }
 
 .alerta-observacion {
-  background: #fff8e1;
-  border-left: 4px solid #f57c00;
-  color: #795548;
+  background: #ffffff;
+  border: 1px solid var(--borde);
+  border-left: 4px solid #b3261e;
+  color: var(--texto);
   padding: 8px 12px;
   margin: 6px 0;
   font-size: 12px;
@@ -843,7 +846,8 @@ td.nota input.baja {
 }
 
 .alerta-congelado {
-  background: #e8f0fe;
+  background: #ffffff;
+  border: 1px solid var(--borde);
   border-left: 4px solid var(--azul);
   color: var(--azul);
   padding: 8px 12px;
@@ -856,8 +860,8 @@ td.nota input.baja {
 }
 
 td.nota input:disabled {
-  background: #f1f3f4;
-  color: #5f6368;
+  background: #ffffff;
+  color: var(--texto);
   cursor: not-allowed;
   border-color: #dadce0;
 }
@@ -993,7 +997,8 @@ td.nota input:disabled {
 
 .nomina-meta-tabla .lbl {
   font-weight: 700;
-  background: #f3f6fa;
+  background: #ffffff;
+  color: #000000;
   width: 24%;
 }
 
@@ -1005,12 +1010,14 @@ td.nota input:disabled {
 
 .tabla-nomina th,
 .tabla-nomina td {
-  border: 1px solid #222;
+  border: 1px solid #000;
   padding: 5px 8px;
+  color: #000;
+  background: #ffffff;
 }
 
 .tabla-nomina thead th {
-  background: #92d050;
+  background: #ffffff;
   color: #000;
   font-weight: 700;
   text-align: center;
@@ -1407,9 +1414,11 @@ td.nota input:disabled {
   .tabla-ancha td,
   thead tr:nth-child(2) th {
     position: static !important;
-    border: 1px solid #333 !important;
+    border: 1px solid #000 !important;
     padding: 1.5px 2px !important;
     line-height: 1.15 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
   th.col-meta-nro {
     width: 20px !important;
@@ -1479,27 +1488,37 @@ td.nota input:disabled {
     width: 100% !important;
   }
   .tabla-nomina th,
-  .tabla-nomina td {
+  .tabla-nomina td,
+  .nomina-meta-tabla td,
+  .nomina-meta-tabla .lbl {
     position: static !important;
-    border: 1px solid #222 !important;
+    border: 1px solid #000 !important;
     padding: 3px 5px !important;
     font-size: 10px !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
   .tabla-nomina thead th {
-    background: #92d050 !important;
-    color: #000 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .hoja-oficial,
+  .hoja-oficial *,
+  .planilla-nomina,
+  .planilla-nomina *,
+  .acta-encabezado,
+  .acta-ficha td {
+    color: #000000 !important;
+    background-color: transparent !important;
   }
   .hoja-oficial {
+    background: #ffffff !important;
     border: none !important;
     box-shadow: none !important;
     margin: 0 !important;
     padding: 4mm 6mm !important;
     max-width: 100% !important;
     width: 100% !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
   .impresion-bloqueada {
     display: none !important;
