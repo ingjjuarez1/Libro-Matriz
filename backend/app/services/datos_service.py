@@ -1292,6 +1292,16 @@ def obtener_analitico(id_curso: str, documento: str, fecha_emision: Optional[str
         "trayecto": trayecto_final,
         "cargaHorariaTotal": carga_total,
         "esBorrador": es_borrador,
+        "esDuplicado": bool(sol_info.get("esDuplicado", False)),
+        "ejemplarNumero": int(sol_info.get("ejemplarNumero") or 1),
+        "etiquetaEjemplar": str(sol_info.get("etiquetaEjemplar") or ("DUPLICADO" if sol_info.get("esDuplicado") else "ORIGINAL")),
+        "numeroCertificadoAnterior": str(sol_info.get("numeroCertificadoAnterior") or ""),
+        "observaciones": (
+            f"EJEMPLAR {sol_info.get('etiquetaEjemplar') or 'DUPLICADO'} — Emitido con Nuevo Certificado Nº {num_cert_final}"
+            + (f" en reemplazo del Certificado Nº {sol_info.get('numeroCertificadoAnterior')}." if sol_info.get("numeroCertificadoAnterior") else ".")
+            if (sol_info.get("esDuplicado") and not es_borrador)
+            else "—"
+        ),
         "aprobo": aprobo_todo,
         "situacion": situacion_est,
         "mensajeEstado": "" if aprobo_todo else "Este estudiante todavía no aprobó: no se puede solicitar su certificado."

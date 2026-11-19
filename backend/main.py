@@ -45,6 +45,10 @@ async def home(request):
     index_path = BASE_DIR / "frontend" / "index.html"
     return FileResponse(index_path)
 
+async def manual_page(request):
+    manual_path = BASE_DIR / "frontend" / "manual.html"
+    return FileResponse(manual_path)
+
 async def health_check(request):
     return JSONResponse({
         "status": "online",
@@ -55,6 +59,8 @@ async def health_check(request):
 
 routes = [
     Route("/", endpoint=home, methods=["GET"]),
+    Route("/manual.html", endpoint=manual_page, methods=["GET"]),
+    Route("/manual", endpoint=manual_page, methods=["GET"]),
     Route("/health", endpoint=health_check, methods=["GET"]),
     
     # Endpoints de la API
@@ -91,6 +97,7 @@ routes = [
     Mount("/css", app=StaticFiles(directory=str(BASE_DIR / "frontend" / "css")), name="css"),
     Mount("/js", app=StaticFiles(directory=str(BASE_DIR / "frontend" / "js")), name="js"),
     Mount("/img", app=StaticFiles(directory=str(BASE_DIR / "frontend" / "img")), name="img"),
+    Mount("/manuales", app=StaticFiles(directory=str(BASE_DIR / "frontend" / "manuales")), name="manuales"),
 ]
 
 middleware = [

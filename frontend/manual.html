@@ -254,11 +254,23 @@
 
       <div class="indice">
         <a href="#rol-administrativo">1. Administrativo de la Escuela<span>Carga exclusiva del RAC, Acta de Examen, Importación de Excel y Envío a Títulos</span></a>
-        <a href="#rol-directivo">2. Directivo de la Escuela<span>Supervisión de su institución, lectura del RAC e impresión de documentos</span></a>
+        <a href="#rol-directivo">2. Directivo de la Escuela<span>Supervisión de su institución, lectura del RAC y Dashboard de su Escuela</span></a>
         <a href="#rol-detp">3. Coordinación Pedagógica (DETP)<span>Supervisión provincial, Dashboard, Aprobación de Títulos y Gestión de Usuarios</span></a>
-        <a href="#rol-titulos">4. Dirección de Títulos (Operativo)<span>Bandeja de Títulos, Aprobación/Observación de Certificados, Nómina y RAC</span></a>
+        <a href="#rol-titulos">4. Dirección de Títulos (Operativo)<span>Bandeja de Títulos, Aprobación/Observación con Historial, Nómina y RAC</span></a>
         <a href="#rol-directora-titulos">5. Directora de Títulos (Tatiana)<span>Dashboard Estadístico, Egresados por Acreditación, Consultas QR y Pendientes</span></a>
         <a href="#anexo-qr">6. Verificación Pública por QR<span>Consulta pública de autenticidad y registro automático de estadísticas QR</span></a>
+      </div>
+
+      <div style="margin-top:20px;padding:14px 18px;background:#e6f4ea;border:1px solid #34a853;border-radius:8px">
+        <strong style="color:#137333;font-size:14px;display:block;margin-bottom:8px">📥 Descargar Manuales en PDF individuales por Rol (listos para enviar o imprimir):</strong>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <a class="btn btn-verde" href="/manuales/00_Manual_Completo_Todos_los_Roles.pdf" download>📘 Manual Completo (Todos los Roles)</a>
+          <a class="btn" style="border:1px solid #163a5f" href="/manuales/01_Manual_Administrativo_de_Escuela.pdf" download>📄 1. Administrativo de Escuela (PDF)</a>
+          <a class="btn" style="border:1px solid #163a5f" href="/manuales/02_Manual_Directivo_de_Escuela.pdf" download>📄 2. Directivo de Escuela (PDF)</a>
+          <a class="btn" style="border:1px solid #163a5f" href="/manuales/03_Manual_Coordinacion_Pedagogica_DETP.pdf" download>📄 3. Coordinación DETP (PDF)</a>
+          <a class="btn" style="border:1px solid #163a5f" href="/manuales/04_Manual_Direccion_de_Titulos_Operativo.pdf" download>📄 4. Dirección de Títulos (PDF)</a>
+          <a class="btn" style="border:1px solid #163a5f" href="/manuales/05_Manual_Directora_de_Titulos_Tatiana.pdf" download>📄 5. Directora de Títulos · Tatiana (PDF)</a>
+        </div>
       </div>
 
       <h3 style="margin-top:24px;color:var(--azul);font-size:16px">Matriz General de Permisos por Rol</h3>
@@ -376,6 +388,7 @@
             </ul>
           </li>
           <li><strong>Acta de Examen, Certificado, Nómina de Egresados y Circuito de Certificados:</strong> Completa Libro, Folio y Fecha del Acta de Examen, imprime la <strong>Nómina de Egresados</strong> y envía con un clic (<code>📤 Enviar todos los aprobados a Dirección de Títulos</code>) los certificados para su aprobación centralizada.</li>
+          <li><strong>📄 Solicitud de Certificado Duplicado (Inicializado por el Administrativo):</strong> Cuando un egresado ya cuenta con un certificado aprobado (o ya impreso y bloqueado) y necesita un nuevo ejemplar, el <strong>Administrativo de la Escuela</strong> presiona el botón <code>📄 Solicitar Duplicado</code> (en la pestaña <em>Circuito de Certificados</em> o en la pestaña <em>Certificado</em>), indica el motivo y envía el pedido a la <strong>Dirección de Títulos</strong>. Una vez que Títulos lo chequea y autoriza, el sistema genera un <strong>Nuevo Título con un Nuevo Número correlativo</strong> listo para imprimir.</li>
         </ol>
       </div>
 
@@ -552,6 +565,7 @@
           <li><strong>Bandeja Central de Solicitudes de Certificados:</strong> Filtra las solicitudes enviadas por las escuelas según su estado: <strong>Pendientes de revisión</strong>, <strong>Observadas / Devueltas</strong>, <strong>Aprobadas y emitidas</strong> o <strong>Todas</strong>.</li>
           <li><strong>Verificación contra el RAC y Analítico:</strong> Dispone del botón <code>📊 Ver RAC</code> en cada curso para contrastar las notas del estudiante y del botón <code>Ver Analítico</code> para previsualizar el certificado antes de aprobarlo.</li>
           <li><strong>Aprobación Individual o Masiva:</strong> Al presionar <code>✅ Aprobar y Emitir</code> (o <code>✅ Aprobar todos los pendientes</code>), el sistema asigna número de serie oficial y habilita el Código QR de validación pública. Si detecta un error, presiona <code>⚠️ Observar / Devolver</code> indicando el motivo para que el Administrativo de la escuela lo corrija.</li>
+          <li><strong>📄 Autorización de Certificados Duplicados (Nuevo Título con Nuevo Número):</strong> Cuando el Administrativo de una escuela solicita un <strong>Duplicado</strong>, el pedido ingresa en la Bandeja de Títulos identificado como <code>📄 Trámite: DUPLICADO (Cert. ant. N° ...)</code>. El usuario de <strong>Dirección de Títulos</strong> chequea la solicitud y al presionar <code>✅ Autorizar Duplicado</code> genera automáticamente un <strong>Nuevo Título con un Nuevo Número correlativo oficial</strong> (quedando todo registrado en el <code>🕒 Historial</code>).</li>
           <li><strong>📋 Planilla por Escuela (Nómina de Egresados):</strong> Genera e imprime la Nómina Oficial de Egresados de cualquier establecimiento y ciclo lectivo.</li>
         </ol>
       </div>

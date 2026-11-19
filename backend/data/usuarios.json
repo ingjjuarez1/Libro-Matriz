@@ -1,0 +1,66 @@
+[
+  {
+    "Email": "sge.detp.areapedagogica@jujuy.edu.ar",
+    "Nombre": "Coordinación Área Pedagógica DETP",
+    "Rol": "Dirección DETP",
+    "CUE": "",
+    "Activo": "Sí",
+    "Oficial": true
+  },
+  {
+    "Email": "tatiana.reinoso@jujuy.edu.ar",
+    "Nombre": "REINOSO TORRES Tatiana Marisel",
+    "Rol": "Directora de Títulos",
+    "CUE": "",
+    "Activo": "Sí",
+    "Oficial": true
+  },
+  {
+    "Email": "titulos@jujuy.edu.ar",
+    "Nombre": "Dirección de Títulos",
+    "Rol": "titulos",
+    "CUE": "",
+    "Activo": "Sí",
+    "Oficial": true
+  },
+  {
+    "Email": "directivo.ep6@jujuy.edu.ar",
+    "Nombre": "Directivo EP Nº 6",
+    "Rol": "Directivo",
+    "CUE": "3800006",
+    "Activo": "Sí",
+    "Oficial": true
+  },
+  {
+    "Email": "admin.ep6@jujuy.edu.ar",
+    "Nombre": "Administrativo EP Nº 6",
+    "Rol": "Administrativo",
+    "CUE": "3800006",
+    "Activo": "Sí",
+    "Oficial": true
+  },
+  {
+    "Email": "admin.cfp1@jujuy.edu.ar",
+    "Nombre": "Administrativo Centro de Formación Profesional N° 1",
+    "Rol": "Administrativo",
+    "CUE": "380059300",
+    "Activo": "Sí",
+    "Oficial": true
+  },
+  {
+    "Email": "directivo.cfp1@jujuy.edu.ar",
+    "Nombre": "Directivo Centro de Formación Profesional N° 1",
+    "Rol": "Directivo",
+    "CUE": "380059300",
+    "Activo": "Sí",
+    "Oficial": true
+  },
+  {
+    "Email": "titulos@educacion.jujuy.gob.ar",
+    "Nombre": "Dirección de Títulos (Secundario)",
+    "Rol": "titulos",
+    "CUE": "",
+    "Activo": "Sí",
+    "Oficial": false
+  }
+]

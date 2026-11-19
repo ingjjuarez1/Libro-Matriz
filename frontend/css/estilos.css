@@ -1,14 +1,17 @@
 :root {
-  --azul: #1F4E78;
-  --azul-hover: #163857;
-  --celeste: #DDEBF7;
+  --azul: #112a46;
+  --azul-top: #0e2238;
+  --azul-banner: #132d4b;
+  --azul-hover: #1b3d63;
+  --acento-celeste: #0a8fd5;
+  --celeste: #e4eef7;
   --gris: #EDEDED;
-  --borde: #C9D3DD;
-  --texto: #1b2733;
-  --suave: #5b6b7c;
-  --ok: #1e7a4b;
+  --borde: #d5dfe9;
+  --texto: #112a46;
+  --suave: #4a607a;
+  --ok: #137333;
   --mal: #b3261e;
-  --sombra: 0 2px 8px rgba(31, 78, 120, 0.08);
+  --sombra: 0 3px 10px rgba(17, 42, 70, 0.08);
 }
 
 * {
@@ -17,72 +20,215 @@
 
 body {
   margin: 0;
-  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font: 14px/1.48 "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   color: var(--texto);
-  background: #f6f8fa;
+  background-color: #fbfcfd;
+  background-image: radial-gradient(#dfe7f0 0.75px, transparent 0.75px);
+  background-size: 18px 18px;
 }
 
+/* ── FACHADA OFICIAL MINISTERIO DE EDUCACIÓN DE JUJUY (educacion.jujuy.gob.ar) ── */
 .barra {
+  display: block;
+  background: var(--azul-banner);
+  color: #fff;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(14, 34, 56, 0.22);
+}
+
+.barra-top-gob {
+  background: var(--azul-top);
+  padding: 6px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  background: var(--azul);
-  color: #fff;
-  padding: 12px 20px;
-  flex-wrap: wrap;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  gap: 10px;
+  flex-wrap: nowrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.marca strong {
+.gob-logo-top img {
+  height: 34px;
+  width: auto;
   display: block;
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: 0.1px;
-  line-height: 1.25;
-}
-
-.marca .sub {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  opacity: 0.95;
-  margin-top: 3px;
 }
 
 .usuario-panel {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.nav-link-gob,
+.nav-btn-gob {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link-gob:hover,
+.nav-btn-gob:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.nav-btn-gob[hidden] {
+  display: none !important;
+}
+
+.nav-btn-acento {
+  background: #0a8fd5;
+  font-weight: 600;
+}
+
+.nav-btn-acento:hover {
+  background: #087bb8;
+}
+
+.webmail-pill {
+  background: #081523;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.banner-ministerio {
+  background: var(--azul-banner);
+  display: grid;
+  grid-template-columns: 1.15fr 1.8fr 0.75fr;
+  align-items: center;
+  padding: 0 36px;
+  min-height: 118px;
+  overflow: hidden;
+}
+
+.banner-min-izq {
+  padding: 12px 12px 12px 0;
+}
+
+.min-titulo-bloque {
+  line-height: 1.08;
+  margin-bottom: 6px;
+}
+
+.min-prefijo {
+  display: block;
+  font-size: 18px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: 0.2px;
+}
+
+.min-palabra {
+  display: block;
+  font-size: 29px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.3px;
+}
+
+.marca strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #8ed8ff;
+  letter-spacing: 0.1px;
+  line-height: 1.3;
+}
+
+.marca .sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: 2px;
+}
+
+.banner-min-centro {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  height: 118px;
+}
+
+.banner-min-centro img {
+  width: 100%;
+  max-width: 640px;
+  height: 118px;
+  object-fit: cover;
+  display: block;
+}
+
+.banner-min-der {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding-left: 12px;
+}
+
+.banner-min-der img {
+  height: 64px;
+  width: auto;
+  display: block;
+}
+
+@media (max-width: 960px) {
+  .banner-ministerio {
+    grid-template-columns: 1fr;
+    padding: 12px 20px;
+    text-align: center;
+  }
+  .banner-min-centro, .banner-min-der {
+    display: none;
+  }
 }
 
 .usuario {
-  font-size: 12px;
+  font-size: 11.5px;
   text-align: right;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .usuario b {
   display: block;
-  font-size: 13px;
+  font-size: 12.5px;
+  color: #fff;
 }
 
 .rol {
   display: inline-block;
-  background: rgba(255, 255, 255, 0.2);
+  background: #0a8fd5;
+  color: #fff;
   border-radius: 10px;
-  padding: 2px 8px;
+  padding: 1px 8px;
   margin-top: 2px;
-  font-size: 11px;
+  font-size: 10.5px;
+  font-weight: 600;
 }
 
 .selector-rol {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: #132d4b;
+  border: 1px solid rgba(255, 255, 255, 0.28);
   color: #fff;
-  padding: 4px 8px;
+  padding: 3px 6px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
+  max-width: 210px;
   cursor: pointer;
 }
 

@@ -1337,6 +1337,8 @@ function pintarSolicitudesCurso() {
     else if (st === 'Observado') badgeClass = 'badge-observado';
     else if (st === 'Aprobado') badgeClass = 'badge-aprobado';
 
+    var nombreEst = (es.apellido || '') + ', ' + (es.nombres || '');
+    var puedePedirDuplicado = Boolean(estado.sesion && estado.sesion.puedeCargar);
     var accionHtml = '';
     if (!aprobo) {
       if (condAcadSol === 'DESAPROBADO') {
@@ -1346,10 +1348,16 @@ function pintarSolicitudesCurso() {
       }
     } else if (st === 'Aprobado') {
       accionHtml = '<span class="badge-estado badge-aprobado" title="Certificado N° ' + esc(sol.numeroCertificado || '') + '">APROBADO</span>';
+      if (puedePedirDuplicado) {
+        accionHtml += ' <button type="button" class="boton suave" style="padding:3px 8px;font-size:11px;margin-left:4px" title="Iniciar pedido de Certificado Duplicado a Dirección de Títulos" onclick="abrirModalSolicitarDuplicado(' + escJsArg(es.documento) + ', ' + escJsArg(nombreEst) + ', ' + escJsArg(sol.numeroCertificado || '') + ')">📄 Solicitar Duplicado</button>';
+      }
     } else if (esTitulos) {
       cantElegiblesPend++;
-      var nombreEst = (es.apellido || '') + ', ' + (es.nombres || '');
-      accionHtml = '<span class="badge-estado badge-aprobado" style="cursor:pointer" title="Clic para aprobar certificado oficial" onclick="aprobarTitulosCurso([' + escJsArg(es.documento) + '], \'solicitudes\')">APROBADO</span>';
+      if (st === 'Pendiente' && sol.esDuplicado && sol.idSolicitud) {
+        accionHtml = '<button type="button" class="boton" style="padding:4px 8px;font-size:11.5px;background:#137333" title="Autorizar Duplicado y emitir Nuevo Título con nuevo número" onclick="abrirModalAprobar(' + escJsArg(sol.idSolicitud) + ', ' + escJsArg(nombreEst) + ', true)">✅ Autorizar Duplicado</button>';
+      } else {
+        accionHtml = '<span class="badge-estado badge-aprobado" style="cursor:pointer" title="Clic para aprobar certificado oficial" onclick="aprobarTitulosCurso([' + escJsArg(es.documento) + '], \'solicitudes\')">APROBADO</span>';
+      }
       if (st === 'Pendiente' && sol.idSolicitud) {
         accionHtml += ' <button type="button" class="boton suave" style="padding:2px 6px;font-size:11px;color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(' + escJsArg(sol.idSolicitud) + ', ' + escJsArg(nombreEst) + ', true)">Observar</button>';
       }
@@ -1357,24 +1365,29 @@ function pintarSolicitudesCurso() {
       if (st === 'No solicitado') {
         accionHtml = '<button class="boton" onclick="solicitarCertificadoEstudiante(' + escJsArg(es.documento) + ')">Solicitar Certificado</button>';
       } else if (st === 'Pendiente') {
-        accionHtml = '<span style="color:#b06000;font-weight:600">⏳ En revisión por Títulos</span>';
+        accionHtml = '<span style="color:#b06000;font-weight:600">' + (sol.esDuplicado ? '⏳ Duplicado en revisión por Títulos' : '⏳ En revisión por Títulos') + '</span>';
       } else if (st === 'Observado') {
         accionHtml = '<button class="boton" style="background:#e37400" onclick="solicitarCertificadoEstudiante(' + escJsArg(es.documento) + ')">Reenviar a Títulos</button>';
       }
     }
 
     var alertaObs = '';
+    if (sol.esDuplicado) {
+      var etDup = sol.etiquetaEjemplar || 'DUPLICADO';
+      var antStr = sol.numeroCertificadoAnterior ? (' · Cert. anterior N° <b>' + esc(sol.numeroCertificadoAnterior) + '</b>') : '';
+      alertaObs += '<div style="margin-top:4px;font-size:11px;color:#0a8fd5;font-weight:600">📄 Trámite de <b>' + esc(etDup) + '</b>' + antStr + (sol.motivoDuplicado ? ' (' + esc(sol.motivoDuplicado) + ')' : '') + '</div>';
+    }
     if (st === 'Observado' && sol.motivoObservacion) {
       var obsAutor = sol.observadoPor ? (sol.observadoPor + (sol.observadoEmail ? ' (' + sol.observadoEmail + ')' : '')) : (sol.observadoEmail || 'Dirección de Títulos');
       var obsFecha = sol.fechaObservacion ? (' · ' + sol.fechaObservacion) : '';
-      alertaObs = '<div class="alerta-observacion">' +
+      alertaObs += '<div class="alerta-observacion">' +
         '⚠️ <b>Observación de Títulos:</b> ' + esc(sol.motivoObservacion) +
         '<div style="margin-top:3px;font-size:11px;color:#5f6368">👤 <b>Observado por:</b> ' + esc(obsAutor) + esc(obsFecha) + '</div>' +
       '</div>';
     } else if (st === 'Aprobado' && (sol.aprobadoPor || sol.aprobadoEmail)) {
       var aprAutor = sol.aprobadoPor ? (sol.aprobadoPor + (sol.aprobadoEmail ? ' (' + sol.aprobadoEmail + ')' : '')) : sol.aprobadoEmail;
       var aprFecha = (sol.fechaHoraAprobacion || sol.fechaAprobacion) ? (' · ' + (sol.fechaHoraAprobacion || sol.fechaAprobacion)) : '';
-      alertaObs = '<div style="margin-top:4px;font-size:11px;color:#137333">✅ <b>Aprobado por:</b> ' + esc(aprAutor) + esc(aprFecha) + '</div>';
+      alertaObs += '<div style="margin-top:4px;font-size:11px;color:#137333">✅ <b>Aprobado por:</b> ' + esc(aprAutor) + esc(aprFecha) + '</div>';
     }
 
     var btnHistCurso = (sol.historial && sol.historial.length > 0)
@@ -1630,6 +1643,47 @@ async function solicitarCertificadoEstudiante(doc) {
   }
 }
 
+function abrirModalSolicitarDuplicado(doc, nombre, nroCertActual) {
+  cerrarModal();
+  var modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.id = 'modalActivo';
+  modal.innerHTML =
+    '<div class="modal-caja">' +
+      '<h2>📄 Solicitar Certificado Duplicado</h2>' +
+      '<p>Estudiante: <b>' + esc(nombre) + '</b> (DNI ' + esc(doc) + ')</p>' +
+      '<p style="font-size:12.5px;color:var(--suave)">Certificado vigente actual: <b>' + esc(nroCertActual || '—') + '</b>.<br>' +
+        'Al iniciar este pedido como <b>Administrativo</b>, la solicitud pasará a la <b>Dirección de Títulos</b>. Cuando Títulos la chequee y autorice, el sistema generará un <b>Nuevo Título con un Nuevo Número correlativo</b>.</p>' +
+      '<label style="display:block;margin:12px 0">' +
+        '<b>Motivo de la solicitud de Duplicado:</b>' +
+        '<textarea id="m_motivoDuplicado" rows="3" style="width:100%;margin-top:6px;border:1px solid var(--borde);padding:8px">Solicitud de ejemplar Duplicado por extravío / deterioro del certificado original.</textarea>' +
+      '</label>' +
+      '<div class="acciones" style="justify-content:flex-end">' +
+        '<button class="boton suave" onclick="cerrarModal()">Cancelar</button>' +
+        '<button class="boton" id="btnConfirmarDuplicado">Enviar Pedido de Duplicado a Títulos</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+
+  $('btnConfirmarDuplicado').addEventListener('click', async function () {
+    var mot = ($('m_motivoDuplicado').value || '').trim() || 'Solicitud de ejemplar Duplicado.';
+    cerrarModal();
+    avisar('Enviando solicitud de Certificado Duplicado a Dirección de Títulos…');
+    try {
+      await llamar('/api/solicitudes', 'POST', {
+        idCurso: estado.curso.id,
+        documento: doc,
+        esDuplicado: true,
+        motivoDuplicado: mot
+      });
+      avisar('¡Pedido de Certificado Duplicado enviado a Dirección de Títulos para su autorización!', 'ok');
+      abrirCurso(estado.curso.id, 'solicitudes');
+    } catch (e) {
+      problema(e);
+    }
+  });
+}
+
 function verAnaliticoEstudiante(doc) {
   estado.pestania = 'analitico';
   pintarPestania();
@@ -1677,6 +1731,10 @@ function pintarAnalitico() {
       var solCert = an.solicitudCertificado || {};
       var yaImpreso = Boolean(solCert.impreso);
 
+      var btnDuplicadoBanner = (rolActual === 'administrativo')
+        ? ' <button type="button" class="boton suave" style="margin-left:10px;padding:4px 10px;font-size:12px" onclick="abrirModalSolicitarDuplicado(' + escJsArg(doc) + ', ' + escJsArg(docOf.estudianteNombre || doc) + ', ' + escJsArg(an.numeroCertificado || '') + ')">📄 Solicitar Duplicado a Títulos</button>'
+        : '';
+
       if (an.esBorrador) {
         var msg = docOf.mensajeEstado || 'Documento en estado BORRADOR – no válido: requiere aprobación de la Dirección de Títulos para que el Administrativo o Directivo pueda imprimirlo.';
         bannerBox.innerHTML = '<div class="banner-aviso-analitico">' + esc(msg) + '</div>';
@@ -1686,10 +1744,11 @@ function pintarAnalitico() {
         $('salida').className = 'impresion-bloqueada';
       } else if (yaImpreso) {
         bannerBox.innerHTML =
-          '<div class="banner-aviso-analitico" style="background:#fce8e6;border-color:#d93025;color:#b3261e">' +
-            '🔒 <b>CERTIFICADO IMPRESO Y BLOQUEADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
+          '<div class="banner-aviso-analitico" style="background:#fce8e6;border-color:#d93025;color:#b3261e;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+            '<span>🔒 <b>CERTIFICADO IMPRESO Y BLOQUEADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
             'Impreso por única vez el <b>' + esc(solCert.fechaImpresion || '—') + '</b> (' + esc(solCert.impresoPor || '') + '). ' +
-            'No se permite volver a imprimir.' +
+            'Para emitir un nuevo ejemplar con nuevo número, el Administrativo debe pedir un Duplicado a Títulos.</span>' +
+            btnDuplicadoBanner +
           '</div>';
         btnImp.disabled = true; btnImp.style.opacity = '0.5'; btnImp.style.cursor = 'not-allowed';
         btnImp.style.background = '#b3261e'; btnImp.style.color = '#fff';
@@ -1699,7 +1758,7 @@ function pintarAnalitico() {
       } else if (!puedeImprimirRol) {
         bannerBox.innerHTML =
           '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333">' +
-            '✅ <b>Certificado Oficial APROBADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
+            '✅ <b>Certificado Oficial APROBADO' + (docOf.esDuplicado ? ' (' + esc(docOf.etiquetaEjemplar || 'DUPLICADO') + ')' : '') + ':</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
             '(Solo el rol <b>Administrativo</b> o <b>Directivo</b> de la institución tiene habilitado el botón de impresión).' +
           '</div>';
         btnImp.disabled = true; btnImp.style.opacity = '0.5'; btnImp.style.cursor = 'not-allowed';
@@ -1708,9 +1767,10 @@ function pintarAnalitico() {
         $('salida').className = 'impresion-bloqueada';
       } else {
         bannerBox.innerHTML =
-          '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333">' +
-            '✅ <b>Certificado Oficial APROBADO:</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
-            'Habilitado para <b>una única impresión</b> por parte del Administrativo / Directivo.' +
+          '<div class="banner-aviso-analitico" style="background:#e6f4ea;border-color:#34a853;color:#137333;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+            '<span>✅ <b>Certificado Oficial APROBADO' + (docOf.esDuplicado ? ' (' + esc(docOf.etiquetaEjemplar || 'DUPLICADO') + ')' : '') + ':</b> N° <b>' + esc(an.numeroCertificado) + '</b>. ' +
+            'Habilitado para <b>una única impresión</b> por parte del Administrativo / Directivo.</span>' +
+            btnDuplicadoBanner +
           '</div>';
         btnImp.disabled = false; btnImp.style.opacity = '1'; btnImp.style.cursor = 'pointer';
         btnImp.style.background = 'var(--azul)'; btnImp.style.color = '#fff';
@@ -1825,9 +1885,9 @@ function _hojaOficialHTML(d, certNroFormateado, watermark, escudoFondo, filasMod
         '<p class="hoja-ley-nac">SECRETARÍA DE GESTIÓN EDUCATIVA</p>' +
         '<p class="hoja-ley-nac">DIRECCIÓN DE TÍTULOS</p>' +
       '</div>' +
-      '<div class="hoja-cert-nro">' + esc(certNroFormateado) + '</div>' +
+      '<div class="hoja-cert-nro">' + esc(certNroFormateado) + (d.esDuplicado && !d.esBorrador ? '<div style="font-size:10px;font-weight:700;margin-top:2px">' + esc(d.etiquetaEjemplar || 'DUPLICADO') + '</div>' : '') + '</div>' +
     '</div>' +
-    '<div class="hoja-titulo-doc">CERTIFICADO</div>' +
+    '<div class="hoja-titulo-doc">CERTIFICADO' + (d.esDuplicado && !d.esBorrador ? ' (' + esc(d.etiquetaEjemplar || 'DUPLICADO') + ')' : '') + '</div>' +
     '<p class="hoja-parrafo">' +
       'La autoridad del establecimiento educativo, <b>' + esc(d.establecimiento) + '</b> CUE ' +
       esc(d.cue) + ', ubicado en <b>' + esc(d.domicilio) + '</b>, de <b>' + esc(d.localidad) +
@@ -1969,29 +2029,34 @@ async function verBandejaTitulos() {
         : (s.estado === 'Aprobado' ? '<span style="color:#137333">✓</span>' : '—');
 
       var detalleEstado = '';
+      if (s.esDuplicado) {
+        var etDupB = s.etiquetaEjemplar || 'DUPLICADO';
+        detalleEstado += '<div style="font-size:11px;color:#0a8fd5;font-weight:700;margin-top:2px">📄 Trámite: ' + esc(etDupB) + (s.numeroCertificadoAnterior ? ' (Cert. ant. N° ' + esc(s.numeroCertificadoAnterior) + ')' : '') + '</div>';
+      }
       if (s.estado === 'Aprobado') {
         var aprAutor = s.aprobadoPor ? (s.aprobadoPor + (s.aprobadoEmail ? ' (' + s.aprobadoEmail + ')' : '')) : (s.aprobadoEmail || 'Dirección de Títulos');
         var aprFec = s.fechaHoraAprobacion || s.fechaAprobacion || '';
-        detalleEstado =
+        detalleEstado +=
           '<div style="color:#137333;font-size:12px;font-weight:bold">Cert. ' + esc(s.numeroCertificado) + ' (' + esc(s.fechaAprobacion) + ')</div>' +
           '<div style="font-size:11px;color:#135c2d;margin-top:2px">✅ <b>Aprobó:</b> ' + esc(aprAutor) + (aprFec ? ' · ' + esc(aprFec) : '') + '</div>';
       } else if (s.estado === 'Observado') {
         var obsAutor = s.observadoPor ? (s.observadoPor + (s.observadoEmail ? ' (' + s.observadoEmail + ')' : '')) : (s.observadoEmail || 'Dirección de Títulos');
         var obsFec = s.fechaObservacion || '';
-        detalleEstado =
+        detalleEstado +=
           '<div class="alerta-observacion"><b>Motivo:</b> ' + esc(s.motivoObservacion) +
             '<div style="font-size:11px;color:#5f6368;margin-top:3px">👤 <b>Observó:</b> ' + esc(obsAutor) + (obsFec ? ' · ' + esc(obsFec) : '') + '</div>' +
           '</div>';
       } else if (s.usuarioSolicitante || s.solicitadoPorNombre) {
         var solAutor = s.solicitadoPorNombre ? (s.solicitadoPorNombre + (s.usuarioSolicitante ? ' (' + s.usuarioSolicitante + ')' : '')) : s.usuarioSolicitante;
-        detalleEstado = '<div style="font-size:11px;color:#5f6368;margin-top:2px">📤 <b>Solicitó:</b> ' + esc(solAutor) + '</div>';
+        detalleEstado += '<div style="font-size:11px;color:#5f6368;margin-top:2px">📤 <b>Solicitó:</b> ' + esc(solAutor) + (s.esDuplicado && s.motivoDuplicado ? '<br><i>' + esc(s.motivoDuplicado) + '</i>' : '') + '</div>';
       }
 
       var accionesHtml = '';
       if (puedeAprobarBandeja) {
         if (s.estado !== 'Aprobado') {
+          var lblApr = s.esDuplicado ? '✅ Autorizar Duplicado' : 'Aprobar';
           accionesHtml =
-            '<button class="boton" style="padding:4px 10px;font-size:12px" onclick="abrirModalAprobar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ')">Aprobar</button> ' +
+            '<button class="boton" style="padding:4px 10px;font-size:12px" onclick="abrirModalAprobar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ', ' + (s.esDuplicado ? 'true' : 'false') + ')">' + lblApr + '</button> ' +
             '<button class="boton suave" style="padding:4px 10px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ')">Observar</button>';
         } else {
           accionesHtml = '<span style="color:var(--suave);font-size:12px">Calificaciones congeladas</span>';
@@ -2109,22 +2174,26 @@ async function verBandejaTitulos() {
 }
 
 // Modales para Aprobar y Observar
-function abrirModalAprobar(idSol, nombre) {
+function abrirModalAprobar(idSol, nombre, esDuplicado) {
   var modal = document.createElement('div');
   modal.className = 'modal-backdrop';
   modal.id = 'modalActivo';
   modal.innerHTML =
     '<div class="modal-caja">' +
-      '<h2>Aprobar Certificado Oficial</h2>' +
+      '<h2>' + (esDuplicado ? '📄 Autorizar Certificado Duplicado y Emitir Nuevo Título' : 'Aprobar Certificado Oficial') + '</h2>' +
       '<p>Estudiante: <b>' + esc(nombre) + '</b></p>' +
-      '<p style="font-size:12px;color:var(--suave)">Al aprobar, se genera el número oficial y las notas del estudiante quedan bloqueadas permanentemente.</p>' +
+      '<p style="font-size:12px;color:var(--suave)">' +
+        (esDuplicado
+          ? 'Al autorizar este pedido de Duplicado iniciado por el Administrativo de la escuela, el sistema generará un <b>Nuevo Título con un Nuevo Número oficial</b> y habilitará su impresión.'
+          : 'Al aprobar, se genera el número oficial y las notas del estudiante quedan bloqueadas permanentemente.') +
+      '</p>' +
       '<label style="display:block;margin:12px 0">' +
-        'Número de Certificado (dejar vacío para correlativo automático AÑO-CUE-00001):' +
-        '<input id="m_numCert" style="width:100%;margin-top:6px" placeholder="Ej: 2026-3800006-00001">' +
+        'Nuevo Número de Certificado (dejar vacío para generar nuevo correlativo automático AÑO-CUE-00001):' +
+        '<input id="m_numCert" style="width:100%;margin-top:6px" placeholder="Ej: 2026-380000600-00002">' +
       '</label>' +
       '<div class="acciones" style="justify-content:flex-end">' +
         '<button class="boton suave" onclick="cerrarModal()">Cancelar</button>' +
-        '<button class="boton" id="btnConfirmarAprobar">Aprobar y Congelar Notas</button>' +
+        '<button class="boton" id="btnConfirmarAprobar">' + (esDuplicado ? 'Autorizar y Generar Nuevo Número' : 'Aprobar y Congelar Notas') + '</button>' +
       '</div>' +
     '</div>';
 
@@ -2133,11 +2202,15 @@ function abrirModalAprobar(idSol, nombre) {
   $('btnConfirmarAprobar').addEventListener('click', async function () {
     var num = $('m_numCert').value.trim();
     cerrarModal();
-    avisar('Aprobando certificado…');
+    avisar(esDuplicado ? 'Autorizando duplicado y generando nuevo certificado…' : 'Aprobando certificado…');
     try {
       await llamar('/api/solicitudes/' + encodeURIComponent(idSol) + '/aprobar', 'POST', { numeroCertificado: num });
-      avisar('¡Certificado aprobado exitosamente!', 'ok');
-      verBandejaTitulos();
+      avisar(esDuplicado ? '¡Nuevo Título Duplicado autorizado y emitido con nuevo número!' : '¡Certificado aprobado exitosamente!', 'ok');
+      if (estado.curso && estado.curso.id) {
+        abrirCurso(estado.curso.id, 'solicitudes');
+      } else {
+        verBandejaTitulos();
+      }
     } catch (e) {
       problema(e);
     }

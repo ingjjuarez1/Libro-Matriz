@@ -280,6 +280,12 @@ def obtener_estado_estudiante(id_curso: str, documento: str) -> Dict[str, Any]:
                 "fechaObservacion": sol.get("fechaObservacion", ""),
                 "usuarioSolicitante": sol.get("usuarioSolicitante", ""),
                 "solicitadoPorNombre": sol.get("solicitadoPorNombre", ""),
+                "esDuplicado": bool(sol.get("esDuplicado", False)),
+                "ejemplarNumero": int(sol.get("ejemplarNumero") or 1),
+                "etiquetaEjemplar": sol.get("etiquetaEjemplar", "ORIGINAL"),
+                "numeroCertificadoAnterior": sol.get("numeroCertificadoAnterior", ""),
+                "motivoDuplicado": sol.get("motivoDuplicado", ""),
+                "certificadosAnteriores": sol.get("certificadosAnteriores", []),
                 "historial": sol.get("historial", []),
                 "impreso": bool(sol.get("impreso", False)),
                 "fechaImpresion": sol.get("fechaImpresion", ""),
@@ -304,6 +310,12 @@ def obtener_estado_estudiante(id_curso: str, documento: str) -> Dict[str, Any]:
         "fechaObservacion": "",
         "usuarioSolicitante": "",
         "solicitadoPorNombre": "",
+        "esDuplicado": False,
+        "ejemplarNumero": 1,
+        "etiquetaEjemplar": "ORIGINAL",
+        "numeroCertificadoAnterior": "",
+        "motivoDuplicado": "",
+        "certificadosAnteriores": [],
         "historial": [],
         "impreso": False,
         "fechaImpresion": "",
@@ -383,10 +395,14 @@ def crear_o_reingresar_solicitud(
     documento: str,
     sesion_usr: Dict[str, Any],
     datos_estudiante: Optional[Dict[str, Any]] = None,
-    datos_curso: Optional[Dict[str, Any]] = None
+    datos_curso: Optional[Dict[str, Any]] = None,
+    es_duplicado: bool = False,
+    motivo_duplicado: str = ""
 ) -> Dict[str, Any]:
     """
-    Crea una nueva solicitud de certificado o reingresa una solicitud previamente observada.
+    Crea una nueva solicitud de certificado, reingresa una solicitud observada,
+    o inicia un pedido de Certificado Duplicado (iniciado por el Administrativo de la escuela)
+    para que Dirección de Títulos lo chequee, autorice y emita un nuevo Título con nuevo número.
     REGLA: Solo se puede solicitar para alumnos con situación 'Aprobó'.
     """
     doc_norm = str(documento).strip()
@@ -400,9 +416,11 @@ def crear_o_reingresar_solicitud(
 
     # 2. Verificar si ya existe solicitud para este (idCurso, documento)
     sol_existente = _buscar_solicitud_por_curso_doc(id_curso, doc_norm)
-    if sol_existente and sol_existente.get("estado") == EstadoCertificado.APROBADO:
+    ya_aprobado = bool(sol_existente and sol_existente.get("estado") == EstadoCertificado.APROBADO)
+    if ya_aprobado and not es_duplicado:
         raise PermissionDeniedException(
-            f"El estudiante ya cuenta con un certificado oficial APROBADO (Nº {sol_existente.get('numeroCertificado')})."
+            f"El estudiante ya cuenta con un certificado oficial APROBADO (Nº {sol_existente.get('numeroCertificado')}). "
+            "Para pedir un nuevo ejemplar, utiliza el botón 'Solicitar Duplicado'."
         )
 
     sol_id = sol_existente["id"] if sol_existente else f"sol-{id_curso}-{doc_norm}"
@@ -413,18 +431,62 @@ def crear_o_reingresar_solicitud(
     usr_rol = sesion_usr.get("rol", "")
 
     hist_prev = []
+    cert_anteriores = []
+    nro_cert_anterior = ""
+    ejemplar_num = 1
+    etiqueta_ejemplar = "ORIGINAL"
+    flag_duplicado = False
+    motivo_dup_str = str(motivo_duplicado or "").strip()
+
     if sol_existente:
         _normalizar_historial_solicitud(sol_existente)
         hist_prev = list(sol_existente.get("historial", []))
+        cert_anteriores = list(sol_existente.get("certificadosAnteriores") or [])
+        nro_cert_anterior = str(sol_existente.get("numeroCertificadoAnterior") or "")
+        ejemplar_num = int(sol_existente.get("ejemplarNumero") or 1)
+        etiqueta_ejemplar = str(sol_existente.get("etiquetaEjemplar") or "ORIGINAL")
+        flag_duplicado = bool(sol_existente.get("esDuplicado", False))
+        if not motivo_dup_str:
+            motivo_dup_str = str(sol_existente.get("motivoDuplicado") or "")
 
-    accion_hist = "Reenviado a Títulos (tras corrección)" if sol_existente else "Solicitud enviada a Títulos"
+    if ya_aprobado and es_duplicado:
+        nro_prev = str(sol_existente.get("numeroCertificado") or "").strip()
+        if nro_prev:
+            nro_cert_anterior = nro_prev
+            cert_anteriores.append({
+                "numeroCertificado": nro_prev,
+                "fechaAprobacion": sol_existente.get("fechaAprobacion", ""),
+                "aprobadoPor": sol_existente.get("aprobadoPor", ""),
+                "ejemplarNumero": ejemplar_num,
+                "etiquetaEjemplar": etiqueta_ejemplar
+            })
+        ejemplar_num = ejemplar_num + 1
+        if ejemplar_num == 2:
+            etiqueta_ejemplar = "DUPLICADO"
+        elif ejemplar_num == 3:
+            etiqueta_ejemplar = "TRIPLICADO"
+        else:
+            etiqueta_ejemplar = f"EJEMPLAR Nº {ejemplar_num}"
+        flag_duplicado = True
+        if not motivo_dup_str:
+            motivo_dup_str = f"Solicitud de certificado {etiqueta_ejemplar} iniciada por Administrativo de la escuela."
+        accion_hist = f"Solicitud de {etiqueta_ejemplar} enviada a Títulos"
+        detalle_hist = f"Pedido de {etiqueta_ejemplar} (Certificado anterior Nº {nro_cert_anterior or '—'}). Motivo: {motivo_dup_str}"
+    else:
+        accion_hist = "Reenviado a Títulos (tras corrección)" if sol_existente else "Solicitud enviada a Títulos"
+        detalle_hist = (
+            f"Reenvío de solicitud de {etiqueta_ejemplar}. {motivo_dup_str}".strip()
+            if flag_duplicado
+            else "Solicitud de certificado oficial ingresada en bandeja de revisión."
+        )
+
     hist_prev.append({
         "fecha": ahora,
         "accion": accion_hist,
         "usuario": usr_nombre,
         "email": usr_email,
         "rol": usr_rol,
-        "detalle": "Solicitud de certificado oficial ingresada en bandeja de revisión."
+        "detalle": detalle_hist
     })
 
     nueva_sol = {
@@ -444,6 +506,12 @@ def crear_o_reingresar_solicitud(
         "fechaAprobacion": "",
         "usuarioSolicitante": usr_email,
         "solicitadoPorNombre": usr_nombre,
+        "esDuplicado": flag_duplicado,
+        "ejemplarNumero": ejemplar_num,
+        "etiquetaEjemplar": etiqueta_ejemplar,
+        "numeroCertificadoAnterior": nro_cert_anterior,
+        "motivoDuplicado": motivo_dup_str,
+        "certificadosAnteriores": cert_anteriores,
         "observadoPor": sol_existente.get("observadoPor", "") if sol_existente else "",
         "observadoEmail": sol_existente.get("observadoEmail", "") if sol_existente else "",
         "observadoRol": sol_existente.get("observadoRol", "") if sol_existente else "",
@@ -455,18 +523,18 @@ def crear_o_reingresar_solicitud(
     _guardar_solicitudes_disco()
     registrar(
         sesion_usr,
-        "Solicitud Certificado",
+        f"Solicitud Certificado ({etiqueta_ejemplar})" if flag_duplicado else "Solicitud Certificado",
         f"{nueva_sol['oferta']} ({nueva_sol['cue']})",
-        f"Estudiante: {nombre_completo} - DNI: {doc_norm}"
+        f"Estudiante: {nombre_completo} - DNI: {doc_norm}" + (f" - {etiqueta_ejemplar} (Ant: {nro_cert_anterior})" if flag_duplicado else "")
     )
 
     return nueva_sol
 
 def aprobar_solicitud(id_solicitud: str, sesion_usr: Dict[str, Any], numero_certificado: Optional[str] = None) -> Dict[str, Any]:
     """
-    Aprueba una solicitud de certificado y le asigna el número oficial.
+    Aprueba una solicitud de certificado (Original o Duplicado) y le asigna un nuevo número oficial.
     REGLA: Requiere rol 'titulos'. En ese instante, las notas quedan congeladas.
-    Idempotente: si ya está Aprobado, no sobreescribe el número de certificado ni el estado de impresión.
+    Si es un pedido de Duplicado, genera un Nuevo Título con un nuevo número correlativo.
     """
     if sesion_usr.get("esDirectoraTitulos") or sesion_usr.get("puedeAprobarTitulos") is False:
         raise PermissionDeniedException("El rol Directora de Títulos es de supervisión y estadísticas: no puede aprobar certificados.")
@@ -492,6 +560,10 @@ def aprobar_solicitud(id_solicitud: str, sesion_usr: Dict[str, Any], numero_cert
     usr_email = sesion_usr.get("email", "")
     usr_rol = sesion_usr.get("rol", "")
 
+    es_dup = bool(sol.get("esDuplicado", False))
+    etiqueta_ej = str(sol.get("etiquetaEjemplar") or ("DUPLICADO" if es_dup else "ORIGINAL"))
+    nro_ant = str(sol.get("numeroCertificadoAnterior") or "")
+
     sol["estado"] = EstadoCertificado.APROBADO
     sol["numeroCertificado"] = num_cert
     sol["fechaAprobacion"] = ahora_fecha
@@ -505,19 +577,24 @@ def aprobar_solicitud(id_solicitud: str, sesion_usr: Dict[str, Any], numero_cert
     sol["impresoPor"] = ""
     sol.setdefault("historial", []).append({
         "fecha": ahora_hora,
-        "accion": "Aprobado y Emitido",
+        "accion": f"{etiqueta_ej} Autorizado y Emitido" if es_dup else "Aprobado y Emitido",
         "usuario": usr_nombre,
         "email": usr_email,
         "rol": usr_rol,
-        "detalle": f"Certificado Nº {num_cert} aprobado y habilitado con código QR."
+        "detalle": (
+            f"Nuevo Título ({etiqueta_ej}) autorizado con Nuevo Certificado Nº {num_cert}"
+            + (f" (reemplaza al Certificado Nº {nro_ant})." if nro_ant else ".")
+            if es_dup
+            else f"Certificado Nº {num_cert} aprobado y habilitado con código QR."
+        )
     })
     _guardar_solicitudes_disco()
 
     registrar(
         sesion_usr,
-        "Aprobación Certificado",
+        f"Aprobación Certificado {etiqueta_ej}" if es_dup else "Aprobación Certificado",
         f"{sol['oferta']} ({sol['cue']})",
-        f"Certificado Nº {num_cert} asignado a {sol['estudiante']} (DNI {sol['documento']})"
+        f"Certificado Nº {num_cert} ({etiqueta_ej}) asignado a {sol['estudiante']} (DNI {sol['documento']})"
     )
 
     return sol

@@ -366,13 +366,17 @@ async def api_crear_solicitud(request: Request) -> JSONResponse:
         if not estudiante_encontrado:
             return JSONResponse({"ok": False, "error": f"No se encontró al estudiante con DNI {documento} en este curso."}, status_code=404)
 
-        # Crear o reingresar
+        # Crear, reingresar o solicitar duplicado
+        es_duplicado = bool(body.get("esDuplicado", False))
+        motivo_duplicado = str(body.get("motivoDuplicado", "")).strip()
         sol = crear_o_reingresar_solicitud(
             id_curso=id_curso,
             documento=documento,
             sesion_usr=s,
             datos_estudiante=estudiante_encontrado,
-            datos_curso=curso
+            datos_curso=curso,
+            es_duplicado=es_duplicado,
+            motivo_duplicado=motivo_duplicado
         )
         return JSONResponse({"ok": True, "solicitud": sol})
     except (AuthException, PermissionDeniedException) as e:
