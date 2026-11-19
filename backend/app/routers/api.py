@@ -343,7 +343,7 @@ async def api_crear_solicitud(request: Request) -> JSONResponse:
     try:
         email = get_current_user_email(request)
         s = sesion(email)
-        if not s.get("puedeCargar"):
+        if not (s.get("puedeCargar") or s.get("puedeAprobarTitulos")):
             raise PermissionDeniedException("Tu rol es de consulta: no puedes solicitar certificados.")
         body = await request.json()
         id_curso = body.get("idCurso", "")
@@ -369,6 +369,7 @@ async def api_crear_solicitud(request: Request) -> JSONResponse:
         # Crear, reingresar o solicitar duplicado
         es_duplicado = bool(body.get("esDuplicado", False))
         motivo_duplicado = str(body.get("motivoDuplicado", "")).strip()
+        auto_aprobar = bool(body.get("autoAprobar", False) and s.get("puedeAprobarTitulos"))
         sol = crear_o_reingresar_solicitud(
             id_curso=id_curso,
             documento=documento,
@@ -378,6 +379,8 @@ async def api_crear_solicitud(request: Request) -> JSONResponse:
             es_duplicado=es_duplicado,
             motivo_duplicado=motivo_duplicado
         )
+        if auto_aprobar:
+            sol = aprobar_solicitud(sol["id"], s)
         return JSONResponse({"ok": True, "solicitud": sol})
     except (AuthException, PermissionDeniedException) as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
@@ -608,7 +611,24 @@ async def pagina_validar_certificado(request: Request) -> HTMLResponse:
     ciclo_est_esc = _esc(ciclo_est)
     fecha_aprob_esc = _esc(fecha_aprob)
 
+    es_dup_qr = bool(res.get("esDuplicado", False))
+    etiqueta_dup_esc = _esc(res.get("etiquetaEjemplar") or ("DUPLICADO" if es_dup_qr else "ORIGINAL"))
+    nro_ant_esc = _esc(res.get("numeroCertificadoAnterior") or "")
+
     badge = '<div style="background:#e6f4ea;border:2px solid #34a853;color:#137333;padding:14px;border-radius:8px;font-size:16px;font-weight:bold;text-align:center;margin:16px 0">✅ VERIFICACIÓN OFICIAL · DATOS DEL EGRESADO Y REGISTRO DE DIPLOMA</div>'
+    if es_dup_qr:
+        reemplazo_txt = f" (emitido en reemplazo del Certificado original N° {nro_ant_esc})" if nro_ant_esc else ""
+        badge += (
+            f'<div style="background:#fff4e5;border:2px solid #e37400;color:#b06000;padding:12px 14px;border-radius:8px;font-size:14.5px;font-weight:bold;text-align:center;margin:12px 0">'
+            f'📄 AVISO OFICIAL: ESTE CERTIFICADO ES UN EJEMPLAR {etiqueta_dup_esc}<br>'
+            f'<span style="font-size:12.5px;font-weight:600">Emitido por la Dirección de Títulos con Nuevo N° de Registro {nro_mostrar_esc}{reemplazo_txt}.</span>'
+            f'</div>'
+        )
+    fila_ejemplar = (
+        f'<tr style="border-bottom:1px solid #e3e8ee;background:#fff8eb"><td style="padding:9px 6px;color:#b06000"><b>Carácter del Certificado:</b></td><td style="padding:9px 6px;color:#b06000"><b>{etiqueta_dup_esc} (Nuevo N° {nro_mostrar_esc})</b></td></tr>'
+        if es_dup_qr else
+        f'<tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Carácter del Certificado:</b></td><td style="padding:9px 6px"><b>ORIGINAL</b></td></tr>'
+    )
     fila_fecha_aprob = (
         f'<tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Fecha de Aprobación:</b></td><td style="padding:9px 6px">{fecha_aprob_esc}</td></tr>'
         if fecha_aprob_esc else ""
@@ -621,6 +641,7 @@ async def pagina_validar_certificado(request: Request) -> HTMLResponse:
       <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Lugar de Nacimiento:</b></td><td style="padding:9px 6px">{lugar_nac_esc}</td></tr>
       <tr style="border-bottom:1px solid #e3e8ee;background:#f8fbff"><td style="padding:9px 6px;color:#1F4E78"><b>Se recibió de (Certificación):</b></td><td style="padding:9px 6px;color:#1F4E78"><b>{oferta_est_esc}</b></td></tr>
       <tr style="border-bottom:1px solid #e3e8ee;background:#f8fbff"><td style="padding:9px 6px;color:#1F4E78"><b>N° de Registro de Diploma:</b></td><td style="padding:9px 6px;color:#1F4E78"><b>{nro_mostrar_esc}</b></td></tr>
+      {fila_ejemplar}
       {fila_fecha_aprob}
       <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Institución de la que egresó:</b></td><td style="padding:9px 6px"><b>{inst_est_esc}</b> (CUE {cue_est_esc})</td></tr>
       <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:9px 6px;color:#555"><b>Libro Actas / Folio:</b></td><td style="padding:9px 6px">Libro Actas N° {libro_est_esc} · Folio N° {folio_est_esc}</td></tr>

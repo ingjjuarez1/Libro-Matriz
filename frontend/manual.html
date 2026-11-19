@@ -236,130 +236,25 @@
 <body>
   <header class="topbar">
     <div>
-      <h1>📖 Manual del Usuario por Rol · Libro Matriz / RAC y Títulos</h1>
-      <span class="sub">Secretaría de Gestión Educativa - Dirección de Educación Técnico Profesional · Dirección de Títulos</span>
+      <h1 id="tituloTopManual">📖 Manual del Usuario · Libro Matriz / RAC y Títulos</h1>
+      <span class="sub" id="subTopManual">Secretaría de Gestión Educativa - Dirección de Educación Técnico Profesional · Dirección de Títulos</span>
     </div>
     <div class="topbar-actions">
-      <button class="btn btn-verde" onclick="window.print()">🖨️ Imprimir / Guardar en PDF</button>
+      <a class="btn btn-verde" id="btnDescargarPdfRol" href="/manuales/01_Manual_Administrativo_de_Escuela.pdf" download>📥 Descargar Manual en PDF</a>
+      <button class="btn" onclick="window.print()">🖨️ Imprimir Manual</button>
       <a class="btn" href="/">← Volver al Sistema</a>
     </div>
   </header>
 
   <div class="contenedor">
-    <!-- PORTADA Y MATRIZ DE PERMISOS -->
-    <section class="portada">
-      <h2>Manual Operativo del Sistema por Rol de Usuario</h2>
+    <!-- PORTADA EXCLUSIVA DEL ROL -->
+    <section class="portada" id="portadaRol">
+      <h2 id="tituloPortadaRol">Manual Operativo del Usuario</h2>
       <p><strong>Ministerio de Educación de la Provincia de Jujuy</strong> · Secretaría de Gestión Educativa · Dirección de Educación Técnico Profesional (DETP) y Dirección de Títulos.</p>
-      <p>Este documento detalla paso a paso las pantallas, funciones y permisos habilitados para cada uno de los <strong>5 roles institucionales</strong> del sistema.</p>
-
-      <div class="indice">
-        <a href="#rol-administrativo">1. Administrativo de la Escuela<span>Carga exclusiva del RAC, Acta de Examen, Importación de Excel y Envío a Títulos</span></a>
-        <a href="#rol-directivo">2. Directivo de la Escuela<span>Supervisión de su institución, lectura del RAC y Dashboard de su Escuela</span></a>
-        <a href="#rol-detp">3. Coordinación Pedagógica (DETP)<span>Supervisión provincial, Dashboard, Aprobación de Títulos y Gestión de Usuarios</span></a>
-        <a href="#rol-titulos">4. Dirección de Títulos (Operativo)<span>Bandeja de Títulos, Aprobación/Observación con Historial, Nómina y RAC</span></a>
-        <a href="#rol-directora-titulos">5. Directora de Títulos (Tatiana)<span>Dashboard Estadístico, Egresados por Acreditación, Consultas QR y Pendientes</span></a>
-        <a href="#anexo-qr">6. Verificación Pública por QR<span>Consulta pública de autenticidad y registro automático de estadísticas QR</span></a>
+      <p id="descPortadaRol">Este manual contiene exclusivamente las pantallas, funciones y permisos habilitados para tu rol en el sistema.</p>
+      <div style="margin-top:14px">
+        <a class="btn btn-verde" id="btnDescargarPdfPortada" href="/manuales/01_Manual_Administrativo_de_Escuela.pdf" download style="padding:10px 18px;font-size:13.5px">📥 Descargar mi Manual en PDF Listo para Imprimir</a>
       </div>
-
-      <div style="margin-top:20px;padding:14px 18px;background:#e6f4ea;border:1px solid #34a853;border-radius:8px">
-        <strong style="color:#137333;font-size:14px;display:block;margin-bottom:8px">📥 Descargar Manuales en PDF individuales por Rol (listos para enviar o imprimir):</strong>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
-          <a class="btn btn-verde" href="/manuales/00_Manual_Completo_Todos_los_Roles.pdf" download>📘 Manual Completo (Todos los Roles)</a>
-          <a class="btn" style="border:1px solid #163a5f" href="/manuales/01_Manual_Administrativo_de_Escuela.pdf" download>📄 1. Administrativo de Escuela (PDF)</a>
-          <a class="btn" style="border:1px solid #163a5f" href="/manuales/02_Manual_Directivo_de_Escuela.pdf" download>📄 2. Directivo de Escuela (PDF)</a>
-          <a class="btn" style="border:1px solid #163a5f" href="/manuales/03_Manual_Coordinacion_Pedagogica_DETP.pdf" download>📄 3. Coordinación DETP (PDF)</a>
-          <a class="btn" style="border:1px solid #163a5f" href="/manuales/04_Manual_Direccion_de_Titulos_Operativo.pdf" download>📄 4. Dirección de Títulos (PDF)</a>
-          <a class="btn" style="border:1px solid #163a5f" href="/manuales/05_Manual_Directora_de_Titulos_Tatiana.pdf" download>📄 5. Directora de Títulos · Tatiana (PDF)</a>
-        </div>
-      </div>
-
-      <h3 style="margin-top:24px;color:var(--azul);font-size:16px">Matriz General de Permisos por Rol</h3>
-      <table class="matriz-permisos">
-        <thead>
-          <tr>
-            <th>Función / Módulo del Sistema</th>
-            <th>Administrativo de Escuela</th>
-            <th>Directivo de Escuela</th>
-            <th>Coordinación DETP</th>
-            <th>Dirección de Títulos</th>
-            <th>Directora de Títulos (Tatiana)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Alcance de Instituciones (CUE)</td>
-            <td>Solo su Escuela</td>
-            <td>Solo su Escuela</td>
-            <td>Todas las Escuelas</td>
-            <td>Todas las Escuelas</td>
-            <td>Todas las Escuelas</td>
-          </tr>
-          <tr>
-            <td><strong>Modificar / Cargar Notas en el RAC y Acta</strong></td>
-            <td style="color:#137333;font-weight:700">✔ SÍ (Exclusivo)</td>
-            <td>❌ Solo Lectura</td>
-            <td>❌ Solo Lectura</td>
-            <td>❌ Solo Lectura</td>
-            <td>❌ No ve RAC</td>
-          </tr>
-          <tr>
-            <td>Ver Registro Anual de Calificaciones (RAC)</td>
-            <td>✔ Sí</td>
-            <td>✔ Sí</td>
-            <td>✔ Sí</td>
-            <td>✔ Sí</td>
-            <td>❌ No</td>
-          </tr>
-          <tr>
-            <td>Importar Viejo Excel (Archivos o Carpeta)</td>
-            <td>✔ Sí (Su CUE)</td>
-            <td>❌ No</td>
-            <td>✔ Sí (Todas)</td>
-            <td>❌ No</td>
-            <td>❌ No</td>
-          </tr>
-          <tr>
-            <td>Enviar Solicitudes de Certificados a Títulos</td>
-            <td>✔ Sí</td>
-            <td>❌ No</td>
-            <td>✔ Sí</td>
-            <td>—</td>
-            <td>❌ No</td>
-          </tr>
-          <tr>
-            <td>Aprobar / Observar Certificados y Emitir QR</td>
-            <td>❌ No</td>
-            <td>❌ No</td>
-            <td>✔ Sí</td>
-            <td>✔ Sí</td>
-            <td>❌ Solo Consulta Pendientes</td>
-          </tr>
-          <tr>
-            <td>Ver Planilla de Nómina de Egresados y Analítico</td>
-            <td>✔ Sí</td>
-            <td>✔ Sí</td>
-            <td>✔ Sí</td>
-            <td>✔ Sí</td>
-            <td>✔ Sí</td>
-          </tr>
-          <tr>
-            <td>Ver 📊 Dashboard de Estadísticas + Consultas QR + Nivel Acreditación</td>
-            <td>❌ No</td>
-            <td style="color:#137333;font-weight:700">✔ SÍ (Solo su Escuela)</td>
-            <td>✔ SÍ (Todas)</td>
-            <td>✔ SÍ (Todas)</td>
-            <td style="color:#137333;font-weight:700">✔ SÍ (Todas)</td>
-          </tr>
-          <tr>
-            <td>Crear / Modificar / Dar de Baja Usuarios (`👤 Usuarios`)</td>
-            <td>❌ No</td>
-            <td>❌ No</td>
-            <td>✔ Sí</td>
-            <td>✔ Sí</td>
-            <td>❌ No</td>
-          </tr>
-        </tbody>
-      </table>
     </section>
 
     <!-- ROL 1: ADMINISTRATIVO DE LA ESCUELA -->
@@ -388,7 +283,8 @@
             </ul>
           </li>
           <li><strong>Acta de Examen, Certificado, Nómina de Egresados y Circuito de Certificados:</strong> Completa Libro, Folio y Fecha del Acta de Examen, imprime la <strong>Nómina de Egresados</strong> y envía con un clic (<code>📤 Enviar todos los aprobados a Dirección de Títulos</code>) los certificados para su aprobación centralizada.</li>
-          <li><strong>📄 Solicitud de Certificado Duplicado (Inicializado por el Administrativo):</strong> Cuando un egresado ya cuenta con un certificado aprobado (o ya impreso y bloqueado) y necesita un nuevo ejemplar, el <strong>Administrativo de la Escuela</strong> presiona el botón <code>📄 Solicitar Duplicado</code> (en la pestaña <em>Circuito de Certificados</em> o en la pestaña <em>Certificado</em>), indica el motivo y envía el pedido a la <strong>Dirección de Títulos</strong>. Una vez que Títulos lo chequea y autoriza, el sistema genera un <strong>Nuevo Título con un Nuevo Número correlativo</strong> listo para imprimir.</li>
+          <li><strong>📝 Nota de Elevación para Firma de Certificados en Soporte Papel (con Firma del Director/a):</strong> Una vez impresos los títulos aprobados, el <strong>Administrativo</strong> presiona el botón <code>📝 Generar Nota de Elevación (Firma Director/a)</code> (disponible en <em>Circuito de Certificados</em> y en <em>Certificado</em>). El sistema genera la Nota Oficial dirigida a la Directora de Títulos con el listado de certificados impresos, el espacio para la <strong>Firma y Sello del Director/a del Establecimiento</strong> y el talón de recepción en Mesa de Entradas de Títulos para cuando lleva los papeles físicamente.</li>
+          <li><strong>📄 Solicitud de Certificado Duplicado (Inicializado por el Administrativo):</strong> Cuando un egresado ya cuenta con un certificado aprobado (o ya impreso y bloqueado) y necesita un nuevo ejemplar, el <strong>Administrativo de la Escuela</strong> presiona el botón <code>📄 Solicitar Duplicado</code>, indica el motivo y envía el pedido a la <strong>Dirección de Títulos</strong>. Cuando Títulos lo chequea y autoriza, el sistema genera un <strong>Nuevo Título con un Nuevo Número único (<code>AÑO_IMPRESIÓN-CUE-SIGUIENTE_NÚMERO</code>, que jamás se repite bajo ningún caso)</strong> y su Código QR informa al visitarlo que se trata de un ejemplar <strong>DUPLICADO</strong>.</li>
         </ol>
       </div>
 
@@ -653,5 +549,101 @@
       </div>
     </section>
   </div>
+
+  <script>
+    (async function filtrarManualPorRolActivo() {
+      var MAPA_ROLES = {
+        'administrativo': {
+          seccionId: 'rol-administrativo',
+          incluirQr: false,
+          titulo: 'Manual del Usuario · Rol: Administrativo de la Escuela',
+          desc: 'Guía exclusiva para el Administrativo de la Escuela: carga y modificación del RAC, Acta de Examen, Importación de Excel, envío a Títulos y solicitud de Certificados Duplicados.',
+          pdf: '/manuales/01_Manual_Administrativo_de_Escuela.pdf'
+        },
+        'directivo': {
+          seccionId: 'rol-directivo',
+          incluirQr: false,
+          titulo: 'Manual del Usuario · Rol: Directivo de la Escuela',
+          desc: 'Guía exclusiva para el Directivo de la Escuela: supervisión del RAC en modo lectura, impresión de documentación oficial y Dashboard Estadístico exclusivo de su establecimiento.',
+          pdf: '/manuales/02_Manual_Directivo_de_Escuela.pdf'
+        },
+        'dirección detp': {
+          seccionId: 'rol-detp',
+          incluirQr: true,
+          titulo: 'Manual del Usuario · Rol: Coordinación Área Pedagógica DETP',
+          desc: 'Guía exclusiva para la Coordinación Área Pedagógica DETP: supervisión provincial, Dashboard de Estadísticas, egresados por nivel de acreditación y gestión de usuarios.',
+          pdf: '/manuales/03_Manual_Coordinacion_Pedagogica_DETP.pdf'
+        },
+        'titulos': {
+          seccionId: 'rol-titulos',
+          incluirQr: true,
+          titulo: 'Manual del Usuario · Rol: Dirección de Títulos (Operativo)',
+          desc: 'Guía exclusiva para la Dirección de Títulos: bandeja centralizada, aprobación/observación con Historial de auditoría y autorización de Certificados Duplicados con nuevo número.',
+          pdf: '/manuales/04_Manual_Direccion_de_Titulos_Operativo.pdf'
+        },
+        'directora de títulos': {
+          seccionId: 'rol-directora-titulos',
+          incluirQr: true,
+          titulo: 'Manual del Usuario · Rol: Directora de Títulos (REINOSO TORRES Tatiana Marisel)',
+          desc: 'Guía exclusiva para la Directora de Títulos: Dashboard de Estadísticas, egresados por nivel de acreditación, consultas por QR y supervisión de pendientes de Títulos.',
+          pdf: '/manuales/05_Manual_Directora_de_Titulos_Tatiana.pdf'
+        }
+      };
+
+      function normalizarClaveRol(rolStr) {
+        var r = String(rolStr || '').trim().toLowerCase();
+        if (r.indexOf('directora') !== -1) return 'directora de títulos';
+        if (r === 'titulos' || r === 'títulos' || r.indexOf('dirección de títulos') !== -1) return 'titulos';
+        if (r.indexOf('detp') !== -1 || r.indexOf('dirección') !== -1 || r.indexOf('direccion') !== -1) return 'dirección detp';
+        if (r.indexOf('directivo') !== -1) return 'directivo';
+        return 'administrativo';
+      }
+
+      var params = new URLSearchParams(window.location.search);
+      var rolDetectado = params.get('rol') || localStorage.getItem('lm_rol_actual') || '';
+      var emailGuardado = localStorage.getItem('lm_email') || '';
+
+      try {
+        var headers = { 'Accept': 'application/json' };
+        if (emailGuardado) headers['X-User-Email'] = emailGuardado;
+        var resp = await fetch('/api/inicio', { headers: headers });
+        if (resp.ok) {
+          var json = await resp.json();
+          if (json && json.sesion && json.sesion.rol) {
+            rolDetectado = json.sesion.rol;
+            localStorage.setItem('lm_rol_actual', rolDetectado);
+          }
+        }
+      } catch (e) {}
+
+      var clave = normalizarClaveRol(rolDetectado);
+      var conf = MAPA_ROLES[clave] || MAPA_ROLES['administrativo'];
+
+      // Ocultar todas las secciones que no correspondan al rol activo
+      var todasSecciones = ['rol-administrativo', 'rol-directivo', 'rol-detp', 'rol-titulos', 'rol-directora-titulos', 'anexo-qr'];
+      todasSecciones.forEach(function (idSec) {
+        var el = document.getElementById(idSec);
+        if (!el) return;
+        if (idSec === conf.seccionId || (idSec === 'anexo-qr' && conf.incluirQr)) {
+          el.style.display = 'block';
+        } else {
+          el.style.display = 'none';
+        }
+      });
+
+      document.title = conf.titulo + ' · DETP Jujuy';
+      var tTop = document.getElementById('tituloTopManual');
+      if (tTop) tTop.textContent = '📖 ' + conf.titulo;
+      var tPort = document.getElementById('tituloPortadaRol');
+      if (tPort) tPort.textContent = conf.titulo;
+      var dPort = document.getElementById('descPortadaRol');
+      if (dPort) dPort.textContent = conf.desc;
+
+      var b1 = document.getElementById('btnDescargarPdfRol');
+      if (b1) b1.href = conf.pdf;
+      var b2 = document.getElementById('btnDescargarPdfPortada');
+      if (b2) b2.href = conf.pdf;
+    })();
+  </script>
 </body>
 </html>

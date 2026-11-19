@@ -199,7 +199,7 @@ function problema(e) {
 window.addEventListener('load', async function () {
   if ($('btnTopDashboard')) {
     $('btnTopDashboard').addEventListener('click', function () {
-      if (estado.sesion && (estado.sesion.verTodo || estado.sesion.esTitulos)) {
+      if (estado.sesion && (estado.sesion.verTodo || estado.sesion.esTitulos || estado.sesion.puedeVerDashboard || estado.sesion.rol === 'Directivo')) {
         verResumen();
       }
     });
@@ -306,6 +306,14 @@ async function iniciarSesion() {
     }
     if ($('btnTopDashboard')) {
       $('btnTopDashboard').hidden = !(r.sesion.verTodo || r.sesion.esTitulos || r.sesion.puedeVerDashboard || r.sesion.rol === 'Directivo');
+    }
+    try {
+      localStorage.setItem('lm_rol_actual', r.sesion.rol || '');
+      localStorage.setItem('lm_nombre_actual', r.sesion.nombre || '');
+    } catch (e) {}
+    if ($('btnTopManual')) {
+      $('btnTopManual').href = '/manual.html?rol=' + encodeURIComponent(r.sesion.rol || '');
+      $('btnTopManual').textContent = '📖 Manual (' + (r.sesion.rol || 'Usuario') + ')';
     }
     var cursosServidor = r.cursos || [];
     var idsPresentes = {};
@@ -1420,11 +1428,20 @@ function pintarSolicitudesCurso() {
       '</div>'
     : '';
 
+  var puedeGenerarNotaElevacion = Boolean(estado.sesion && (estado.sesion.puedeCargar || estado.sesion.rol === 'Directivo' || estado.sesion.verTodo));
+  var barraNotaElevacionHtml = puedeGenerarNotaElevacion
+    ? '<div class="acciones no-imprimir" style="background:#eef4fa;padding:10px 14px;border:1px solid #0a8fd5;border-radius:6px;justify-content:space-between">' +
+        '<span style="color:#112a46;font-size:12.5px">📄 <b>Presentación en Soporte Papel ante Dirección de Títulos:</b> Una vez impresos los títulos, generá la <b>Nota de Elevación</b> con firma del Director/a del establecimiento para presentar los certificados en papel.</span>' +
+        '<button type="button" class="boton" style="background:#112a46;white-space:nowrap" id="btnGenerarNotaElevacion">📝 Generar Nota de Elevación (Firma Director/a)</button>' +
+      '</div>'
+    : '';
+
   $('panel').innerHTML =
     '<div class="ficha">' +
       '<dt>Regla de certificación:</dt>' +
       '<dd>Solo pueden recibir certificado oficial los alumnos académicamente aprobados (<b>"Aprobó"</b> y nota final ≥ 7). Quienes no aprobaron no tienen la opción habilitada.</dd>' +
     '</div>' +
+    barraNotaElevacionHtml +
     barraTitulosHtml +
     '<div class="tabla-ancha"><table><thead><tr>' +
       '<th style="width:36px">N°</th><th>Estudiante</th><th style="width:90px">DNI</th>' +
@@ -1432,6 +1449,9 @@ function pintarSolicitudesCurso() {
       '<th style="width:140px">N° Certificado</th><th style="width:260px">Acción</th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table></div>';
 
+  if ($('btnGenerarNotaElevacion')) {
+    $('btnGenerarNotaElevacion').addEventListener('click', abrirModalNotaElevacionTitulos);
+  }
   if ($('btnAprobarTodosSol')) {
     $('btnAprobarTodosSol').addEventListener('click', function () {
       aprobarTitulosCurso(null, 'solicitudes');
@@ -1668,19 +1688,165 @@ function abrirModalSolicitarDuplicado(doc, nombre, nroCertActual) {
   $('btnConfirmarDuplicado').addEventListener('click', async function () {
     var mot = ($('m_motivoDuplicado').value || '').trim() || 'Solicitud de ejemplar Duplicado.';
     cerrarModal();
-    avisar('Enviando solicitud de Certificado Duplicado a Dirección de Títulos…');
+    var autoApr = Boolean(estado.sesion && estado.sesion.puedeAprobarTitulos);
+    avisar(autoApr ? 'Emitiendo Nuevo Título Duplicado con nuevo número…' : 'Enviando solicitud de Certificado Duplicado a Dirección de Títulos…');
     try {
       await llamar('/api/solicitudes', 'POST', {
-        idCurso: estado.curso.id,
+        idCurso: (estado.curso && estado.curso.id) ? estado.curso.id : (window._idCursoDuplicadoTemp || ''),
         documento: doc,
         esDuplicado: true,
-        motivoDuplicado: mot
+        motivoDuplicado: mot,
+        autoAprobar: autoApr
       });
-      avisar('¡Pedido de Certificado Duplicado enviado a Dirección de Títulos para su autorización!', 'ok');
-      abrirCurso(estado.curso.id, 'solicitudes');
+      avisar(autoApr ? '¡Nuevo Título Duplicado emitido con nuevo número correlativo único!' : '¡Pedido de Certificado Duplicado enviado a Dirección de Títulos para su autorización!', 'ok');
+      if (estado.curso && estado.curso.id) {
+        abrirCurso(estado.curso.id, 'solicitudes');
+      } else {
+        verBandejaTitulos();
+      }
     } catch (e) {
       problema(e);
     }
+  });
+}
+
+function abrirModalNotaElevacionTitulos() {
+  cerrarModal();
+  if (!estado.datos) return;
+  var d = estado.datos;
+  var enc = d.encabezado || {};
+  var cResumen = estado.curso || {};
+  var establecimiento = enc.establecimiento || cResumen.institucion || 'Escuela Profesional';
+  var cue = enc.cue || cResumen.cue || '3800006';
+  var domicilio = enc.domicilio || 'S/D';
+  var localidad = enc.localidad || 'San Salvador de Jujuy';
+  var oferta = enc.oferta || cResumen.oferta || 'Formación Profesional';
+  var ciclo = enc.ciclo || cResumen.ciclo || String(new Date().getFullYear());
+  var turno = enc.turno || cResumen.turno || '—';
+  var division = enc.division || cResumen.division || '"U"';
+  var norma = enc.normaAprobacion || enc.disenio || 'Res. Ministerial';
+
+  var meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var hoy = new Date();
+  var fechaLarga = localidad + ', Jujuy, ' + hoy.getDate() + ' de ' + meses[hoy.getMonth()] + ' de ' + hoy.getFullYear();
+
+  var egresadosLista = (d.estudiantes || []).filter(function (es) {
+    return _estadoAcademicoEstudiante(es) === 'APROBADO';
+  });
+
+  var filasTabla = egresadosLista.length
+    ? egresadosLista.map(function (es, idx) {
+        var sol = es.solicitudCertificado || {};
+        var nroCert = sol.numeroCertificado || 'En trámite';
+        var caracter = sol.esDuplicado ? (sol.etiquetaEjemplar || 'DUPLICADO') : 'ORIGINAL';
+        var libFol = 'L° ' + (es.libroActa || enc.libro || '1') + ' / F° ' + (es.folio || enc.folio || '1');
+        return '<tr>' +
+          '<td style="text-align:center;border:1px solid #000;padding:5px">' + (idx + 1) + '</td>' +
+          '<td style="border:1px solid #000;padding:5px"><b>' + esc(es.apellido) + ', ' + esc(es.nombres) + '</b></td>' +
+          '<td style="text-align:center;border:1px solid #000;padding:5px">' + esc(es.documento) + '</td>' +
+          '<td style="text-align:center;border:1px solid #000;padding:5px;font-weight:700">' + esc(nroCert) + '</td>' +
+          '<td style="text-align:center;border:1px solid #000;padding:5px;font-weight:700">' + esc(caracter) + '</td>' +
+          '<td style="text-align:center;border:1px solid #000;padding:5px">' + esc(libFol) + '</td>' +
+        '</tr>';
+      }).join('')
+    : '<tr><td colspan="6" style="text-align:center;border:1px solid #000;padding:10px">No hay egresados aprobados registrados en este curso.</td></tr>';
+
+  var modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.id = 'modalActivo';
+  modal.innerHTML =
+    '<div class="modal-caja" style="max-width:860px;max-height:90vh;overflow:auto">' +
+      '<div class="no-imprimir" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--borde);padding-bottom:10px">' +
+        '<div>' +
+          '<h2 style="margin:0">📝 Nota de Elevación de Certificados Impresos (Para Firma de Títulos)</h2>' +
+          '<div style="font-size:12px;color:var(--suave)">Generada por el Administrativo para presentar los certificados en papel con firma del Director/a del establecimiento.</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button type="button" class="boton" style="background:#137333" id="btnImprimirNotaElevacion">🖨️ Imprimir Nota (A4)</button>' +
+          '<button type="button" class="boton suave" onclick="cerrarModal()">Cerrar ✕</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<div id="hojaNotaElevacionImpresion" style="background:#fff;color:#000;padding:24px 30px;border:1px solid #ccc;font-family:\'Times New Roman\',Georgia,serif;font-size:13.5px;line-height:1.55">' +
+        '<div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:16px">' +
+          '<div style="font-size:14px;font-weight:700;letter-spacing:0.4px">MINISTERIO DE EDUCACIÓN · PROVINCIA DE JUJUY</div>' +
+          '<div style="font-size:13px;font-weight:700">SECRETARÍA DE GESTIÓN EDUCATIVA - DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL</div>' +
+          '<div style="font-size:13.5px;font-weight:700;margin-top:3px">' + esc(establecimiento.toUpperCase()) + ' · CUE N° ' + esc(cue) + '</div>' +
+          '<div style="font-size:11.5px">Domicilio: ' + esc(domicilio) + ' · Localidad: ' + esc(localidad) + '</div>' +
+        '</div>' +
+
+        '<div style="text-align:right;margin-bottom:14px"><b>' + esc(fechaLarga) + '</b></div>' +
+
+        '<div style="margin-bottom:14px;line-height:1.4">' +
+          '<b>A LA DIRECTORA DE TÍTULOS</b><br>' +
+          '<b>MINISTERIO DE EDUCACIÓN DE LA PROVINCIA DE JUJUY</b><br>' +
+          '<b>REINOSO TORRES, Tatiana Marisel</b><br>' +
+          '<b><u>S &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; D</u></b>' +
+        '</div>' +
+
+        '<div style="margin-bottom:12px"><b>Ref.:</b> Solicitud de Firma y Legalización de Certificados Impresos en Soporte Papel — Oferta Formativa: <b>' + esc(oferta) + '</b> (Ciclo Lectivo ' + esc(ciclo) + ').</div>' +
+
+        '<p style="text-align:justify;text-indent:28px;margin:10px 0">' +
+          'Tengo el agrado de dirigirme a Ud., en mi carácter de Director/a del establecimiento educativo <b>' + esc(establecimiento) + '</b> (CUE N° <b>' + esc(cue) + '</b>), a fin de elevar en soporte papel para su control, intervención y firma oficial un total de <b>' + egresadosLista.length + '</b> Certificado(s) de Formación Profesional previamente procesados en el Sistema Digital de Registro Anual de Calificaciones (RAC), correspondientes a la oferta formativa <b>' + esc(oferta) + '</b>, Turno <b>' + esc(turno) + '</b>, División <b>' + esc(division) + '</b>, Ciclo Lectivo <b>' + esc(ciclo) + '</b> (Norma Jurisdiccional N° <b>' + esc(norma) + '</b>), conforme al siguiente detalle:' +
+        '</p>' +
+
+        '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;color:#000">' +
+          '<thead>' +
+            '<tr style="background:#f1f5f9">' +
+              '<th style="border:1px solid #000;padding:6px;width:36px;text-align:center">N°</th>' +
+              '<th style="border:1px solid #000;padding:6px;text-align:left">Apellido y Nombres del Egresado</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:85px;text-align:center">DNI</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:155px;text-align:center">N° Certificado Oficial</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:90px;text-align:center">Ejemplar</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:95px;text-align:center">Libro / Folio</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' + filasTabla + '</tbody>' +
+        '</table>' +
+
+        '<p style="text-align:justify;text-indent:28px;margin:12px 0">' +
+          'Se adjuntan a la presente nota los certificados impresos junto con la documentación respaldatoria correspondiente (copia del Registro Anual de Calificaciones, Acta de Examen y Nómina de Egresados). Sin otro particular, saludo a Ud. con mi consideración más distinguida.' +
+        '</p>' +
+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:46px;text-align:center;align-items:end">' +
+          '<div>' +
+            '<div style="border-top:1px dashed #333;width:210px;margin:0 auto 6px"></div>' +
+            '<b>Sello Oficial del Establecimiento</b><br>' +
+            '<span style="font-size:11.5px">' + esc(establecimiento) + '</span>' +
+          '</div>' +
+          '<div>' +
+            '<div style="border-top:1px solid #000;width:230px;margin:0 auto 6px"></div>' +
+            '<b>Firma y Sello del Director/a</b><br>' +
+            '<span style="font-size:11.5px">' + esc(establecimiento) + ' · CUE ' + esc(cue) + '</span>' +
+          '</div>' +
+        '</div>' +
+
+        '<div style="margin-top:34px;border:1px solid #000;padding:10px 14px;font-size:11.5px;line-height:1.5">' +
+          '<b>CONSTANCIA DE RECEPCIÓN EN MESA DE ENTRADAS — DIRECCIÓN DE TÍTULOS (SOPORTE PAPEL):</b><br>' +
+          'Fecha de Recepción: ......../......../202.... &nbsp;&nbsp;·&nbsp;&nbsp; Hora: ........:........ hs &nbsp;&nbsp;·&nbsp;&nbsp; Cant. Certificados Recibidos: ............<br>' +
+          'Presentado por (Administrativo/a): ....................................................... &nbsp;&nbsp;·&nbsp;&nbsp; Firma y Sello Receptor Títulos: ............................................' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(modal);
+
+  $('btnImprimirNotaElevacion').addEventListener('click', function () {
+    var hoja = $('hojaNotaElevacionImpresion');
+    if (!hoja) return;
+    var win = window.open('', '_blank', 'width=900,height=950');
+    if (!win) {
+      window.print();
+      return;
+    }
+    win.document.write(
+      '<!DOCTYPE html><html lang="es-AR"><head><meta charset="utf-8"><title>Nota de Elevación · ' + esc(establecimiento) + '</title>' +
+      '<style>@page{size:A4 portrait;margin:14mm 16mm}body{margin:0;color:#000;background:#fff;font-family:"Times New Roman",Georgia,serif}</style>' +
+      '</head><body>' + hoja.innerHTML + '</body></html>'
+    );
+    win.document.close();
+    win.focus();
+    setTimeout(function () { win.print(); }, 250);
   });
 }
 
@@ -1706,6 +1872,7 @@ function pintarAnalitico() {
       '<label style="display:flex;align-items:center;gap:6px">Emisión: <input type="date" id="fecha"></label>' +
       '<button class="boton" id="generar" style="background:#1F4E78">Ver el certificado</button>' +
       '<button class="boton suave" id="imprimir" disabled style="opacity:0.5;cursor:not-allowed">Imprimir</button>' +
+      '<button type="button" class="boton suave" onclick="abrirModalNotaElevacionTitulos()" title="Generar Nota de Elevación con firma del Director/a para llevar los certificados en papel a Títulos">📝 Nota de Elevación (Firma Director/a)</button>' +
     '</div>' +
     '<div id="bannerEstadoAnalitico"></div>' +
     '<div id="salida"></div>';
@@ -2059,7 +2226,8 @@ async function verBandejaTitulos() {
             '<button class="boton" style="padding:4px 10px;font-size:12px" onclick="abrirModalAprobar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ', ' + (s.esDuplicado ? 'true' : 'false') + ')">' + lblApr + '</button> ' +
             '<button class="boton suave" style="padding:4px 10px;font-size:12px;color:var(--mal);border-color:var(--mal)" onclick="abrirModalObservar(' + escJsArg(s.id) + ', ' + escJsArg(s.estudiante) + ')">Observar</button>';
         } else {
-          accionesHtml = '<span style="color:var(--suave);font-size:12px">Calificaciones congeladas</span>';
+          accionesHtml =
+            '<button class="boton suave" style="padding:4px 8px;font-size:11.5px" title="Emitir un Nuevo Certificado Duplicado con Nuevo Número AÑO-CUE-SIGUIENTE_NUMERO" onclick="window._idCursoDuplicadoTemp=' + escJsArg(s.idCurso) + ';abrirModalSolicitarDuplicado(' + escJsArg(s.documento) + ', ' + escJsArg(s.estudiante) + ', ' + escJsArg(s.numeroCertificado || '') + ')">📄 Emitir Duplicado</button>';
         }
       } else {
         accionesHtml = '<span style="color:var(--suave);font-size:12px">Consulta de estado</span>';
@@ -2187,10 +2355,10 @@ function abrirModalAprobar(idSol, nombre, esDuplicado) {
           ? 'Al autorizar este pedido de Duplicado iniciado por el Administrativo de la escuela, el sistema generará un <b>Nuevo Título con un Nuevo Número oficial</b> y habilitará su impresión.'
           : 'Al aprobar, se genera el número oficial y las notas del estudiante quedan bloqueadas permanentemente.') +
       '</p>' +
-      '<label style="display:block;margin:12px 0">' +
-        'Nuevo Número de Certificado (dejar vacío para generar nuevo correlativo automático AÑO-CUE-00001):' +
-        '<input id="m_numCert" style="width:100%;margin-top:6px" placeholder="Ej: 2026-380000600-00002">' +
-      '</label>' +
+      '<div style="background:#eef4fa;border:1px solid #0a8fd5;padding:10px 12px;border-radius:6px;margin:12px 0;font-size:12.5px;color:#112a46">' +
+        '🔢 <b>Asignación Automática de Número Único:</b> Se asignará automáticamente el próximo número oficial con formato <b>AÑO_IMPRESIÓN-CUE-SIGUIENTE_NÚMERO</b> (este número es único y jamás se repite bajo ningún caso).' +
+        '<input id="m_numCert" type="hidden" value="">' +
+      '</div>' +
       '<div class="acciones" style="justify-content:flex-end">' +
         '<button class="boton suave" onclick="cerrarModal()">Cancelar</button>' +
         '<button class="boton" id="btnConfirmarAprobar">' + (esDuplicado ? 'Autorizar y Generar Nuevo Número' : 'Aprobar y Congelar Notas') + '</button>' +

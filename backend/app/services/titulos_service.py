@@ -149,11 +149,29 @@ def _normalizar_historial_solicitud(sol: Dict[str, Any]) -> None:
     sol["historial"] = hist
 
 
+def _todos_los_numeros_emitidos() -> set:
+    """Devuelve el conjunto histórico de todos los números de certificado jamás emitidos (vigentes o reemplazados por duplicados)."""
+    usados = set()
+    for sol in _SOLICITUDES_CACHE.values():
+        n_act = str(sol.get("numeroCertificado") or "").strip()
+        if n_act:
+            usados.add(n_act)
+        n_ant = str(sol.get("numeroCertificadoAnterior") or "").strip()
+        if n_ant:
+            usados.add(n_ant)
+        for c_old in (sol.get("certificadosAnteriores") or []):
+            if isinstance(c_old, dict):
+                n_old = str(c_old.get("numeroCertificado") or "").strip()
+                if n_old:
+                    usados.add(n_old)
+    return usados
+
+
 def _reconstruir_correlativos() -> None:
-    """Reconstruye los contadores correlativos por año desde los números de certificado guardados."""
+    """Reconstruye los contadores correlativos por año desde todos los números de certificado guardados e históricos."""
     for sol in _SOLICITUDES_CACHE.values():
         _normalizar_historial_solicitud(sol)
-        nro = str(sol.get("numeroCertificado", "")).strip()
+    for nro in _todos_los_numeros_emitidos():
         m = re.match(r"^(\d{4})-.*-(\d+)$", nro)
         if m:
             try:
@@ -216,14 +234,23 @@ def _guardar_solicitudes_disco() -> None:
 _cargar_solicitudes_disco()
 
 def _siguiente_numero_certificado(cue: str = "") -> str:
+    """
+    Genera un nuevo número único con el formato oficial: AÑO_IMPRESION-CUE-SIGUIENTE_NUMERO.
+    REGLA ESTRICTA: Nunca se repite este número bajo ningún caso (ni en originales ni en duplicados).
+    """
+    _reconstruir_correlativos()
+    usados = _todos_los_numeros_emitidos()
     anio = datetime.datetime.now().year
-    actual = _CORRELATIVO_POR_ANIO.get(anio, 0) + 1
-    _CORRELATIVO_POR_ANIO[anio] = actual
     cue_limpio = "".join(ch for ch in str(cue or "") if ch.isdigit()) or "380000600"
     if len(cue_limpio) == 7:
         cue_limpio = cue_limpio + "00"
-    # Formato oficial: AÑO-CUE-00001 (se reinicia a 00001 automáticamente al comenzar cada nuevo año)
-    return f"{anio}-{cue_limpio}-{actual:05d}"
+    actual = _CORRELATIVO_POR_ANIO.get(anio, 0) + 1
+    candidato = f"{anio}-{cue_limpio}-{actual:05d}"
+    while candidato in usados or any(u.startswith(f"{anio}-") and u.endswith(f"-{actual:05d}") for u in usados):
+        actual += 1
+        candidato = f"{anio}-{cue_limpio}-{actual:05d}"
+    _CORRELATIVO_POR_ANIO[anio] = actual
+    return candidato
 
 def listar_solicitudes(sesion_usr: Dict[str, Any], estado_filtro: Optional[str] = None, id_curso: Optional[str] = None) -> List[Dict[str, Any]]:
     """
@@ -549,8 +576,10 @@ def aprobar_solicitud(id_solicitud: str, sesion_usr: Dict[str, Any], numero_cert
         return sol
 
     _normalizar_historial_solicitud(sol)
+    usados = _todos_los_numeros_emitidos()
     num_cert = str(numero_certificado or "").strip()
-    if not num_cert:
+    # Garantizar que jamás se repita un número existente bajo ningún caso
+    if not num_cert or num_cert in usados or sol.get("esDuplicado"):
         num_cert = _siguiente_numero_certificado(sol.get("cue", ""))
 
     ahora_dt = datetime.datetime.now()
@@ -798,6 +827,7 @@ def registrar_impresion_certificado(id_curso: str, documento: str, sesion_usr: D
 def validar_certificado_por_numero(nro_certificado: str, dni: Optional[str] = None) -> Dict[str, Any]:
     """
     Verifica públicamente (vía QR) si un certificado o título es válido y fue aprobado por Títulos.
+    Si el certificado es un DUPLICADO, emite el mensaje oficial indicando que es DUPLICADO.
     Registra cada consulta QR para el Dashboard de Estadísticas.
     """
     nro_limpio = str(nro_certificado or "").strip()
@@ -806,17 +836,37 @@ def validar_certificado_por_numero(nro_certificado: str, dni: Optional[str] = No
 
     for sol in _SOLICITUDES_CACHE.values():
         match_nro = bool(nro_limpio and sol.get("numeroCertificado") == nro_limpio)
+        match_ant = any(
+            isinstance(c_ant, dict) and str(c_ant.get("numeroCertificado") or "").strip() == nro_limpio
+            for c_ant in (sol.get("certificadosAnteriores") or [])
+        ) or (bool(nro_limpio) and str(sol.get("numeroCertificadoAnterior") or "").strip() == nro_limpio)
         match_dni = bool(dni_limpio and sol.get("documento") == dni_limpio)
-        if match_nro or ( not nro_limpio and match_dni ):
+        if match_nro or match_ant or (not nro_limpio and match_dni):
             sol["consultasQr"] = int(sol.get("consultasQr") or 0) + 1
             sol["ultimaConsultaQr"] = ahora_qr
             _guardar_solicitudes_disco()
             es_valido = (sol.get("estado") == EstadoCertificado.APROBADO and bool(sol.get("numeroCertificado")))
+            es_dup = bool(sol.get("esDuplicado", False) or match_ant)
+            etiqueta_ej = str(sol.get("etiquetaEjemplar") or ("DUPLICADO" if es_dup else "ORIGINAL"))
+            nro_vigente = str(sol.get("numeroCertificado") or nro_limpio)
+            nro_ant = str(sol.get("numeroCertificadoAnterior") or "")
+            msg_dup = ""
+            if es_dup:
+                msg_dup = (
+                    f"CERTIFICADO DUPLICADO OFICIAL ({etiqueta_ej}) — "
+                    f"Emitido con Nuevo N° {nro_vigente}"
+                    + (f" (reemplaza al Certificado original N° {nro_ant})." if nro_ant else ".")
+                )
             return {
                 "valido": es_valido,
                 "estado": sol.get("estado"),
                 "idCurso": sol.get("idCurso", ""),
-                "numeroCertificado": sol.get("numeroCertificado", ""),
+                "numeroCertificado": nro_vigente,
+                "esDuplicado": es_dup,
+                "ejemplarNumero": int(sol.get("ejemplarNumero") or (2 if es_dup else 1)),
+                "etiquetaEjemplar": etiqueta_ej,
+                "numeroCertificadoAnterior": nro_ant,
+                "mensajeDuplicado": msg_dup,
                 "estudiante": sol.get("estudiante", ""),
                 "documento": sol.get("documento", ""),
                 "oferta": sol.get("oferta", ""),
@@ -832,5 +882,7 @@ def validar_certificado_por_numero(nro_certificado: str, dni: Optional[str] = No
         "valido": False,
         "estado": "No registrado / Borrador",
         "numeroCertificado": nro_limpio,
+        "esDuplicado": False,
+        "mensajeDuplicado": "",
         "mensaje": "El certificado consultado no figura como aprobado en el Registro Oficial de la Dirección de Títulos."
     }
