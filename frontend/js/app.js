@@ -1443,12 +1443,22 @@ function pintarSolicitudesCurso() {
       '</div>'
     : '';
 
+  var barraNotaRetiroTitulosHtml = (esTitulos || estado.sesion.verTodo || todosEnCondicionesNota)
+    ? '<div class="acciones no-imprimir" style="background:#e6f4ea;padding:12px 16px;border:1px solid #34a853;border-radius:8px;justify-content:space-between">' +
+        '<span style="color:#135c2d;font-size:12.5px">🎓 <b>Entrega y Retiro de Cartones (Certificados) Firmados por Dirección de Títulos:</b> Una vez que la Directora de Títulos firmó los certificados de este espacio curricular, generá la <b>Nota / Acta de Entrega y Retiro</b> con el N° Único de Certificado de cada alumno para firma de quien entrega en Títulos y del Director/a o Administrativo/a que recibe.</span>' +
+        '<button type="button" class="boton" style="background:#137333;color:#ffffff;white-space:nowrap" id="btnGenerarNotaRetiroTitulos">' +
+          '📋 Generar Nota de Retiro de Certificados (Títulos)' +
+        '</button>' +
+      '</div>'
+    : '';
+
   $('panel').innerHTML =
     '<div class="ficha">' +
       '<dt>Regla de certificación:</dt>' +
       '<dd>Solo pueden recibir certificado oficial los alumnos académicamente aprobados (<b>"Aprobó"</b> y nota final ≥ 7). Quienes no aprobaron no tienen la opción habilitada.</dd>' +
     '</div>' +
     barraNotaElevacionHtml +
+    barraNotaRetiroTitulosHtml +
     barraTitulosHtml +
     '<div class="tabla-ancha"><table><thead><tr>' +
       '<th style="width:36px">N°</th><th>Estudiante</th><th style="width:90px">DNI</th>' +
@@ -1458,6 +1468,11 @@ function pintarSolicitudesCurso() {
 
   if ($('btnGenerarNotaElevacion')) {
     $('btnGenerarNotaElevacion').addEventListener('click', abrirModalNotaElevacionTitulos);
+  }
+  if ($('btnGenerarNotaRetiroTitulos')) {
+    $('btnGenerarNotaRetiroTitulos').addEventListener('click', function () {
+      abrirModalNotaRetiroTitulos(estado.curso ? estado.curso.id : '');
+    });
   }
   if ($('btnAprobarTodosSol')) {
     $('btnAprobarTodosSol').addEventListener('click', function () {
@@ -1481,11 +1496,14 @@ function _renderPlanillaNominaHTML(nomina, opcionesExtra) {
           '<td style="text-align:center;width:48px">' + esc(f.orden) + '</td>' +
           '<td class="col-nombre-est">' + esc(f.apellidoNombres) + '</td>' +
           '<td style="text-align:center;width:95px">' + esc(f.documento) + '</td>' +
+          '<td style="text-align:center;width:165px;font-weight:700">' + esc(f.numeroCertificado || '—') + '</td>' +
           '<td style="text-align:center;width:90px">' + esc(f.fecha || '—') + '</td>' +
           '<td>' + esc(f.observaciones || '—') + '</td>' +
         '</tr>';
       }).join('')
-    : '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--suave)">No hay estudiantes para el filtro seleccionado.</td></tr>';
+    : '<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--suave)">No hay estudiantes para el filtro seleccionado.</td></tr>';
+
+  var idCursoNominaRef = (estado.curso && estado.curso.id) ? estado.curso.id : ((filas[0] && filas[0].idCurso) ? filas[0].idCurso : '');
 
   return (opcionesExtra || '') +
     '<div class="acciones no-imprimir" style="justify-content:space-between;flex-wrap:wrap">' +
@@ -1495,7 +1513,10 @@ function _renderPlanillaNominaHTML(nomina, opcionesExtra) {
         '<button type="button" class="boton ' + (filtroActual === 'pendientes' ? '' : 'suave') + '" data-nomina-filtro="pendientes">Pendientes (' + (tot.pendientes || 0) + ')</button>' +
         '<button type="button" class="boton ' + (filtroActual === 'todos' ? '' : 'suave') + '" data-nomina-filtro="todos">Todos (' + (tot.todos || 0) + ')</button>' +
       '</div>' +
-      '<button type="button" class="boton" id="btnImprimirNomina" style="background:#1F4E78">🖨️ Imprimir Nómina</button>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        (idCursoNominaRef ? '<button type="button" class="boton" style="background:#0a8fd5;color:#fff" onclick="abrirModalNotaRetiroTitulos(' + escJsArg(idCursoNominaRef) + ')">📋 Nota de Entrega / Retiro de Certificados (Títulos)</button>' : '') +
+        '<button type="button" class="boton" id="btnImprimirNomina" style="background:#1F4E78">🖨️ Imprimir Nómina</button>' +
+      '</div>' +
     '</div>' +
     '<div class="planilla-nomina" id="hojaNominaImpresion">' +
       '<div style="text-align:center;margin-bottom:8px">' +
@@ -1526,14 +1547,32 @@ function _renderPlanillaNominaHTML(nomina, opcionesExtra) {
       '</table>' +
       '<table class="tabla-nomina">' +
         '<thead><tr>' +
-          '<th style="width:52px">Orden</th>' +
+          '<th style="width:48px">Orden</th>' +
           '<th class="col-nombre-est">Apellido y Nombres</th>' +
-          '<th style="width:100px">DNI</th>' +
-          '<th style="width:95px">Fecha</th>' +
+          '<th style="width:95px">DNI</th>' +
+          '<th style="width:165px">N° Único de Certificado</th>' +
+          '<th style="width:90px">Fecha</th>' +
           '<th>Observaciones</th>' +
         '</tr></thead>' +
         '<tbody>' + filasHtml + '</tbody>' +
       '</table>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;margin-top:34px;text-align:center;font-size:11.5px;align-items:end;color:#000">' +
+        '<div>' +
+          '<div style="border-top:1px solid #000;width:210px;margin:0 auto 4px"></div>' +
+          '<b>Entrega por Dirección de Títulos</b><br>' +
+          '<span>Firma, Aclaración y Sello</span>' +
+        '</div>' +
+        '<div>' +
+          '<div style="border-top:1px solid #000;width:230px;margin:0 auto 4px"></div>' +
+          '<b>Recibe Director/a o Administrativo/a</b><br>' +
+          '<span>Firma, Aclaración, DNI y Cargo · ' + esc(enc.establecimiento || 'Escuela') + '</span>' +
+        '</div>' +
+        '<div>' +
+          '<div style="border-top:1px dashed #000;width:190px;margin:0 auto 4px"></div>' +
+          '<b>Sello y Fecha de Retiro</b><br>' +
+          '<span>Fecha: ....../....../202....</span>' +
+        '</div>' +
+      '</div>' +
     '</div>';
 }
 
@@ -1855,6 +1894,195 @@ function abrirModalNotaElevacionTitulos() {
     win.document.write(
       '<!DOCTYPE html><html lang="es-AR"><head><meta charset="utf-8"><title>Nota de Elevación · ' + esc(establecimiento) + '</title>' +
       '<style>@page{size:A4 portrait;margin:14mm 16mm}body{margin:0;color:#000;background:#fff;font-family:"Times New Roman",Georgia,serif}</style>' +
+      '</head><body>' + hoja.innerHTML + '</body></html>'
+    );
+    win.document.close();
+    win.focus();
+    setTimeout(function () { win.print(); }, 250);
+  });
+}
+
+async function abrirModalNotaRetiroTitulos(idCursoParam) {
+  cerrarModal();
+  var cursosDisp = estado.cursos || [];
+  var idCursoSel = idCursoParam || (estado.curso && estado.curso.id) || (cursosDisp[0] && cursosDisp[0].id) || '';
+  if (!idCursoSel) {
+    avisar('No hay ningún espacio curricular / curso disponible para generar la Nota de Retiro.', 'error');
+    return;
+  }
+
+  avisar('Generando Nota de Entrega y Retiro de Certificados Firmados…');
+  var datosCurso = (estado.curso && estado.curso.id === idCursoSel && estado.datos) ? estado.datos : null;
+  if (!datosCurso) {
+    try {
+      var rCurso = await llamar('/api/curso/' + encodeURIComponent(idCursoSel));
+      datosCurso = rCurso.datos;
+    } catch (e) {
+      problema(e);
+      return;
+    }
+  }
+
+  var enc = datosCurso.encabezado || {};
+  var cResumen = cursosDisp.find(function (c) { return c.id === idCursoSel; }) || estado.curso || {};
+  var establecimiento = enc.establecimiento || cResumen.institucion || 'Escuela Profesional';
+  var cue = enc.cue || cResumen.cue || '3800006';
+  var domicilio = enc.domicilio || 'S/D';
+  var localidad = enc.localidad || 'San Salvador de Jujuy';
+  var oferta = enc.oferta || cResumen.oferta || 'Formación Profesional';
+  var ciclo = enc.ciclo || cResumen.ciclo || String(new Date().getFullYear());
+  var turno = enc.turno || cResumen.turno || '—';
+  var division = enc.division || cResumen.division || '"U"';
+  var norma = enc.normaAprobacion || enc.disenio || 'Res. Ministerial';
+
+  var meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var hoy = new Date();
+  var fechaLarga = 'San Salvador de Jujuy, ' + hoy.getDate() + ' de ' + meses[hoy.getMonth()] + ' de ' + hoy.getFullYear();
+
+  var egresadosLista = (datosCurso.estudiantes || []).filter(function (es) {
+    return _estadoAcademicoEstudiante(es) === 'APROBADO';
+  });
+
+  var anioActual = String(hoy.getFullYear());
+  var cue9 = String(cue).replace(/\D/g, '') || '380000600';
+  if (cue9.length === 7) cue9 = cue9 + '00';
+
+  var filasTabla = egresadosLista.length
+    ? egresadosLista.map(function (es, idx) {
+        var sol = es.solicitudCertificado || {};
+        var nroCert = sol.numeroCertificado || (anioActual + '-' + cue9 + '-' + String(idx + 1).padStart(5, '0'));
+        var caracter = sol.esDuplicado ? (sol.etiquetaEjemplar || 'DUPLICADO') : 'ORIGINAL';
+        var libFol = 'L° ' + (es.libroActa || enc.libro || '1') + ' / F° ' + (es.folio || enc.folio || '1');
+        return '<tr>' +
+          '<td style="text-align:center;border:1px solid #000;padding:5px">' + (idx + 1) + '</td>' +
+          '<td style="border:1px solid #000;padding:5px"><b>' + esc(es.apellido) + ', ' + esc(es.nombres) + '</b></td>' +
+          '<td style="text-align:center;border:1px solid #000;padding:5px">' + esc(es.documento) + '</td>' +
+          '<td style="text-align:center;border:1px solid #000;padding:5px;font-weight:700">' + esc(nroCert) + '</td>' +
+          '<td style="text-align:center;border:1px solid #000;padding:5px;font-weight:700">' + esc(caracter) + '</td>' +
+          '<td style="text-align:center;border:1px solid #000;padding:5px">' + esc(libFol) + '</td>' +
+        '</tr>';
+      }).join('')
+    : '<tr><td colspan="6" style="text-align:center;border:1px solid #000;padding:10px">No hay egresados aprobados registrados en este espacio curricular.</td></tr>';
+
+  var opcionesCursosModal = cursosDisp.map(function (c) {
+    return '<option value="' + esc(c.id) + '"' + (c.id === idCursoSel ? ' selected' : '') + '>' +
+      esc(c.institucion || ('CUE ' + c.cue)) + ' · ' + esc(c.oferta) + ' (' + esc(c.ciclo) + ' · ' + esc(c.division || '') + ')' +
+    '</option>';
+  }).join('');
+
+  var modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.id = 'modalActivo';
+  modal.innerHTML =
+    '<div class="modal-caja" style="max-width:880px;max-height:90vh;overflow:auto">' +
+      '<div class="no-imprimir" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;border-bottom:1px solid var(--borde);padding-bottom:10px">' +
+        '<div>' +
+          '<h2 style="margin:0">📋 Nota de Dirección de Títulos para Retiro de Certificados (Cartones Firmados)</h2>' +
+          '<div style="font-size:12px;color:var(--suave)">Emitida por Dirección de Títulos por Espacio Curricular con Nombre Completo, DNI y N° Único de Certificado de cada alumno.</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+          (cursosDisp.length > 1 ? '<select id="selCursoNotaRetiro" style="max-width:280px;font-size:12px">' + opcionesCursosModal + '</select>' : '') +
+          '<button type="button" class="boton" style="background:#0a8fd5;color:#fff" id="btnImprimirNotaRetiro">🖨️ Imprimir Nota de Retiro (A4)</button>' +
+          '<button type="button" class="boton suave" onclick="cerrarModal()">Cerrar ✕</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<div id="hojaNotaRetiroImpresion" style="background:#fff;color:#000;padding:24px 30px;border:1px solid #ccc;font-family:\'Times New Roman\',Georgia,serif;font-size:13.5px;line-height:1.52">' +
+        '<div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:14px">' +
+          '<div style="font-size:14px;font-weight:700;letter-spacing:0.4px">MINISTERIO DE EDUCACIÓN · PROVINCIA DE JUJUY</div>' +
+          '<div style="font-size:13px;font-weight:700">SECRETARÍA DE GESTIÓN EDUCATIVA · DIRECCIÓN DE TÍTULOS</div>' +
+          '<div style="font-size:12.5px;font-weight:700;margin-top:2px">DIRECCIÓN DE EDUCACIÓN TÉCNICO PROFESIONAL (DETP)</div>' +
+        '</div>' +
+
+        '<div style="text-align:right;margin-bottom:12px"><b>' + esc(fechaLarga) + '</b></div>' +
+
+        '<div style="text-align:center;font-size:14px;font-weight:700;text-decoration:underline;margin:10px 0 14px">' +
+          'NOTA / ACTA DE ENTREGA Y RETIRO DE CERTIFICADOS (CARTONES) FIRMADOS POR ESPACIO CURRICULAR' +
+        '</div>' +
+
+        '<table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12.5px;color:#000">' +
+          '<tr>' +
+            '<td style="border:1px solid #000;padding:5px 8px;width:50%"><b>Establecimiento:</b> ' + esc(establecimiento) + ' (CUE ' + esc(cue) + ')</td>' +
+            '<td style="border:1px solid #000;padding:5px 8px;width:50%"><b>Domicilio / Localidad:</b> ' + esc(domicilio) + ' · ' + esc(localidad) + '</td>' +
+          '</tr>' +
+          '<tr>' +
+            '<td style="border:1px solid #000;padding:5px 8px"><b>Espacio Curricular / Oferta:</b> ' + esc(oferta) + '</td>' +
+            '<td style="border:1px solid #000;padding:5px 8px"><b>Turno / División / Ciclo:</b> ' + esc(turno) + ' · Div. ' + esc(division) + ' · Ciclo ' + esc(ciclo) + '</td>' +
+          '</tr>' +
+          '<tr>' +
+            '<td colspan="2" style="border:1px solid #000;padding:5px 8px"><b>Norma Jurisdiccional de Aprobación N°:</b> ' + esc(norma) + '</td>' +
+          '</tr>' +
+        '</table>' +
+
+        '<p style="text-align:justify;text-indent:24px;margin:10px 0">' +
+          'La <b>Dirección de Títulos del Ministerio de Educación de la Provincia de Jujuy</b> informa y deja constancia por la presente de que los certificados oficiales (cartones) correspondientes al Espacio Curricular / Oferta Formativa <b>' + esc(oferta) + '</b> (Ciclo Lectivo <b>' + esc(ciclo) + '</b>) del establecimiento educativo <b>' + esc(establecimiento) + '</b> (CUE N° <b>' + esc(cue) + '</b>) ya han sido intervenidos y firmados por la Directora de Títulos, <b>REINOSO TORRES, Tatiana Marisel</b>, encontrándose en condiciones de ser retirados en su totalidad.' +
+        '</p>' +
+
+        '<p style="text-align:justify;text-indent:24px;margin:8px 0">' +
+          'En este acto se hace entrega de un total de <b>' + egresadosLista.length + '</b> certificado(s) oficial(es) firmado(s), conforme a la siguiente nómina que detalla <b>Apellido y Nombres Completo</b>, <b>DNI</b> y <b>Número Único de Certificado</b> de cada alumno:' +
+        '</p>' +
+
+        '<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;color:#000">' +
+          '<thead>' +
+            '<tr style="background:#f1f5f9">' +
+              '<th style="border:1px solid #000;padding:6px;width:36px;text-align:center">N°</th>' +
+              '<th style="border:1px solid #000;padding:6px;text-align:left">Apellido y Nombres Completo del Alumno</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:85px;text-align:center">DNI</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:165px;text-align:center">N° Único de Certificado</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:85px;text-align:center">Ejemplar</th>' +
+              '<th style="border:1px solid #000;padding:6px;width:90px;text-align:center">Libro / Folio</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' + filasTabla + '</tbody>' +
+        '</table>' +
+
+        '<p style="text-align:justify;margin:10px 0;font-size:12.5px">' +
+          'Firman al pie de conformidad quien realiza la <b>Entrega por parte de la Dirección de Títulos</b> y el <b>Director/a o Administrativo/a del Establecimiento que Recibe</b> los certificados detallados precedentemente.' +
+        '</p>' +
+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:44px;text-align:center;align-items:end">' +
+          '<div style="border:1px solid #000;padding:38px 12px 10px;border-radius:4px">' +
+            '<div style="border-top:1px solid #000;width:230px;margin:0 auto 5px"></div>' +
+            '<b>ENTREGA POR DIRECCIÓN DE TÍTULOS</b><br>' +
+            '<span style="font-size:11.5px">Firma, Aclaración y Sello de quien Entrega</span><br>' +
+            '<span style="font-size:11px">Dirección de Títulos · Ministerio de Educación</span>' +
+          '</div>' +
+          '<div style="border:1px solid #000;padding:24px 12px 10px;border-radius:4px">' +
+            '<div style="font-size:11px;text-align:left;margin-bottom:18px;padding:0 10px">' +
+              'Carácter de quien retira: &nbsp; [ &nbsp; ] <b>Director/a</b> &nbsp;&nbsp;&nbsp; [ &nbsp; ] <b>Administrativo/a</b><br>' +
+              'Aclaración: ................................................... DNI: ...........................' +
+            '</div>' +
+            '<div style="border-top:1px solid #000;width:230px;margin:0 auto 5px"></div>' +
+            '<b>RECIBE CONFORME POR EL ESTABLECIMIENTO</b><br>' +
+            '<span style="font-size:11.5px">Firma y Sello · ' + esc(establecimiento) + ' (CUE ' + esc(cue) + ')</span>' +
+          '</div>' +
+        '</div>' +
+
+        '<div style="margin-top:16px;text-align:center;font-size:11.5px;border-top:1px dashed #000;padding-top:8px">' +
+          '<b>Fecha Efectiva de Retiro de Cartones:</b> ......../......../202.... &nbsp;&nbsp;·&nbsp;&nbsp; <b>Hora:</b> ........:........ hs &nbsp;&nbsp;·&nbsp;&nbsp; <b>Total Cartones Entregados:</b> ' + egresadosLista.length +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(modal);
+
+  if ($('selCursoNotaRetiro')) {
+    $('selCursoNotaRetiro').addEventListener('change', function () {
+      abrirModalNotaRetiroTitulos($('selCursoNotaRetiro').value);
+    });
+  }
+
+  $('btnImprimirNotaRetiro').addEventListener('click', function () {
+    var hoja = $('hojaNotaRetiroImpresion');
+    if (!hoja) return;
+    var win = window.open('', '_blank', 'width=900,height=950');
+    if (!win) {
+      window.print();
+      return;
+    }
+    win.document.write(
+      '<!DOCTYPE html><html lang="es-AR"><head><meta charset="utf-8"><title>Nota de Retiro de Certificados · ' + esc(oferta) + '</title>' +
+      '<style>@page{size:A4 portrait;margin:12mm 14mm}body{margin:0;color:#000;background:#fff;font-family:"Times New Roman",Georgia,serif}</style>' +
       '</head><body>' + hoja.innerHTML + '</body></html>'
     );
     win.document.close();
@@ -2248,6 +2476,9 @@ async function verBandejaTitulos() {
       var verRacBtn = (puedeVerRacBandeja && s.idCurso)
         ? ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="abrirCurso(' + escJsArg(s.idCurso) + ', \'notas\')">Ver RAC</button>'
         : '';
+      var notaRetiroFilaBtn = s.idCurso
+        ? ' <button class="boton suave" style="padding:4px 8px;font-size:12px;border-color:#0a8fd5;color:#0a8fd5" title="Generar Nota de Títulos para Retiro de Cartones Firmados de este Espacio Curricular" onclick="abrirModalNotaRetiroTitulos(' + escJsArg(s.idCurso) + ')">📋 Nota Retiro</button>'
+        : '';
       var histCount = (s.historial && s.historial.length) ? s.historial.length : 1;
       var verHistBtn = ' <button class="boton suave" style="padding:4px 8px;font-size:12px" title="Ver historial de quién solicitó, observó o aprobó" onclick="verHistorialSolicitudBandeja(' + escJsArg(s.id) + ')">🕒 Historial (' + histCount + ')</button>';
 
@@ -2261,6 +2492,7 @@ async function verBandejaTitulos() {
         '<td style="text-align:center;white-space:nowrap">' +
           accionesHtml +
           verRacBtn +
+          notaRetiroFilaBtn +
           verHistBtn +
           ' <button class="boton suave" style="padding:4px 8px;font-size:12px" onclick="inspeccionarAnaliticoModal(' + escJsArg(s.idCurso) + ', ' + escJsArg(s.documento) + ')">Ver Analítico</button>' +
         '</td>' +
@@ -2275,6 +2507,7 @@ async function verBandejaTitulos() {
         (puedeVerRacBandeja ? '<button class="boton" id="btnVerCursosRac" style="background:#1F4E78">📚 Ver Cursos y RAC</button>' : '') +
         '<button class="boton" id="btnDashboardTitulos" style="background:#1F4E78">📊 Dashboard de Estadísticas</button>' +
         '<button class="boton suave" id="btnNominaTitulos">📋 Nómina de Egresados</button>' +
+        '<button class="boton" id="btnNotaRetiroBandeja" style="background:#0a8fd5;color:#fff">📋 Nota de Entrega / Retiro por Espacio Curricular</button>' +
       '</div>' +
 
       '<div style="display:flex;gap:12px;margin:16px 0;flex-wrap:wrap">' +
@@ -2304,6 +2537,7 @@ async function verBandejaTitulos() {
     if ($('btnVerCursosRac')) $('btnVerCursosRac').addEventListener('click', verCursos);
     if ($('btnNominaTitulos')) $('btnNominaTitulos').addEventListener('click', function () { verNominaEscuela(); });
     if ($('btnDashboardTitulos')) $('btnDashboardTitulos').addEventListener('click', verResumen);
+    if ($('btnNotaRetiroBandeja')) $('btnNotaRetiroBandeja').addEventListener('click', function () { abrirModalNotaRetiroTitulos(''); });
 
     $('f_pen').addEventListener('click', function () { estado.filtroBandeja = 'Pendiente'; try { localStorage.setItem('lm_filtro_bandeja', 'Pendiente'); } catch (e) {} verBandejaTitulos(); });
     $('f_obs').addEventListener('click', function () { estado.filtroBandeja = 'Observado'; try { localStorage.setItem('lm_filtro_bandeja', 'Observado'); } catch (e) {} verBandejaTitulos(); });
