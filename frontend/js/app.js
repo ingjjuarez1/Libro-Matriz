@@ -1344,7 +1344,7 @@ function pintarSolicitudesCurso() {
     else if (st === 'Aprobado') badgeClass = 'badge-aprobado';
 
     var nombreEst = (es.apellido || '') + ', ' + (es.nombres || '');
-    var puedePedirDuplicado = Boolean(estado.sesion && estado.sesion.puedeCargar);
+    var puedePedirDuplicado = Boolean(estado.sesion && (estado.sesion.puedeCargar || estado.sesion.puedeAprobarTitulos || estado.sesion.verTodo));
     var accionHtml = '';
     if (!aprobo) {
       if (condAcadSol === 'DESAPROBADO') {
@@ -1355,7 +1355,7 @@ function pintarSolicitudesCurso() {
     } else if (st === 'Aprobado') {
       accionHtml = '<span class="badge-estado badge-aprobado" title="Certificado N° ' + esc(sol.numeroCertificado || '') + '">APROBADO</span>';
       if (puedePedirDuplicado) {
-        accionHtml += ' <button type="button" class="boton suave" style="padding:3px 8px;font-size:11px;margin-left:4px" title="Iniciar pedido de Certificado Duplicado a Dirección de Títulos" onclick="abrirModalSolicitarDuplicado(' + escJsArg(es.documento) + ', ' + escJsArg(nombreEst) + ', ' + escJsArg(sol.numeroCertificado || '') + ')">📄 Solicitar Duplicado</button>';
+        accionHtml += ' <button type="button" class="boton" style="padding:4px 10px;font-size:11.5px;margin-left:6px;background:#0a8fd5;color:#fff" title="Iniciar pedido de Certificado Duplicado a Dirección de Títulos" onclick="abrirModalSolicitarDuplicado(' + escJsArg(es.documento) + ', ' + escJsArg(nombreEst) + ', ' + escJsArg(sol.numeroCertificado || '') + ')">📄 Solicitar Duplicado</button>';
       }
     } else if (esTitulos) {
       cantElegiblesPend++;
@@ -1450,11 +1450,22 @@ function pintarSolicitudesCurso() {
       '</div>'
     : '';
 
+  var puedePedirDupBarra = Boolean(estado.sesion && (estado.sesion.puedeCargar || estado.sesion.puedeAprobarTitulos || estado.sesion.verTodo));
+  var barraDuplicadoCursoHtml = puedePedirDupBarra
+    ? '<div class="acciones no-imprimir" style="background:#ffffff;padding:12px 16px;border:1px solid var(--borde);border-radius:8px;justify-content:space-between">' +
+        '<span style="color:#112a46;font-size:12.5px">📄 <b>Pedido de Certificado Duplicado:</b> El Administrativo inicia el pedido de un nuevo duplicado hacia Dirección de Títulos, quien chequea, autoriza y genera un <b>Nuevo Título con un Nuevo Número único (AÑO-CUE-SIGUIENTE_NÚMERO)</b>.</span>' +
+        '<button type="button" class="boton" style="background:#0a8fd5;color:#ffffff;white-space:nowrap" id="btnPedirDuplicadoCurso">' +
+          '📄 Solicitar Certificado Duplicado' +
+        '</button>' +
+      '</div>'
+    : '';
+
   $('panel').innerHTML =
     '<div class="ficha">' +
       '<dt>Regla de certificación:</dt>' +
       '<dd>Solo pueden recibir certificado oficial los alumnos académicamente aprobados (<b>"Aprobó"</b> y nota final ≥ 7). Quienes no aprobaron no tienen la opción habilitada.</dd>' +
     '</div>' +
+    barraDuplicadoCursoHtml +
     barraNotaElevacionHtml +
     barraNotaRetiroTitulosHtml +
     barraTitulosHtml +
@@ -1464,6 +1475,9 @@ function pintarSolicitudesCurso() {
       '<th style="width:140px">N° Certificado</th><th style="width:260px">Acción</th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table></div>';
 
+  if ($('btnPedirDuplicadoCurso')) {
+    $('btnPedirDuplicadoCurso').addEventListener('click', abrirSelectorDuplicadoCurso);
+  }
   if ($('btnGenerarNotaElevacion')) {
     $('btnGenerarNotaElevacion').addEventListener('click', abrirModalNotaElevacionTitulos);
   }
@@ -1705,6 +1719,56 @@ async function solicitarCertificadoEstudiante(doc) {
   } catch (e) {
     problema(e);
   }
+}
+
+function abrirSelectorDuplicadoCurso() {
+  cerrarModal();
+  if (!estado.datos || !estado.datos.estudiantes) return;
+  var conCertAprobado = (estado.datos.estudiantes || []).filter(function (es) {
+    return es.solicitudCertificado && es.solicitudCertificado.estado === 'Aprobado';
+  });
+  if (!conCertAprobado.length) {
+    avisar('Para solicitar un Certificado Duplicado, el estudiante debe contar primero con su Certificado Original Aprobado por Dirección de Títulos.', 'error');
+    return;
+  }
+  if (conCertAprobado.length === 1) {
+    var u = conCertAprobado[0];
+    abrirModalSolicitarDuplicado(u.documento, (u.apellido || '') + ', ' + (u.nombres || ''), (u.solicitudCertificado && u.solicitudCertificado.numeroCertificado) || '');
+    return;
+  }
+  var ops = conCertAprobado.map(function (es) {
+    var nro = (es.solicitudCertificado && es.solicitudCertificado.numeroCertificado) || '—';
+    return '<option value="' + esc(es.documento) + '">' + esc(es.apellido) + ', ' + esc(es.nombres) + ' (DNI ' + esc(es.documento) + ' · Cert. N° ' + esc(nro) + ')</option>';
+  }).join('');
+
+  var modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.id = 'modalActivo';
+  modal.innerHTML =
+    '<div class="modal-caja">' +
+      '<h2>📄 Solicitar Certificado Duplicado</h2>' +
+      '<p style="font-size:12.5px;color:var(--suave)">Seleccioná al egresado con certificado emitido para iniciar el pedido de Duplicado ante la Dirección de Títulos:</p>' +
+      '<label style="display:block;margin:12px 0">' +
+        '<b>Egresado con Certificado Aprobado:</b>' +
+        '<select id="m_selEstDuplicado" style="width:100%;margin-top:6px">' + ops + '</select>' +
+      '</label>' +
+      '<div class="acciones" style="justify-content:flex-end">' +
+        '<button class="boton suave" onclick="cerrarModal()">Cancelar</button>' +
+        '<button class="boton" style="background:#0a8fd5;color:#fff" id="btnContinuarSelDuplicado">Continuar →</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+
+  $('btnContinuarSelDuplicado').addEventListener('click', function () {
+    var docSel = $('m_selEstDuplicado').value;
+    var esObj = conCertAprobado.find(function (x) { return String(x.documento) === String(docSel); });
+    if (!esObj) return;
+    abrirModalSolicitarDuplicado(
+      esObj.documento,
+      (esObj.apellido || '') + ', ' + (esObj.nombres || ''),
+      (esObj.solicitudCertificado && esObj.solicitudCertificado.numeroCertificado) || ''
+    );
+  });
 }
 
 function abrirModalSolicitarDuplicado(doc, nombre, nroCertActual) {
@@ -2111,6 +2175,7 @@ function pintarAnalitico() {
       '<label style="display:flex;align-items:center;gap:6px">Emisión: <input type="date" id="fecha"></label>' +
       '<button class="boton" id="generar" style="background:#1F4E78">Ver el certificado</button>' +
       '<button class="boton suave" id="imprimir" disabled style="opacity:0.5;cursor:not-allowed">Imprimir</button>' +
+      '<button type="button" class="boton" style="background:#0a8fd5;color:#fff" onclick="abrirSelectorDuplicadoCurso()" title="Iniciar pedido de Certificado Duplicado a Dirección de Títulos">📄 Solicitar Duplicado</button>' +
       '<button type="button" class="boton" style="background:#0a8fd5;color:#fff" onclick="abrirModalNotaElevacionTitulos()" title="Generar Nota de Elevación cuando todos los egresados del espacio estén en condiciones de imprimir el certificado">📝 Nota de Elevación (Firma Director/a)</button>' +
     '</div>' +
     '<div id="bannerEstadoAnalitico"></div>' +

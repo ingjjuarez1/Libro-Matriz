@@ -90,6 +90,46 @@ _SOLICITUDES_CACHE: Dict[str, Dict[str, Any]] = {
                 "detalle": "El documento adjunto en legajo no coincide con la fecha de nacimiento indicada en el RAC. Verificar y corregir antes de emitir certificado."
             }
         ]
+    },
+    "sol-39876543": {
+        "id": "sol-39876543",
+        "idCurso": "curso-peluquero-ep6-demo",
+        "cue": "3800006",
+        "institucion": "Escuela Profesional Nº 6",
+        "oferta": "Peluquero",
+        "ciclo": "2026",
+        "documento": "39876543",
+        "estudiante": "BENITEZ, Carlos Javier",
+        "calificacionDefinitiva": "8.00",
+        "fechaSolicitud": "25/10/2026 11:00:00",
+        "estado": EstadoCertificado.APROBADO,
+        "motivoObservacion": "",
+        "numeroCertificado": "2026-380000600-00001",
+        "fechaAprobacion": "26/10/2026",
+        "fechaHoraAprobacion": "26/10/2026 14:15:00",
+        "aprobadoPor": "Dirección de Títulos",
+        "aprobadoEmail": "titulos@jujuy.edu.ar",
+        "aprobadoRol": "titulos",
+        "usuarioSolicitante": "admin.ep6@jujuy.edu.ar",
+        "solicitadoPorNombre": "Administrativo EP Nº 6",
+        "historial": [
+            {
+                "fecha": "25/10/2026 11:00:00",
+                "accion": "Solicitud enviada a Títulos",
+                "usuario": "Administrativo EP Nº 6",
+                "email": "admin.ep6@jujuy.edu.ar",
+                "rol": "Administrativo",
+                "detalle": "Solicitud de certificado oficial ingresada en bandeja."
+            },
+            {
+                "fecha": "26/10/2026 14:15:00",
+                "accion": "Aprobado y Emitido",
+                "usuario": "Dirección de Títulos",
+                "email": "titulos@jujuy.edu.ar",
+                "rol": "titulos",
+                "detalle": "Certificado Nº 2026-380000600-00001 aprobado y habilitado con código QR."
+            }
+        ]
     }
 }
 
@@ -191,6 +231,12 @@ def _cargar_solicitudes_disco() -> None:
             if isinstance(data, dict):
                 sols = data.get("solicitudes")
                 if isinstance(sols, dict):
+                    for k_ini, v_ini in list(_SOLICITUDES_CACHE.items()):
+                        if k_ini not in sols and not any(
+                            s.get("idCurso") == v_ini.get("idCurso") and str(s.get("documento")) == str(v_ini.get("documento"))
+                            for s in sols.values()
+                        ):
+                            sols[k_ini] = v_ini
                     _SOLICITUDES_CACHE.clear()
                     _SOLICITUDES_CACHE.update(sols)
                 corrs = data.get("correlativos")
